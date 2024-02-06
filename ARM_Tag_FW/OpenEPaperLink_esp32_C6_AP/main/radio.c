@@ -24,11 +24,21 @@
 #include <stdarg.h>
 #include <string.h>
 
+
 static const char *TAG = "RADIO";
 
 uint8_t mSelfMac[8];
 volatile uint8_t isInTransmit = 0;
 QueueHandle_t packet_buffer = NULL;
+
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+bool gSubGigPort = false;
+
+void SubGig_radio_init(uint8_t ch);
+bool SubGig_radioTx(uint8_t *packet);
+void SubGig_radioSetChannel(uint8_t ch);
+int8_t SubGig_commsRxUnencrypted(uint8_t *data);
+#endif
 
 void esp_ieee802154_receive_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info) {
     ESP_EARLY_LOGI(TAG, "RX %d", frame[0]);
@@ -50,6 +60,9 @@ void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_
 }
 
 void radio_init(uint8_t ch) {
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+   SubGig_radio_init(ch);
+#endif
     if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, 130);
 
     // this will trigger a "IEEE802154 MAC sleep init failed" when called a second time, but it works
@@ -92,7 +105,13 @@ void radio_init(uint8_t ch) {
 // uint32_t lastZbTx = 0;
 bool radioTx(uint8_t *packet) {
     static uint8_t txPKT[130];
+
     led_flash(1);
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    if(gSubGigPort) {
+       return SubGig_radioTx(packet);
+    }
+#endif
 	while (isInTransmit) {
 	}
 	// while (getMillis() - lastZbTx < 6) {
@@ -106,15 +125,28 @@ bool radioTx(uint8_t *packet) {
 
 void radioSetChannel(uint8_t ch) {
     radio_init(ch);
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    SubGig_radioSetChannel(ch);
+#endif
 }
 
 void radioSetTxPower(uint8_t power) {}
 
 int8_t commsRxUnencrypted(uint8_t *data) {
     static uint8_t inner_rxPKT_out[130];
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+        gSubGigPort = false;
+#endif
     if (xQueueReceive(packet_buffer, (void *)&inner_rxPKT_out, pdMS_TO_TICKS(100)) == pdTRUE) {
         memcpy(data, &inner_rxPKT_out[1], inner_rxPKT_out[0] + 1);
         return inner_rxPKT_out[0] - 2;
     }
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    int8_t Ret;
+    if((Ret = SubGig_commsRxUnencrypted(data))) {
+       gSubGigPort = true;
+       return Ret;
+    }
+#endif
     return 0;
 }

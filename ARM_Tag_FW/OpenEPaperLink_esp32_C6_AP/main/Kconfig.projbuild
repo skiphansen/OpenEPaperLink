@@ -25,4 +25,8 @@ menu "OEPL Hardware config"
     int "GPIO - UART RX"
     default 2
 
+  config OEPL_SUBGIG_SUPPORT
+    bool "Enable SubGhz Support"
+    default "n"    
+
 endmenu
