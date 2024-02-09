@@ -32,6 +32,7 @@ EEPROMDRV ?= eeprom.c
 
 SOURCES += $(EEPROMDRV)
 FLAGS += -I.
+FLAGS += -MD
 
 
 OBJS = $(patsubst %.c,%.$(OBJFILEEXT),$(SOURCES))

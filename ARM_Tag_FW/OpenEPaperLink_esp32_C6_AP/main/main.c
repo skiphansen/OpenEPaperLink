@@ -695,12 +695,18 @@ void sendPong(void *buf) {
     radioTx(radiotxbuffer);
 }
 
+char TestMsg[] = ".This is a test and only a test.";
+
 void app_main(void) {
+
+    uint32_t TestTmr = getMillis();
+
     esp_event_loop_create_default();
     
     init_nvs();
     init_led();
     init_second_uart();
+    TestMsg[0] = (char) (sizeof(TestMsg) - 2);
 
     requestedData.blockId = 0xFF;
     // clear the array with pending information
@@ -716,6 +722,13 @@ void app_main(void) {
     housekeepingTimer = getMillis();
     while (1) {
         while ((getMillis() - housekeepingTimer) < ((1000 * HOUSEKEEPING_INTERVAL) - 100)) {
+           if((getMillis() - TestTmr) > 1000) {
+               TestTmr = getMillis();
+               bool SubGig_radioTx(uint8_t *packet);
+               ESP_LOGI(TAG, "sending");
+               SubGig_radioTx((uint8_t *)TestMsg);
+               ESP_LOGI(TAG, "sent");
+           }
             int8_t ret = commsRxUnencrypted(radiorxbuffer);
             if (ret > 1) {
                 led_flash(0);
@@ -774,6 +787,7 @@ void app_main(void) {
                 }
             }
         }
+        ESP_LOGI(TAG, "out of rx loop");
 
         memset(&lastTagReturn, 0, 8);
         for (uint8_t cCount = 0; cCount < MAX_PENDING_MACS; cCount++) {

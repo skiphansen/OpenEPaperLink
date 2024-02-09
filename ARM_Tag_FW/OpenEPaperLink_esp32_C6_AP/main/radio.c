@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include "radio.h"
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -32,9 +33,10 @@ volatile uint8_t isInTransmit = 0;
 QueueHandle_t packet_buffer = NULL;
 
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-bool gSubGigPort = false;
+bool gSubGigPresent;
+bool gSubGigPacket;
 
-void SubGig_radio_init(uint8_t ch);
+bool SubGig_radio_init(uint8_t ch);
 bool SubGig_radioTx(uint8_t *packet);
 void SubGig_radioSetChannel(uint8_t ch);
 int8_t SubGig_commsRxUnencrypted(uint8_t *data);
@@ -61,7 +63,7 @@ void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_
 
 void radio_init(uint8_t ch) {
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-   SubGig_radio_init(ch);
+    gSubGigPresent = SubGig_radio_init(ch);
 #endif
     if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, 130);
 
@@ -108,7 +110,7 @@ bool radioTx(uint8_t *packet) {
 
     led_flash(1);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigPort) {
+    if(gSubGigPacket) {
        return SubGig_radioTx(packet);
     }
 #endif
@@ -126,7 +128,9 @@ bool radioTx(uint8_t *packet) {
 void radioSetChannel(uint8_t ch) {
     radio_init(ch);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    SubGig_radioSetChannel(ch);
+    if(gSubGigPresent) {
+        SubGig_radioSetChannel(ch);
+    }
 #endif
 }
 
@@ -135,18 +139,22 @@ void radioSetTxPower(uint8_t power) {}
 int8_t commsRxUnencrypted(uint8_t *data) {
     static uint8_t inner_rxPKT_out[130];
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-        gSubGigPort = false;
+    gSubGigPacket = false;
 #endif
     if (xQueueReceive(packet_buffer, (void *)&inner_rxPKT_out, pdMS_TO_TICKS(100)) == pdTRUE) {
         memcpy(data, &inner_rxPKT_out[1], inner_rxPKT_out[0] + 1);
         return inner_rxPKT_out[0] - 2;
     }
+#if 0
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    int8_t Ret;
-    if((Ret = SubGig_commsRxUnencrypted(data))) {
-       gSubGigPort = true;
-       return Ret;
+    if(gSubGigPresent) {
+        int8_t Ret = SubGig_commsRxUnencrypted(data);
+        if(Ret > 0) {
+           gSubGigPacket = true;
+           return Ret;
+        }
     }
+#endif
 #endif
     return 0;
 }
