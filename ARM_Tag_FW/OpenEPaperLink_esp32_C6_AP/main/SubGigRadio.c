@@ -2,6 +2,7 @@
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
 #include <stddef.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,7 +13,11 @@
 
 #include "radio.h"
 #include "cc1101_radio.h"
+
+void DumpHex(void *AdrIn,int Len);
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
+#define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
+#define LOG_HEX(x,y) DumpHex(x,y)
 
 
 // SPI Stuff
@@ -179,10 +184,44 @@ int8_t SubGig_commsRxUnencrypted(uint8_t *data)
 
       if(RxBytes > 0) {
          Ret = (uint8_t) RxBytes;
+         LOG("Received %d byte subgig frame:\n",RxBytes);
+         LOG_HEX(data,RxBytes);
       }
    }
 
    return Ret;
 }
+
+void DumpHex(void *AdrIn,int Len)
+{
+   unsigned char *Adr = (unsigned char *) AdrIn;
+   int i = 0;
+   int j;
+
+   while(i < Len) {
+      for(j = 0; j < 16; j++) {
+         if((i + j) == Len) {
+            break;
+         }
+         LOG_RAW("%02x ",Adr[i+j]);
+      }
+
+      LOG_RAW(" ");
+      for(j = 0; j < 16; j++) {
+         if((i + j) == Len) {
+            break;
+         }
+         if(isprint(Adr[i+j])) {
+            LOG_RAW("%c",Adr[i+j]);
+         }
+         else {
+            LOG_RAW(".");
+         }
+      }
+      i += 16;
+      LOG_RAW("\n");
+   }
+}
+
 #endif // CONFIG_OEPL_SUBGIG_SUPPORT
 

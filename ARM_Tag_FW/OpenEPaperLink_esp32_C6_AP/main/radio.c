@@ -114,15 +114,15 @@ bool radioTx(uint8_t *packet) {
        return SubGig_radioTx(packet);
     }
 #endif
-	while (isInTransmit) {
-	}
-	// while (getMillis() - lastZbTx < 6) {
-	// }
-	// lastZbTx = getMillis();
-	memcpy(txPKT, packet, packet[0]);
-	isInTransmit = 1;
-	esp_ieee802154_transmit(txPKT, false);
-	return true;
+    while (isInTransmit) {
+    }
+    // while (getMillis() - lastZbTx < 6) {
+    // }
+    // lastZbTx = getMillis();
+    memcpy(txPKT, packet, packet[0]);
+    isInTransmit = 1;
+    esp_ieee802154_transmit(txPKT, false);
+    return true;
 }
 
 void radioSetChannel(uint8_t ch) {
@@ -145,16 +145,16 @@ int8_t commsRxUnencrypted(uint8_t *data) {
         memcpy(data, &inner_rxPKT_out[1], inner_rxPKT_out[0] + 1);
         return inner_rxPKT_out[0] - 2;
     }
-#if 0
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
     if(gSubGigPresent) {
         int8_t Ret = SubGig_commsRxUnencrypted(data);
+#if 0
         if(Ret > 0) {
            gSubGigPacket = true;
            return Ret;
         }
-    }
 #endif
+    }
 #endif
     return 0;
 }
