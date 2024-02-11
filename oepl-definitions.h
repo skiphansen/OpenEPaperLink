@@ -22,6 +22,7 @@
 #define SOLUM_M2_BWR_42 0x24
 #define SOLUM_M2_BW_16  0x25
 #define SOLUM_M2_BWR_75 0x26
+#define SOLUM_M2_BW_29 0x27
 
 
 
@@ -47,12 +48,28 @@
 #define SOLUM_M3_BWY_116 0x3F
 
 // M3 Tags overflow
-#define SOLUM_M3_BWR_29_UC8151 0x40	// DEPRECATED! the UC8151 version of this M3 tag
+#define SOLUM_M3_BW_29 0x40
+#define SOLUM_M3_BWR_58 0x41
+#define SOLUM_M3_BW_58 0x42
 
 // Hanshow Nebular types
 #define HS_NEBULAR_BWY_35 0x60
 #define HS_NEBULAR_BWR_35 0x61
 #define HS_NEBULAR_BW_35 0x62
+
+// Gicisky / PICKSMART BLE Types
+#define GICI_BLE_EPD_21_BW 0xB0
+#define GICI_BLE_EPD_21_BWR 0xB1
+#define GICI_BLE_EPD_29_BW 0xB2
+#define GICI_BLE_EPD_29_BWR 0xB3
+#define GICI_BLE_EPD_29_BWR1 0xB3
+#define GICI_BLE_EPD_BW_42 0xB4
+#define GICI_BLE_EPD_BWR_42 0xB5
+#define GICI_BLE_TFT_BW_42 0xB6
+#define GICI_BLE_TFT_BWR_42 0xB7
+#define GICI_BLE_EPD_BW_74 0xB8
+#define GICI_BLE_EPD_BWR_74 0xB9
+#define GICI_BLE_UNKNOWN 0xBF
 
 // Solum types - customer data byte 16 in M3 (nRF) UICR
 #define STYPE_SIZE_016 0x40
