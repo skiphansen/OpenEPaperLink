@@ -105,12 +105,13 @@ typedef struct {
 
 extern spi_device_handle_t gSpiHndl;
 
-void CC1101_SetConfig(RfSetting *pConfig);
+void CC1101_SetConfig(const RfSetting *pConfig);
 int  CC1101_Rx(uint8_t *RxBuf,size_t RxBufLen,uint8_t *pRssi,uint8_t *pLqi);
 bool CC1101_Tx(uint8_t *TxData,size_t TxLen);
 bool CC1101_Present(void);
 bool CC1101_Present(void);
 void CC1101_DumpRegs(void);
+void CC1101_reset(void);
 
 #endif   // __CC1101_RADIO_H_
 

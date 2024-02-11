@@ -24,6 +24,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <string.h>
+#include "SubGigRadio.h"
 
 
 static const char *TAG = "RADIO";
@@ -33,13 +34,6 @@ volatile uint8_t isInTransmit = 0;
 QueueHandle_t packet_buffer = NULL;
 
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-bool gSubGigPresent;
-bool gSubGigPacket;
-
-bool SubGig_radio_init(uint8_t ch);
-bool SubGig_radioTx(uint8_t *packet);
-void SubGig_radioSetChannel(uint8_t ch);
-int8_t SubGig_commsRxUnencrypted(uint8_t *data);
 #endif
 
 void esp_ieee802154_receive_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info) {
@@ -63,7 +57,7 @@ void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_
 
 void radio_init(uint8_t ch) {
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    gSubGigPresent = SubGig_radio_init(ch);
+    SubGig_radio_init(ch);
 #endif
     if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, 130);
 
@@ -110,7 +104,7 @@ bool radioTx(uint8_t *packet) {
 
     led_flash(1);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigPacket) {
+    if(gSubGigData.Reply2SubGig) {
        return SubGig_radioTx(packet);
     }
 #endif
@@ -128,7 +122,7 @@ bool radioTx(uint8_t *packet) {
 void radioSetChannel(uint8_t ch) {
     radio_init(ch);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigPresent) {
+    if(gSubGigData.Enabled) {
         SubGig_radioSetChannel(ch);
     }
 #endif
@@ -138,22 +132,20 @@ void radioSetTxPower(uint8_t power) {}
 
 int8_t commsRxUnencrypted(uint8_t *data) {
     static uint8_t inner_rxPKT_out[130];
-#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    gSubGigPacket = false;
-#endif
+
     if (xQueueReceive(packet_buffer, (void *)&inner_rxPKT_out, pdMS_TO_TICKS(100)) == pdTRUE) {
         memcpy(data, &inner_rxPKT_out[1], inner_rxPKT_out[0] + 1);
         return inner_rxPKT_out[0] - 2;
     }
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigPresent) {
-        int8_t Ret = SubGig_commsRxUnencrypted(data);
+    if(gSubGigData.Enabled) {
+       int8_t Ret = SubGig_commsRxUnencrypted(data);
+       gSubGigData.Reply2SubGig = Ret > 0 ? true : false;
+       if(Ret > 0) {
 #if 0
-        if(Ret > 0) {
-           gSubGigPacket = true;
-           return Ret;
-        }
+          return Ret;
 #endif
+        }
     }
 #endif
     return 0;

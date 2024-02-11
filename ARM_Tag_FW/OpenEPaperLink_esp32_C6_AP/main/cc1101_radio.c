@@ -130,26 +130,28 @@ enum RFSTATE {
 #define CC1101_LQI_MASK                0x7f
 #define CC1101_CRC_OK_MASK             0x6f
 
-#define CC1101_DEFVAL_IOCFG2		      0x2E
-#define CC1101_DEFVAL_IOCFG1		      0x2E
-#define CC1101_DEFVAL_IOCFG0		      0x06
-#define CC1101_DEFVAL_FIFOTHR		      0x07
-#define CC1101_DEFVAL_RCCTRL1		      0x41
-#define CC1101_DEFVAL_RCCTRL0		      0x00
-#define CC1101_DEFVAL_AGCTEST		      0x3F
-#define CC1101_DEFVAL_MCSM1			   0x20
-#define CC1101_DEFVAL_WORCTRL		      0xFB
+#define CC1101_DEFVAL_IOCFG2           0x2E
+#define CC1101_DEFVAL_IOCFG1           0x2E
+#define CC1101_DEFVAL_IOCFG0           0x06
+#define CC1101_DEFVAL_FIFOTHR          0x07
+#define CC1101_DEFVAL_RCCTRL1          0x41
+#define CC1101_DEFVAL_RCCTRL0          0x00
+#define CC1101_DEFVAL_AGCTEST          0x3F
+#define CC1101_DEFVAL_MCSM1            0x20
+#define CC1101_DEFVAL_WORCTRL          0xFB
+#define CC1101_DEFVAL_FSCTRL0          40    // Your value may be different!
+#define CC1101_DEFVAL_PATABLE          0xc0  // full power
 
 RfSetting gFixedConfig[] = {
-	{CC1101_IOCFG2, CC1101_DEFVAL_IOCFG2},
-	{CC1101_IOCFG1, CC1101_DEFVAL_IOCFG1},
-	{CC1101_IOCFG0, CC1101_DEFVAL_IOCFG0},
-	{CC1101_FIFOTHR,CC1101_DEFVAL_FIFOTHR},
-	{CC1101_RCCTRL1, CC1101_DEFVAL_RCCTRL1},
-	{CC1101_RCCTRL0, CC1101_DEFVAL_RCCTRL0},
-	{CC1101_MCSM1,CC1101_DEFVAL_MCSM1},
-	{CC1101_WORCTRL,CC1101_DEFVAL_WORCTRL},
-	{0xff,0},
+   {CC1101_IOCFG2,CC1101_DEFVAL_IOCFG2},
+   {CC1101_IOCFG1,CC1101_DEFVAL_IOCFG1},
+   {CC1101_IOCFG0,CC1101_DEFVAL_IOCFG0},
+   {CC1101_FIFOTHR,CC1101_DEFVAL_FIFOTHR},
+   {CC1101_RCCTRL1,CC1101_DEFVAL_RCCTRL1},
+   {CC1101_RCCTRL0,CC1101_DEFVAL_RCCTRL0},
+   {CC1101_MCSM1,CC1101_DEFVAL_MCSM1},
+   {CC1101_WORCTRL,CC1101_DEFVAL_WORCTRL},
+   {0xff,0},
 };
 
 void CC1101_writeBurstReg(uint8_t regAddr,uint8_t* buffer,uint8_t len);
@@ -158,7 +160,6 @@ void CC1101_cmdStrobe(uint8_t cmd);
 void CC1101_wakeUp(void);
 uint8_t CC1101_readReg(uint8_t regAddr, uint8_t regType);
 void CC1101_writeReg(uint8_t regAddr, uint8_t value);
-void CC1101_reset(void);
 void CC1101_setRxState(void);
 void CC1101_setTxState(void);
 
@@ -234,6 +235,7 @@ const char *RegNamesCC1101[] = {
    "SFTX",     // 0x3B Flush the TX FIFO buffer.
    "SWORRST",  // 0x3C Reset real time clock.
    "SNOP",     // 0x3D No operation. May be used to pad strobe commands to two
+   "PATABLE"   // 0x3E
 };
 
 
@@ -540,41 +542,45 @@ bool CC1101_Tx(uint8_t *TxData,size_t TxLen)
 
       delayMicroseconds(500);
 
-      if(TxLen > 0) {
+      if(TxLen == 0) {
+         CC1101_setTxState();
+      }
+      else {
       // Set data length at the first position of the TX FIFO
          CC1101_writeReg(CC1101_TXFIFO,TxLen);
       // Write data into the TX FIFO
          CC1101_writeBurstReg(CC1101_TXFIFO, TxData,TxLen);
          CC1101_setTxState();
-      }
+      // Check that TX state is being entered (state = RXTX_SETTLING)
+         marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
+         if(marcState != CC1101_STATE_TX 
+            && marcState != CC1101_STATE_TX_END
+            && marcState != CC1101_STATE_RXTX_SWITCH)
+         {
+            ErrLine = __LINE__;
+            break;
+         }
 
-   // Check that TX state is being entered (state = RXTX_SETTLING)
-      marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
-      if(marcState != CC1101_STATE_TX 
-         && marcState != CC1101_STATE_TX_END
-         && marcState != CC1101_STATE_RXTX_SWITCH)
-      {
-         ErrLine = __LINE__;
-         break;
-      }
+      // Wait for the sync word to be transmitted
+         wait_GDO0_high();
 
-   // Wait for the sync word to be transmitted
-      wait_GDO0_high();
+      // Wait until the end of the TxData transmission
+         wait_GDO0_low();
 
-   // Wait until the end of the TxData transmission
-      wait_GDO0_low();
-
-   // Check that the TX FIFO is empty
-      if((readStatusReg(CC1101_TXBYTES) & 0x7F) != 0) {
-         ErrLine = __LINE__;
-         break;
+      // Check that the TX FIFO is empty
+         if((readStatusReg(CC1101_TXBYTES) & 0x7F) != 0) {
+            ErrLine = __LINE__;
+            break;
+         }
       }
       Ret = true;
    } while(false);
 
-   setIdleState();
-   flushTxFifo();
-   CC1101_setRxState();
+   if(TxLen > 0) {
+      setIdleState();
+      flushTxFifo();
+      CC1101_setRxState();
+   }
 
    if(ErrLine != 0) {
       LOG("%s#%d: failure\n",__FUNCTION__,ErrLine);
@@ -649,20 +655,22 @@ bool CC1101_Present()
    return Ret;
 }
 
-void CC1101_SetConfig(RfSetting *pConfig)
+void CC1101_SetConfig(const RfSetting *pConfig)
 {
    int i;
    uint8_t RegWasSet[CC1101_TEST0 + 1];
    uint8_t Reg;
 
    memset(RegWasSet,0,sizeof(RegWasSet));
-   CC1101_reset();
 
 // Set the fixed registers
    for(i = 0; (Reg = gFixedConfig[i].Reg) != 0xff; i++) {
       CC1101_writeReg(Reg,gFixedConfig[i].Value);
       RegWasSet[Reg] = 1;
    }
+   CC1101_writeReg(CC1101_FSCTRL0,CC1101_DEFVAL_FSCTRL0);
+// Set TX power
+   CC1101_writeReg(CC1101_PATABLE,CC1101_DEFVAL_PATABLE);
 
    while((Reg = pConfig->Reg) != 0xff) {
       if(RegWasSet[Reg] == 1) {
@@ -683,5 +691,6 @@ void CC1101_SetConfig(RfSetting *pConfig)
       }
    }
 }
+
 #endif // CONFIG_OEPL_SUBGIG_SUPPORT
 
