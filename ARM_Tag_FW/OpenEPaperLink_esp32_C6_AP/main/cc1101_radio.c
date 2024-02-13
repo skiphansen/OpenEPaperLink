@@ -35,7 +35,14 @@
 #include <driver/spi_master.h>
 #include "cc1101_radio.h"
 #include "radio.h"
+
+#define ENABLE_LOGGING  0
+
+#if ENABLE_LOGGING
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
+#else
+#define LOG(format, ... )
+#endif
 
 #include <string.h>
 
@@ -491,19 +498,21 @@ void CC1101_setTxState(void)
 
 void CC1101_DumpRegs()
 {
+#if ENABLE_LOGGING
    uint8_t regAddr;
    uint8_t value;
 
    LOG("\n");
    for(regAddr = 0; regAddr < 0x2f; regAddr++) {
       value = CC1101_readReg(regAddr,READ_SINGLE);
-      printf("%02x %s: 0x%02X\n",regAddr,RegNamesCC1101[regAddr],value);
+      LOG("%02x %s: 0x%02X\n",regAddr,RegNamesCC1101[regAddr],value);
    }
 
    for(regAddr = 0; regAddr < 0x2f; regAddr++) {
       value = CC1101_readReg(regAddr,READ_SINGLE);
-      printf("<Register><Name>%s</Name><Value>0x%02X</Value></Register>\n",RegNamesCC1101[regAddr],value);
+      LOG("<Register><Name>%s</Name><Value>0x%02X</Value></Register>\n",RegNamesCC1101[regAddr],value);
    }
+#endif
 }
 
 

@@ -16,9 +16,16 @@
 #include "SubGigRadio.h"
 
 void DumpHex(void *AdrIn,int Len);
+
+#if 0
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
 #define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
 #define LOG_HEX(x,y) DumpHex(x,y)
+#else
+#define LOG(format, ... )
+#define LOG_RAW(format, ... )
+#define LOG_HEX(x,y)
+#endif
 
 
 // SPI Stuff
