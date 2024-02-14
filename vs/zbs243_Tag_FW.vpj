@@ -1,0 +1,248 @@
+<Project
+	Version="10.0"
+	VendorName="SlickEdit"
+	TemplateName="Other C/C++"
+	WorkingDir="../OpenEPaperLink">
+	<Config
+		Name="Debug"
+		Type="cpp"
+		DebugCallbackName="gdb"
+		OutputFile="%bdesp32-walkie-talkie"
+		CompilerConfigName="Latest Version">
+		<Menu>
+			<Target
+				Name="Compile"
+				MenuCaption="&amp;Compile"
+				CaptureOutputWith="ProcessBuffer"
+				OutputExts="*.o"
+				SaveOption="SaveCurrent"
+				RunFromDir="%rw">
+				<Exec CmdLine='cc -c -g %i %defd -o "%bd%n.o" "%f"'/>
+			</Target>
+			<Target
+				Name="Link"
+				MenuCaption="&amp;Link">
+				<Exec CmdLine='cc -g -o "%o" %f %libs'/>
+			</Target>
+			<Target
+				Name="Build"
+				MenuCaption="&amp;Build"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" build "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Rebuild"
+				MenuCaption="&amp;Rebuild"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" rebuild "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Debug"
+				MenuCaption="&amp;Debug"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='vsdebugio -prog "%o"'/>
+			</Target>
+			<Target
+				Name="Execute"
+				MenuCaption="E&amp;xecute"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%o"'/>
+			</Target>
+		</Menu>
+	</Config>
+	<Config
+		Name="Release"
+		Type="cpp"
+		DebugCallbackName="gdb"
+		OutputFile="%bdesp32-walkie-talkie"
+		CompilerConfigName="Latest Version">
+		<Menu>
+			<Target
+				Name="Compile"
+				MenuCaption="&amp;Compile"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveCurrent"
+				OutputExts="*.o"
+				RunFromDir="%rw">
+				<Exec CmdLine='cc -c -O %i %defd -o "%bd%n.o" "%f"'/>
+			</Target>
+			<Target
+				Name="Link"
+				MenuCaption="&amp;Link">
+				<Exec CmdLine='cc -O -o "%o" %f %libs'/>
+			</Target>
+			<Target
+				Name="Build"
+				MenuCaption="&amp;Build"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" build "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Rebuild"
+				MenuCaption="&amp;Rebuild"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" rebuild "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Debug"
+				MenuCaption="&amp;Debug"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='vsdebugio -prog "%o"'/>
+			</Target>
+			<Target
+				Name="Execute"
+				MenuCaption="E&amp;xecute"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%o"'/>
+			</Target>
+		</Menu>
+	</Config>
+	<Rules Name="Compile">
+		<Rule
+			InputExts="*.s"
+			OutputExts="*.o"
+			LinkObject="1">
+			<Exec CmdLine='as -o "%bd%n.o" "%f"'/>
+		</Rule>
+	</Rules>
+	<Files>
+		<Folder
+			Name="Source Files"
+			Filters="*.c;*.C;*.cc;*.cpp;*.cp;*.cxx;*.c++;*.prg;*.pas;*.dpr;*.asm;*.s;*.bas;*.java;*.cs;*.sc;*.e;*.cob;*.html;*.rc;*.tcl;*.py;*.pl;*.d">
+			<F N="../zbs243_Tag_FW/barcode.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs154_ssd1619/board.c"/>
+			<F N="../zbs243_Tag_FW/board/boardZBS29common.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs154_ssd1619/screen.c"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_BW_ssd1619/board.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_BW_ssd1619/screen.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_ssd1619/board.c"/>
+			<F N="../zbs243_Tag_FW/board/boardZBS29common.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_ssd1619/screen.c"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_uc8151/board.c"/>
+			<F N="../zbs243_Tag_FW/board/boardZBS29common.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_uc8151/screen.c"/>
+			<F N="../zbs243_Tag_FW/board/uc8151.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs42_ssd1619/board.c"/>
+			<F N="../zbs243_Tag_FW/board/boardZBS29common.c"/>
+			<F N="../zbs243_Tag_FW/board/zbs42_ssd1619/screen.c"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.c"/>
+			<F N="../zbs243_Tag_FW/comms.c"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/aes.c"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/asmUtil.c"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/cpu.c"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/printf.c"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/random.c"/>
+			<F N="../zbs243_Tag_FW/drawing.c"/>
+			<F N="../zbs243_Tag_FW/eeprom.c"/>
+			<F N="../zbs243_Tag_FW/i2cdevices.c"/>
+			<F N="../zbs243_Tag_FW/main.c"/>
+			<F N="../zbs243_Tag_FW/md5.c"/>
+			<F N="../zbs243_Tag_FW/powermgt.c"/>
+			<F N="../zbs243_Tag_FW/settings.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/flash.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/i2c.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/radio.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/sleep.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/soc.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/spi.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/temperature.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/timer.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/uart.c"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/wdt.c"/>
+			<F N="../zbs243_Tag_FW/syncedproto.c"/>
+			<F N="../zbs243_Tag_FW/userinterface.c"/>
+		</Folder>
+		<Folder
+			Name="Header Files"
+			Filters="*.h;*.H;*.hh;*.hpp;*.hxx;*.inc;*.sh;*.cpy;*.if">
+			<F N="../zbs243_Tag_FW/aes.h"/>
+			<F N="../zbs243_Tag_FW/asmUtil.h"/>
+			<F N="../zbs243_Tag_FW/barcode.h"/>
+			<F N="../zbs243_Tag_FW/bitmaps.h"/>
+			<F N="../zbs243_Tag_FW/board/boardCommon.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs154_ssd1619/board.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs154_ssd1619/screen.h"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.h"/>
+			<F N="../zbs243_Tag_FW/board/boardCommon.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_BW_ssd1619/board.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_BW_ssd1619/screen.h"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.h"/>
+			<F N="../zbs243_Tag_FW/board/boardCommon.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_ssd1619/board.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_ssd1619/screen.h"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.h"/>
+			<F N="../zbs243_Tag_FW/board/boardCommon.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_uc8151/board.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs29_uc8151/screen.h"/>
+			<F N="../zbs243_Tag_FW/board/uc8151.h"/>
+			<F N="../zbs243_Tag_FW/board/boardCommon.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs42_ssd1619/board.h"/>
+			<F N="../zbs243_Tag_FW/board/zbs42_ssd1619/screen.h"/>
+			<F N="../zbs243_Tag_FW/board/ssd1619.h"/>
+			<F N="../zbs243_Tag_FW/comms.h"/>
+			<F N="../zbs243_Tag_FW/cpu/8051/cpu.h"/>
+			<F N="../zbs243_Tag_FW/drawing.h"/>
+			<F N="../zbs243_Tag_FW/eeprom.h"/>
+			<F N="../zbs243_Tag_FW/font.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/asm/mcs51/features.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/sdcc-lib.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stdarg.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stdbool.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stddef.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stdint.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stdio.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/stdlib.h"/>
+			<F N="../../dmitrygr-einkTags/sdcc/sdcc-4.2.0/share/sdcc/include/string.h"/>
+			<F N="../zbs243_Tag_FW/i2cdevices.h"/>
+			<F N="../zbs243_Tag_FW/lut.h"/>
+			<F N="../zbs243_Tag_FW/md5.h"/>
+			<F N="../oepl-definitions.h"/>
+			<F N="../oepl-proto.h"/>
+			<F N="../zbs243_Tag_FW/powermgt.h"/>
+			<F N="../zbs243_Tag_FW/printf.h"/>
+			<F N="../zbs243_Tag_FW/settings.h"/>
+			<F N="../zbs243_Tag_FW/sleep.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/flash.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/i2c.h"/>
+			<F N="../zbs243_Tag_FW/soc/radioCommon.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/radio.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/soc.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/spi.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/timer.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/uart.h"/>
+			<F N="../zbs243_Tag_FW/soc/zbs243/zbs243.h"/>
+			<F N="../zbs243_Tag_FW/syncedproto.h"/>
+			<F N="../zbs243_Tag_FW/userinterface.h"/>
+			<F N="../zbs243_Tag_FW/wdt.h"/>
+		</Folder>
+		<Folder
+			Name="Other Files"
+			Filters="">
+		</Folder>
+	</Files>
+	<Macro>
+		<ExecMacro CmdLine="tabs 1 4"/>
+	</Macro>
+</Project>
