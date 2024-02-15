@@ -30,17 +30,9 @@ else
   SOURCES += $(warning "no barcode type set")
 endif
 
-ifeq ($(RANGE_TEST),tx)
-  FLAGS += -DRANGE_TEST_TX
-  IMAGE_NAME=range_test_tx_$(BUILD)
-else ifeq ($(RANGE_TEST),rx)
-  FLAGS += -DRANGE_TEST_RX
-  IMAGE_NAME=range_test_rx_$(BUILD)
-else
-endif
-
 EEPROMDRV ?= eeprom.c
 SOURCES += $(EEPROMDRV)
+FLAGS += -DPROXY_BUILD
 FLAGS += -I. -MD
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)

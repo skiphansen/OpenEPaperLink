@@ -3,6 +3,8 @@
 
 
 #include "u1.h"
+
+#define HW_TYPE   0x80  // !!! Fix me
 	
 //colors for ui messages
 #define UI_MSG_MAGNIFY1			3

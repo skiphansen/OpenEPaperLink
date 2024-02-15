@@ -271,21 +271,13 @@ static void radioRxStopIfRunning(void)
    IRCON &= (uint8_t)~(1 << 0);     //clear global dma irq flag
 }
 
-void radioTx(const void __xdata *packet
-#ifdef  PROXY_BUILD
-             ,uint8_t len
-#endif
-)
+bool radioTx(const void __xdata *packet)
 {
    const uint8_t __xdata *src = (const uint8_t __xdata*)packet;
    
    radioRxStopIfRunning();
    
-   radioPrvSetupTxDma(packet
-#ifdef  PROXY_BUILD
-                      ,len
-#endif
-   );
+   radioPrvSetupTxDma(packet);
    RFIF = 0;
    
    RFST = 3;   //TX
@@ -295,6 +287,7 @@ void radioTx(const void __xdata *packet
    radioPrvDmaAbort();                 //abort DMA just in case
    
    radioPrvRxStartListenIfNeeded();
+   return true;
 }
 
 void DMA_ISR(void) __interrupt (8)
@@ -311,49 +304,6 @@ void DMA_ISR(void) __interrupt (8)
       
       DMAIRQ &= (uint8_t)~(1 << 0);
       len = buf[0];
-#ifndef  PROXY_BUILD
-      //verify length was proper, crc is a match 
-      if (len <= RADIO_MAX_PACKET_LEN && len >= sizeof(struct MacHeaderGenericAddr) && (buf[(uint8_t)(len + 2)] & 0x80) &&
-         !hdr->fcs.secure && !hdr->fcs.rfu1 && !hdr->fcs.rfu2 && !hdr->fcs.frameVer) {
-         
-         switch (hdr->fcs.frameType) {
-            case FRAME_TYPE_DATA:
-               switch (hdr->fcs.destAddrType) {
-                  case ADDR_MODE_SHORT:
-                     acceptPacket = (hdrSA->pan == 0xffff && hdrSA->shortDstAddr == 0xffff) || 
-                                    (hdrSA->pan == mRxFilterPan && (
-                                       hdrSA->shortDstAddr == 0xffff || (
-                                          mRxFilterAllowShortMac && hdrSA->shortDstAddr == mRxFilterShortMac
-                                       )
-                                    )
-                                 );
-                     break;
-                  
-                  case ADDR_MODE_LONG:
-                     acceptPacket = hdrLA->pan == mRxFilterPan && xMemEqual(hdrLA->longDstAddr, mRxFilterLongMac, 8);
-                     break;
-                  
-                  default:
-                     break;
-               }
-               break;
-               
-            case FRAME_TYPE_ACK:
-               mLastAckSeq = hdr->seq;
-               mHaveLastAck = true;
-               //fallthrough
-            default:
-               break;
-         }
-      }
-      
-      if (acceptPacket) {  //other checks here too plz
-   
-         if (++mRxBufNextW == RX_BUFFER_NUM)
-            mRxBufNextW = 0;
-         mRxBufNumFree--;
-      }
-#else
       //verify length was proper, crc is a match 
       if(len <= RADIO_MAX_PACKET_LEN && (buf[(uint8_t)(len + 2)] & 0x80)) {
          if (++mRxBufNextW == RX_BUFFER_NUM) {
@@ -361,12 +311,11 @@ void DMA_ISR(void) __interrupt (8)
          }
          mRxBufNumFree--;
       }
-#endif
-
       radioPrvRxStartListenIfNeeded();
    }
-   else
+   else {
       pr("dma irq unexpected\n");
+   }
    
    IRCON &= (uint8_t)~(1 << 0);
 }

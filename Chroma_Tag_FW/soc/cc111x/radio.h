@@ -8,7 +8,7 @@
 void DMA_ISR(void) __interrupt (8);
 #define RADIO_PAD_LEN_BY		0
 	
-#include "../radioCommon.h"
+#include "radioCommon.h"
 
 
 

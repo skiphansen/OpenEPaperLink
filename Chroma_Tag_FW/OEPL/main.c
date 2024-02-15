@@ -1,981 +1,779 @@
 #define __packed
-#include "proto.h"
-#include "settings.h"
-#include "asmUtil.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include <stdio.h>
-#include "drawing.h"
-#include "printf.h"
+#include <string.h>
+
+#include "asmUtil.h"
+#include "comms.h"  // for mLastLqi and mLastRSSI
 #include "eeprom.h"
-#include "screen.h"
+#include "powermgt.h"
+#include "printf.h"
+
 #include "radio.h"
-#include "sleep.h"
+#include "screen.h"
+#include "settings.h"
+#include "syncedproto.h"
 #include "timer.h"
-#include "comms.h"
-#include "board.h"
-#include "chars.h"
+#include "userinterface.h"
 #include "wdt.h"
-#include "ccm.h"
-#include "adc.h"
-#include "cpu.h"
 
+// #include "flash.h"
 
-//#define PICTURE_FRAME_FLIP_EVERY_N_CHECKINS      24    //undefine to disable picture frame mode
+// #include "uart.h"
 
-static const uint64_t __code VERSIONMARKER mVersionRom = 0x0000010200000000ull;
+#include "../../oepl-definitions.h"
+#include "../../oepl-proto.h"
 
-static uint64_t __xdata mVersion;
-static uint8_t __xdata mRxBuf[COMMS_MAX_PACKET_SZ];
-static struct Settings __xdata mSettings;
-static uint32_t __idata mTimerWaitStart;
-static uint8_t __xdata mNumImgSlots;
-static struct CommsInfo __xdata mCi;
-uint8_t __xdata mSelfMac[8];
-int8_t __xdata mCurTemperature;
+// #define DEBUG_MODE
 
+static const uint64_t __code __at(0x008b) firmwaremagic = (0xdeadd0d0beefcafeull) + HW_TYPE;
 
+#define TAG_MODE_CHANSEARCH 0
+#define TAG_MODE_ASSOCIATED 1
 
-struct EepromContentsInfo {
-   uint32_t latestCompleteImgAddr, latestInprogressImgAddr, latestCompleteImgSize;
-   uint64_t latestCompleteImgVer, latestInprogressImgVer;
-   uint8_t numValidImages, latestImgIdx;
-};
+uint8_t currentTagMode = TAG_MODE_CHANSEARCH;
 
+uint8_t __xdata slideShowCurrentImg = 0;
+uint8_t __xdata slideShowRefreshCount = 1;
 
-const char __xdata* fwVerString(void)
-{
-   static char __xdata fwVer[32];
-   
-   if (!fwVer[0]) {
-      
-      spr(fwVer, "FW v%u.%u.%*u.%*u",
-         *(((uint8_t __xdata*)&mVersion) + 5),
-         *(((uint8_t __xdata*)&mVersion) + 4),
-         (uintptr_near_t)(((uint8_t __xdata*)&mVersion) + 2),
-         (uintptr_near_t)(((uint8_t __xdata*)&mVersion) + 0)
-      );
-   }
-   
-   return fwVer;
+extern uint8_t *__idata blockp;
+extern uint8_t __xdata blockbuffer[];
+
+static bool __xdata secondLongCheckIn = false;  // send another full request if the previous was a special reason
+
+const uint8_t __code channelList[6] = {11, 15, 20, 25, 26, 27};
+
+uint8_t *rebootP;
+
+#ifdef DEBUGGUI
+void displayLoop() {
+   powerUp(INIT_BASE | INIT_UART);
+
+   pr("Splash screen\n");
+   powerUp(INIT_EPD);
+   showSplashScreen();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   pr("Update screen\n");
+   powerUp(INIT_EPD);
+   showApplyUpdate();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   wdt30s();
+
+   pr("Failed update screen\n");
+   powerUp(INIT_EPD);
+   showFailedUpdate();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+   wdt30s();
+
+   pr("AP Found\n");
+   powerUp(INIT_EPD);
+   showAPFound();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   wdt30s();
+
+   pr("AP NOT Found\n");
+   powerUp(INIT_EPD);
+   showNoAP();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   wdt30s();
+
+   pr("Longterm sleep screen\n");
+   powerUp(INIT_EPD);
+   showLongTermSleep();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   wdt30s();
+
+   pr("NO EEPROM\n");
+   powerUp(INIT_EPD);
+   showNoEEPROM();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   wdt30s();
+
+   pr("NO MAC\n");
+   powerUp(INIT_EPD);
+   showNoMAC();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+   wdtDeviceReset();
 }
 
-const char __xdata* macString(void)
-{
-   static char __xdata macStr[28];
-   
-   if (!macStr[0])
-      spr(macStr, "%M", (uintptr_near_t)mSelfMac);
-   
-   return macStr;
-}
-
-static void prvEepromIndex(struct EepromContentsInfo __xdata *eci)
-{
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata*)mScreenRow;    //use screen buffer
-   uint8_t slotId;
-   
-   xMemSet(eci, 0, sizeof(*eci));
-   
-   for (slotId = 0; slotId < mNumImgSlots; slotId++) {
-      
-      uint32_t PDATA addr = mathPrvMul32x8(EEPROM_IMG_EACH, slotId) + EEPROM_IMG_START;
-      static const uint32_t __xdata markerInProgress = EEPROM_IMG_INPROGRESS;
-      static const uint32_t __xdata markerValid = EEPROM_IMG_VALID;
-      
-      uint32_t __xdata *addrP;
-      uint64_t __xdata *verP;
-      uint32_t __xdata *szP = 0;
-      __bit isImage = false;
-      
-      eepromRead(addr, eih, sizeof(struct EepromImageHeader));
-      pr("DATA slot %u (@0x%08lx): type 0x%*08lx ver 0x%*016llx\n",
-         slotId, addr, (uintptr_near_t)&eih->validMarker, (uintptr_near_t)&eih->version);
-      
-      if (xMemEqual4(&eih->validMarker, &markerInProgress)) {
-      
-         verP = &eci->latestInprogressImgVer;
-         addrP = &eci->latestInprogressImgAddr;
-      }
-      else if (xMemEqual4(&eih->validMarker, &markerValid)) {
-         
-         eci->numValidImages++;
-         isImage = true;
-         verP = &eci->latestCompleteImgVer;
-         addrP = &eci->latestCompleteImgAddr;
-         szP = &eci->latestCompleteImgSize;
-      }
-      else
-         continue;
-      
-      if (!u64_isLt(&eih->version, verP)) {
-         u64_copy(verP, &eih->version);
-         *addrP = addr;
-         if (szP)
-            xMemCopy(szP, &eih->size, sizeof(eih->size));
-         if (isImage)
-            eci->latestImgIdx = slotId;
-      }
-   }
-}
-
-//similar to prvEepromIndex
-static void uiPrvDrawNthValidImage(uint8_t n)
-{
-   static const uint32_t __xdata markerValid = EEPROM_IMG_VALID;
-   uint8_t slotId;
-   
-   for (slotId = 0; slotId < mNumImgSlots; slotId++) {
-      
-      struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata*)mScreenRow;    //use screen buffer
-      uint32_t PDATA addr = mathPrvMul32x8(EEPROM_IMG_EACH, slotId) + EEPROM_IMG_START;
-      
-      eepromRead(addr, eih, sizeof(struct EepromImageHeader));
-      
-      if (xMemEqual4(&eih->validMarker, &markerValid)) {
-         
-         if (!n--) {
-            
-            mSettings.lastShownImgSlotIdx = slotId;
-            drawImageAtAddress(addr);
-            return;
-         }
-      }
-   }
-}
-
-static __bit showVersionAndVerifyMatch(void)
-{
-   static const __code uint64_t verMask = ~VERSION_SIGNIFICANT_MASK;
-   uint8_t i;
-   
-   u64_copyFromCode(&mVersion, &mVersionRom);
-   pr("Booting FW ver 0x%*016llx\n", (uintptr_near_t)&mVersion);
-   
-   for (i = 0; i < 8; i++) {
-      
-      if (((const uint8_t __code*)&mVersionRom)[i] & ((const uint8_t __code*)&verMask)[i]) {
-         pr("ver num @ red zone\n");
-         return false;
-      }
-   }
-   
-   pr(" -> %ls\n", (uintptr_near_t)fwVerString());
-   return true;
-}
-
-static void prvFillTagState(struct TagState __xdata *state)
-{
-   #if defined(PICTURE_FRAME_FLIP_EVERY_N_CHECKINS) && defined(HW_TYPE_CYCLING)
-      state->hwType = HW_TYPE_CYCLING;
-   #elif !defined(PICTURE_FRAME_FLIP_EVERY_N_CHECKINS) && defined(HW_TYPE_NORMAL)
-      state->hwType = HW_TYPE_NORMAL;
-   #else
-      #error "ths hardware does not support this mode"
-   #endif
-   
-   u64_copy(&state->swVer, &mVersion);
-   state->batteryMv = adcSampleBattery();
-}
-
-#if defined(RANGE_TEST_RX) || defined(RANGE_TEST_TX)
-// Send association request packets once a second forever for range testing
-static void RangeTest()
-{
-   struct {
-      uint8_t pktType;
-      struct TagInfo ti;
-      uint16_t PingCount;
-   } __xdata packet = {0, };
-#ifdef RANGE_TEST_TX
-   uint16_t PingCount = 0;
 #endif
-   int8_t ret;
-   
-   packet.pktType = PKT_ASSOC_REQ;
-   packet.ti.protoVer = PROTO_VER_CURRENT;
-   prvFillTagState(&packet.ti.state);
-   packet.ti.screenPixWidth = SCREEN_WIDTH;
-   packet.ti.screenPixHeight = SCREEN_HEIGHT;
-   packet.ti.screenMmWidth = SCREEN_WIDTH_MM;
-   packet.ti.screenMmHeight = SCREEN_HEIGHT_MM;
-   packet.ti.compressionsSupported = PROTO_COMPR_TYPE_BITPACK;
-   packet.ti.maxWaitMsec = COMMS_MAX_RADIO_WAIT_MSEC;
-   packet.ti.screenType = SCREEN_TYPE;
 
-   //RX on 
-   radioRxEnable(true,true);
-
-// use the middle channel for range testing
-   radioSetChannel(RADIO_FIRST_CHANNEL + 12);
-// Full blast!
-   radioSetTxPower(10);
-
-   while(true) {
-#ifdef RANGE_TEST_TX
-      pr("Tx %d\n",PingCount++);
-      packet.PingCount = PingCount;
-      commsTx(&mCi, true, &packet, sizeof(packet));
-      mTimerWaitStart = timerGet();
-   // Wait a second between transmissions
-      while(timerGet() - mTimerWaitStart < TIMER_TICKS_PER_SECOND) 
+#ifdef WRITE_MAC_FROM_FLASH
+void writeInfoPageWithMac() {
+   uint8_t *settemp = blockbuffer + 2048;
+   flashRead(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024);
+   flashRead(0xFC06, (void *)(settemp + 8), 4);
+   settemp[7] = 0x00;
+   settemp[6] = 0x00;
+   settemp[5] = settemp[8];
+   settemp[4] = settemp[9];
+   settemp[3] = settemp[10];
+   settemp[2] = settemp[11];
+#if (HW_TYPE == SOLUM_29_SSD1619)
+   settemp[1] = 0x3B;
+   settemp[0] = 0x10;
 #endif
-      {
-         ret = commsRx(&mCi, mRxBuf, mSettings.masterMac);
-         if (ret == COMMS_RX_ERR_NO_PACKETS)
-            continue;
-
-         pr("RX pkt: 0x%02x + %d\n", mRxBuf[0], ret);
-         if (ret == COMMS_RX_ERR_MIC_FAIL) {
-            pr("RX: invalid MIC\n");
-         }
-         else if (ret <= 0) {
-            pr("WTF else ret = %x\n", (int16_t)(int8_t)ret);   //nothing
-         }
-         else if (ret < sizeof(uint8_t) + sizeof(packet)) {
-            pr("RX: %d < %d\n", ret, sizeof(uint8_t) + sizeof(packet));
-         }
-
-         pr("#%d RSSI %d\n", packet.pktType,commsGetLastPacketRSSI());
-#ifdef RANGE_TEST_RX
-      // echo it back to the transmitter
-         commsTx(&mCi, true, &packet, sizeof(packet));
+#if (HW_TYPE == SOLUM_M2_BWR_29_UC8151)
+   settemp[1] = 0x3B;
+   settemp[0] = 0x30;
 #endif
-      }
+#if (HW_TYPE == SOLUM_154_SSD1619)
+   settemp[1] = 0x34;
+   settemp[0] = 0x10;
+#endif
+#if (HW_TYPE == SOLUM_42_SSD1619)
+   settemp[1] = 0x48;
+   settemp[0] = 0x10;
+#endif
+#if (HW_TYPE == SOLUM_M2_BW_29_LOWTEMP)
+   settemp[1] = 0x2D;
+   settemp[0] = 0x10;
+#endif
+   uint8_t cksum = 0;
+   for(uint8_t c = 0; c < 8; c++) {
+      cksum ^= settemp[c];
+      cksum ^= settemp[c] >> 4;
    }
-}
+   settemp[0] += cksum & 0x0F;
 
-#else
+   memcpy((void *)(blockbuffer + 0x0010), (void *)settemp, 8);
 
-static uint32_t uiNotPaired(void)
-{
-   char __code signalIcon[] = {CHAR_SIGNAL_PT1, CHAR_SIGNAL_PT2, 0};
-   char __code noSignalIcon[] = {CHAR_NO_SIGNAL_PT1, CHAR_NO_SIGNAL_PT2, 0};
-   
-   struct {
-      uint8_t pktType;
-      struct TagInfo ti;
-   } __xdata packet = {0, };
-   uint_fast8_t i, ch;
-   
-   packet.pktType = PKT_ASSOC_REQ;
-   packet.ti.protoVer = PROTO_VER_CURRENT;
-   prvFillTagState(&packet.ti.state);
-   packet.ti.screenPixWidth = SCREEN_WIDTH;
-   packet.ti.screenPixHeight = SCREEN_HEIGHT;
-   packet.ti.screenMmWidth = SCREEN_WIDTH_MM;
-   packet.ti.screenMmHeight = SCREEN_HEIGHT_MM;
-   packet.ti.compressionsSupported = PROTO_COMPR_TYPE_BITPACK;
-   packet.ti.maxWaitMsec = COMMS_MAX_RADIO_WAIT_MSEC;
-   packet.ti.screenType = SCREEN_TYPE;
-   
-   // drawFullscreenMsg((const __xdata char*)"ASSOCIATE READY");
-   
-   timerDelay(TIMER_TICKS_PER_SECOND / 2);
-
-   //RX on
-   radioRxEnable(true, true);
-   for (ch = 0; ch < RADIO_NUM_CHANNELS; ch++) {
-      
-      pr("try ch %u\n", RADIO_FIRST_CHANNEL + ch);
-      radioSetChannel(RADIO_FIRST_CHANNEL + ch);
-      
-      for (i = 0; i < 4; i++) {                    //try 4 times
-         
-         commsTx(&mCi, true, &packet, sizeof(packet));
-         
-         mTimerWaitStart = timerGet();
-         while (timerGet() - mTimerWaitStart < TIMER_TICKS_PER_SECOND / 4) {// wait 250 ms before retransmitting
-            
-            int8_t ret;
-            
-            ret = commsRx(&mCi, mRxBuf, mSettings.masterMac);
-            
-            if (ret == COMMS_RX_ERR_NO_PACKETS)
-               continue;
-            
-            pr("RX pkt: 0x%02x + %d\n", mRxBuf[0], ret);
-            
-            if (ret == COMMS_RX_ERR_MIC_FAIL)
-               pr("RX: invalid MIC\n");
-            else if (ret <= 0)
-               pr("WTF else ret = %x\n", (int16_t)(int8_t)ret);   //nothing
-            else if (ret < sizeof(uint8_t) + sizeof(struct AssocInfo))
-               pr("RX: %d < %d\n", ret, sizeof(uint8_t) + sizeof(struct AssocInfo));
-            else if (mRxBuf[0] != PKT_ASSOC_RESP)
-               pr("RX: pkt 0x%02x @ pair\n", mRxBuf[0]);
-            else if (commsGetLastPacketRSSI() < -60)
-                    pr("RX: too weak to associate: %d\n", commsGetLastPacketRSSI());
-            else {
-               struct AssocInfo __xdata *ai = (struct AssocInfo __xdata*)(mRxBuf + 1);
-               
-               mSettings.checkinDelay = ai->checkinDelay;
-               mSettings.retryDelay = ai->retryDelay;
-               mSettings.failedCheckinsTillBlank = ai->failedCheckinsTillBlank;
-               mSettings.failedCheckinsTillDissoc = ai->failedCheckinsTillDissoc;
-               mSettings.channel = ch;
-               mSettings.numFailedCheckins = 0;
-               mSettings.nextIV = 0;
-               xMemCopyShort(mSettings.encrKey, ai->newKey, sizeof(mSettings.encrKey));
-               mSettings.isPaired = 1;
-               
-               
-               //power the radio down
-               radioRxEnable(false, true);
-               
-               pr("Associated to master %m\n", (uintptr_near_t)&mSettings.masterMac);
-               
-               pr("Erz IMG\n");
-               eepromErase(EEPROM_IMG_START, mathPrvMul32x8(EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ, mNumImgSlots));
-               
-               pr("Erz UPD\n");
-               eepromErase(EEPROM_UPDATA_AREA_START, EEPROM_UPDATE_AREA_LEN / EEPROM_ERZ_SECTOR_SZ);
-               
-               drawFullscreenMsg(signalIcon);
-               
-               return 1000;   //wake up in a second to check in
-            }
-         }
-      }
-   }
-   
-   //power the radio down
-   radioRxEnable(false, true);
-   
-   drawFullscreenMsg(noSignalIcon);
-   
-   return 0;   //never
+   flashErase(FLASH_INFOPAGE_ADDR + 1);
+   flashWrite(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024, false);
 }
 #endif
 
-static struct PendingInfo __xdata* prvSendCheckin(void)
-{
-   struct {
-      uint8_t pktTyp;
-      struct CheckinInfo cii;
-   } __xdata packet = {.pktTyp = PKT_CHECKIN,};
-   uint8_t __xdata fromMac[8];
-   
-   prvFillTagState(&packet.cii.state);
-   
-   packet.cii.lastPacketLQI = mSettings.lastRxedLQI;
-   packet.cii.lastPacketRSSI = mSettings.lastRxedRSSI;
-   packet.cii.temperature = mCurTemperature + CHECKIN_TEMP_OFFSET;
-   
-   if (!commsTx(&mCi, false, &packet, sizeof(packet))) {
-      pr("Fail to TX checkin\n");
-      return 0;
-   }
-   
-   mTimerWaitStart = timerGet();
-   while (timerGet() - mTimerWaitStart < (uint32_t)((uint64_t)TIMER_TICKS_PER_SECOND * COMMS_MAX_RADIO_WAIT_MSEC / 1000)) {
-      
-      int8_t ret = commsRx(&mCi, mRxBuf, fromMac);
-      
-      if (ret == COMMS_RX_ERR_NO_PACKETS)
-         continue;
-         
-      pr("RX pkt: 0x%02x + %d\n", mRxBuf[0], ret);
-      
-      if (ret == COMMS_RX_ERR_MIC_FAIL) {
-         
-         pr("RX: invalid MIC\n");
-         return 0;
-      }
-      
-      if (ret < sizeof(uint8_t) + sizeof(struct PendingInfo)) {
-         
-         pr("RX: %d < %d\n", ret, sizeof(uint8_t) + sizeof(struct PendingInfo));
-         return 0;
-      }
-      
-      if (mRxBuf[0] != PKT_CHECKOUT) {
-         pr("RX: pkt 0x%02x @ checkin\n", mRxBuf[0]);
-         return 0;
-      }
-      
-      return (struct PendingInfo __xdata*)(mRxBuf + 1);
-   }
-   
-   return 0;
-}
+uint8_t channelSelect(uint8_t rounds) {  // returns 0 if no accesspoints were found
+   powerUp(INIT_RADIO);
+   uint8_t __xdata result[16];
+   memset(result, 0, sizeof(result));
 
-static void uiPrvDrawImageAtSlotIndex(uint8_t idx)
-{
-   mSettings.lastShownImgSlotIdx = idx;
-   drawImageAtAddress(EEPROM_IMG_START + (mathPrvMul32x8(EEPROM_IMG_EACH >> 8, idx) << 8));
-}
-
-static void prvApplyUpdateIfNeeded(void)
-{
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata*)mScreenRow;
-   
-   eepromRead(EEPROM_UPDATA_AREA_START, eih, sizeof(struct EepromImageHeader));
-   
-   if (eih->validMarker == EEPROM_IMG_INPROGRESS)
-      pr("update: not fully downloaded\n");
-   else if (eih->validMarker == 0xffffffff)
-      pr("update: nonexistent\n");
-   else if (eih->validMarker != EEPROM_IMG_VALID)
-      pr("update: marker invalid: 0x%*08lx\n", (uintptr_near_t)&eih->validMarker);
-   else {
-      
-      uint64_t __xdata tmp64 = VERSION_SIGNIFICANT_MASK;
-      u64_and(&tmp64, &eih->version);
-      
-      if (!u64_isLt((const uint64_t __xdata *)&mVersion, &tmp64)) {
-         
-         pr("update is not new enough: 0x%*016llx, us is: 0x%*016llx. Erasing\n", (uintptr_near_t)&eih->version, (uintptr_near_t)&mVersion);
-         
-         eepromErase(EEPROM_UPDATA_AREA_START, EEPROM_UPDATE_AREA_LEN / EEPROM_ERZ_SECTOR_SZ);
-      }
-      else {
-      
-         pr("applying the update 0x%*016llx -> 0x%*016llx\n", (uintptr_near_t)&mVersion, (uintptr_near_t)&eih->version);
-         eepromReadStart(EEPROM_UPDATA_AREA_START + sizeof(struct EepromImageHeader));
-         selfUpdate();
-      }
-   }
-}
-
-//prevStateP should be 0xffff for first invocation
-static void prvProgressBar(uint16_t done, uint16_t outOf, uint16_t __xdata *prevStateP)
-{
-   #if defined(SCREEN_PARTIAL_W2B) && defined(SCREEN_PARTIAL_B2W) && defined(SCREEN_PARTIAL_KEEP)
-   
-      uint16_t now = mathPrvDiv32x16(mathPrvMul16x16(done, SCREEN_WIDTH * SCREEN_TX_BPP / 8) + (outOf / 2), outOf);     //in bytes
-      __bit blacken, redraw = false;
-      uint16_t i, j, min, max;
-      uint8_t iteration;
-      
-      if (*prevStateP == 0xffff) {
-         redraw = true;
-      }
-      if (now < *prevStateP) {
-         min = now;
-         max = *prevStateP;
-         blacken = false;
-      }
-      else if (now == *prevStateP) {
-         
-         return;
-      }
-      else {
-         blacken = true;
-         min = *prevStateP;
-         max = now;
-      }
-      *prevStateP = now;
-      
-      if (!screenTxStart(true))
-         return;
-      
-      for (iteration = 0; iteration < SCREEN_DATA_PASSES; iteration++) {
-   
-         if (redraw) {
-            for (i = 0; i < now; i++)
-               screenByteTx(SCREEN_PARTIAL_W2B);
-            for (; i < SCREEN_WIDTH * SCREEN_TX_BPP / 8; i++)
-               screenByteTx(SCREEN_PARTIAL_B2W);
-            for (i = 0; i < SCREEN_WIDTH * SCREEN_TX_BPP / 8; i++)
-               screenByteTx(SCREEN_PARTIAL_B2W);
+   for(uint8_t i = 0; i < rounds; i++) {
+      for(uint8_t c = 0; c < sizeof(channelList); c++) {
+         if(detectAP(channelList[c])) {
+            if(mLastLqi > result[c]) result[c] = mLastLqi;
+#ifdef DEBUGMAIN
+            if(rounds > 2) pr("MAIN: Channel: %d - LQI: %d RSSI %d\n", channelList[c], mLastLqi, mLastRSSI);
+#endif
          }
-         else {
-            for (i = 0; i < min; i++)
-               screenByteTx(SCREEN_PARTIAL_KEEP);
-            for (; i < max; i++)
-               screenByteTx(blacken ? SCREEN_PARTIAL_W2B : SCREEN_PARTIAL_B2W);
-            for (; i < SCREEN_WIDTH * SCREEN_TX_BPP / 8; i++)
-               screenByteTx(SCREEN_PARTIAL_KEEP);
-            for (i = 0; i < SCREEN_WIDTH * SCREEN_TX_BPP / 8; i++)
-               screenByteTx(SCREEN_PARTIAL_KEEP);
-         }
-         
-         //fill rest
-         for (j = 0; j < SCREEN_HEIGHT - 2; j++){
-            for (i = 0; i < SCREEN_WIDTH * SCREEN_TX_BPP / 8; i++)
-               screenByteTx(SCREEN_PARTIAL_KEEP);
-         }
-         
-         screenEndPass();
       }
-      screenTxEnd();
-      
-   #elif defined(SCREEN_PARTIAL_W2B) || defined(SCREEN_PARTIAL_B2W) || defined(SCREEN_PARTIAL_KEEP)
-      #error "some but not all partial defines found - this is an error"
-   #endif
+   }
+   powerDown(INIT_RADIO);
+   uint8_t __xdata highestLqi = 0;
+   uint8_t __xdata highestSlot = 0;
+   for(uint8_t c = 0; c < sizeof(result); c++) {
+      if(result[c] > highestLqi) {
+         highestSlot = channelList[c];
+         highestLqi = result[c];
+      }
+   }
+
+   mLastLqi = highestLqi;
+   return highestSlot;
 }
 
-static uint32_t prvDriveDownload(struct EepromImageHeader __xdata *eih, uint32_t addr, __bit isOS)
-{
-   struct {
-      uint8_t pktTyp;
-      struct ChunkReqInfo cri;
-   } __xdata packet = {.pktTyp = PKT_CHUNK_REQ, .cri = { .osUpdatePlz = isOS, }, };
-   uint16_t nPieces = mathPrvDiv32x8(eih->size + EEPROM_PIECE_SZ - 1, EEPROM_PIECE_SZ);
-   struct ChunkInfo __xdata *chunk = (struct ChunkInfo*)(mRxBuf + 1);
-   uint8_t __xdata *data = (uint8_t*)(chunk + 1);
-   __bit progressMade = false;
-   uint16_t curPiece;
-   
-   //sanity check
-   if (nPieces > sizeof(eih->piecesMissing) * 8) {
-      pr("DL too large: %*lu\n", (uintptr_near_t)&eih->size);
-      return mSettings.checkinDelay;
+void validateMacAddress() {
+   // check if the mac contains at least some non-0xFF values
+   for(uint8_t __xdata c = 0; c < 8; c++) {
+      if(mSelfMac[c] != 0xFF) goto macIsValid;
    }
-   
-   //prepare the packet
-   u64_copy(&packet.cri.versionRequested, &eih->version);
-   
-   //find where we are in downloading
-   for (curPiece = 0; curPiece < nPieces && !((eih->piecesMissing[curPiece / 8] >> (curPiece % 8)) & 1); curPiece++);
-   
-   pr("Requesting piece %u/%u of %s\n", curPiece, nPieces, isOS ? "UPDATE" : "IMAGE");
-   
-   //download
-   for (;curPiece < nPieces; curPiece++) {
-      
-      uint8_t now, nRetries;
-      int8_t ret;
-      
-      //any piece that is not last will be of standard size
-      if (curPiece != nPieces - 1)
-         now = EEPROM_PIECE_SZ;
-      else
-         now = eih->size - mathPrvMul16x8(nPieces - 1, EEPROM_PIECE_SZ);
-      
-      packet.cri.offset = mathPrvMul16x8(curPiece, EEPROM_PIECE_SZ);
-      packet.cri.len = now;
-      
-      if (!(((uint8_t)curPiece) & 0x7f))
-         prvProgressBar(curPiece, nPieces, &mSettings.prevDlProgress);
-      
-      for (nRetries = 0; nRetries < 5; nRetries++) {
-         
-         commsTx(&mCi, false, &packet, sizeof(packet));
-         
-         mTimerWaitStart = timerGet();
-         while (1) {
-            
-            if (timerGet() - mTimerWaitStart > (uint32_t)((uint64_t)TIMER_TICKS_PER_SECOND * COMMS_MAX_RADIO_WAIT_MSEC / 1000)) {
-               pr("RX timeout in download\n");
-               break;
-            }
-            
-            ret = commsRx(&mCi, mRxBuf, mSettings.masterMac);
-            
-            if (ret == COMMS_RX_ERR_NO_PACKETS)
-               continue;   //let it time out
-            else if (ret == COMMS_RX_ERR_INVALID_PACKET)
-               continue;   //let it time out
-            else if (ret == COMMS_RX_ERR_MIC_FAIL) {
-               pr("RX: invalid MIC\n");
-               
-               //mic errors are unlikely unless someone is deliberately messing with us - check in later
-               goto checkin_again;
-            }
-            else if ((uint8_t)ret < (uint8_t)(sizeof(uint8_t) + sizeof(struct ChunkInfo))) {
-               pr("RX: %d < %d\n", ret, sizeof(uint8_t) + sizeof(struct AssocInfo));
-               
-               //server glitch? check in later
-               return mSettings.checkinDelay;
-            }
-            else if (mRxBuf[0] != PKT_CHUNK_RESP) {
-               pr("RX: pkt 0x%02x @ DL\n", mRxBuf[0]);
-               
-               //weird packet? worth retrying soner
-               break;
-            }
-            
-            //get payload len
-            ret -= sizeof(uint8_t) + sizeof(struct ChunkInfo);
-            
-            if (chunk->osUpdatePlz != isOS) {
-               pr("RX: wrong data type @ DL: %d\n", chunk->osUpdatePlz);
-               continue;   //could be an accidental RX of older packet - ignore
-            }
-            else if (chunk->offset != packet.cri.offset) {
-               pr("RX: wrong ofst @ DL 0x%08lx != 0x%*08lx\n", chunk->offset, (uintptr_near_t)&packet.cri.offset);
-               continue;   //could be an accidental RX of older packet - ignore
-            }
-            else if (!ret) {
-               pr("RX: DL not avail\n");
-               
-               //just check in later
-               goto checkin_again;
-            }
-            else if ((uint8_t)ret != (uint8_t)packet.cri.len) {
-               
-               pr("RX: Got %ub, reqd %u\n", ret, packet.cri.len);
-               
-               //server glitch? check in later
-               goto checkin_again;
-            }
-            
-            //write data
-            eepromWrite(addr + mathPrvMul16x8(curPiece, EEPROM_PIECE_SZ) + sizeof(struct EepromImageHeader), data, ret);
-            
-            //write marker
-            eih->piecesMissing[curPiece / 8] &=~ (1 << (curPiece % 8));
-            eepromWrite(addr + offsetof(struct EepromImageHeader, piecesMissing[curPiece / 8]), &eih->piecesMissing[curPiece / 8], 1);
-            
-            progressMade = true;
-            nRetries = 100;   //so we break the loop
+// invalid mac address. Display warning screen and sleep forever
+#ifdef DEBUGMAIN
+   pr("Mac can't be all FF's.\n");
+#endif
+   powerUp(INIT_EPD);
+   showNoMAC();
+   powerDown(INIT_EPD | INIT_UART | INIT_EEPROM);
+   doSleep(-1);
+   wdtDeviceReset();
+   macIsValid:
+   return;
+}
+
+// FIX me !!
+uint8_t getFirstWakeUpReason() 
+{
+#if 0
+   if(RESET & 0x01) {
+#ifdef DEBUGMAIN
+      pr("WDT reset!\n");
+#endif
+      return WAKEUP_REASON_WDT_RESET;
+   }
+#endif
+   return WAKEUP_REASON_FIRSTBOOT;
+}
+
+
+void detectButtonOrJig() 
+{
+#if 0
+   switch(checkButtonOrJig()) {
+      case DETECT_P1_0_BUTTON:
+         capabilities |= CAPABILITY_HAS_WAKE_BUTTON;
+         break;
+      case DETECT_P1_0_JIG:
+         wdt120s();
+         // show splashscreen
+         powerUp(INIT_EPD);
+         afterFlashScreenSaver();
+         while(1)
+            ;
+         break;
+      case DETECT_P1_0_NOTHING:
+         break;
+      default:
+         break;
+   }
+#endif
+}
+
+void TagAssociated() {
+   // associated
+   struct AvailDataInfo *__xdata avail;
+   // Is there any reason why we should do a long (full) get data request (including reason, status)?
+   if((longDataReqCounter > LONG_DATAREQ_INTERVAL) || wakeUpReason != WAKEUP_REASON_TIMED || secondLongCheckIn) {
+      // check if we should do a voltage measurement (those are pretty expensive)
+      if(voltageCheckCounter == VOLTAGE_CHECK_INTERVAL) {
+         doVoltageReading();
+         voltageCheckCounter = 0;
+      } else {
+         powerUp(INIT_TEMPREADING);
+      }
+      voltageCheckCounter++;
+
+      // check if the battery level is below minimum, and force a redraw of the screen
+
+      if((lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) || (noAPShown && tagSettings.enableNoRFSymbol)) {
+         // Check if we were already displaying an image
+         if(curImgSlot != 0xFF) {
+            powerUp(INIT_EEPROM | INIT_EPD);
+            wdt60s();
+            uint8_t lut = getEepromImageDataArgument(curImgSlot) & 0x03;
+            drawImageFromEeprom(curImgSlot, lut);
+            powerDown(INIT_EEPROM | INIT_EPD);
+         } else {
+            powerUp(INIT_EPD);
+            showAPFound();
+            powerDown(INIT_EPD);
+         }
+      }
+
+      powerUp(INIT_RADIO);
+      avail = getAvailDataInfo();
+      powerDown(INIT_RADIO);
+
+      switch(wakeUpReason) {
+         case WAKEUP_REASON_BUTTON1:
+            externalWakeHandler(CUSTOM_IMAGE_BUTTON1);
+            fastNextCheckin = true;
             break;
+         case WAKEUP_REASON_BUTTON2:
+            externalWakeHandler(CUSTOM_IMAGE_BUTTON2);
+            fastNextCheckin = true;
+            break;
+         case WAKEUP_REASON_GPIO:
+            externalWakeHandler(CUSTOM_IMAGE_GPIO);
+            fastNextCheckin = true;
+            break;
+         case WAKEUP_REASON_RF:
+            externalWakeHandler(CUSTOM_IMAGE_RF_WAKE);
+            fastNextCheckin = true;
+            break;
+#ifndef LEAN_VERSION
+         case WAKEUP_REASON_NFC:
+            externalWakeHandler(CUSTOM_IMAGE_NFC_WAKE);
+            fastNextCheckin = true;
+            break;
+#endif
+      }
+
+      if(avail != NULL) {
+         // we got some data!
+         longDataReqCounter = 0;
+
+         if(secondLongCheckIn == true) {
+            secondLongCheckIn = false;
          }
-      }
-      if (nRetries == 5) {
-         pr("retried too much\n");
-         if (progressMade)
-            goto retry_later;
-         else
-            goto checkin_again;
-      }
-   }
-   
-downloadDone:
-   pr("Done at piece %u/%u\n", curPiece, nPieces);
-   prvProgressBar(curPiece, nPieces, &mSettings.prevDlProgress);
 
-   //if we are here, we succeeeded in finishing the download   
-   eih->validMarker = EEPROM_IMG_VALID;
-   eepromWrite(addr + offsetof(struct EepromImageHeader, validMarker), &eih->validMarker, sizeof(eih->validMarker));
-
-   pr("DL completed\n");
-   mSettings.prevDlProgress = 0xffff;
-   
-   //power the radio down
-   radioRxEnable(false, true);
-   
-   //act on it
-   if (isOS)
-      prvApplyUpdateIfNeeded();
-   else if (eih->size >= DRAWING_MIN_BITMAP_SIZE) {
-      mSettings.lastShownImgSlotIdx = 0xffff;
-      mSettings.checkinsToFlipCtr = 0;
-      drawImageAtAddress(addr);
-      pr("image drawn\n");
-   }
-   
-checkin_again:
-   if (curPiece != nPieces)
-      prvProgressBar(curPiece, nPieces, &mSettings.prevDlProgress);
-   return mSettings.checkinDelay;
-
-retry_later:
-   prvProgressBar(curPiece, nPieces, &mSettings.prevDlProgress);
-   return mSettings.retryDelay;
-}
-
-static void prvWriteNewHeader(struct EepromImageHeader __xdata *eih, uint32_t addr, uint8_t eeNumSecs, uint64_t __xdata *verP, uint32_t size) __reentrant
-{
-   //zero it
-   xMemSet(eih, 0, sizeof(struct EepromImageHeader));
-   
-   //mark all pieces missing
-   xMemSet(eih->piecesMissing, 0xff, sizeof(eih->piecesMissing));
-   
-   eepromErase(addr, eeNumSecs);
-   
-   u64_copy(&eih->version, verP);
-   eih->validMarker = EEPROM_IMG_INPROGRESS;
-   eih->size = size;
-   
-   eepromWrite(addr, eih, sizeof(struct EepromImageHeader));
-}
-
-static uint32_t prvDriveUpdateDownload(uint64_t __xdata *verP, uint32_t size)
-{
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata*)mScreenRow;    //use screen buffer
-   
-   //see what's there already
-   eepromRead(EEPROM_UPDATA_AREA_START, eih, sizeof(struct EepromImageHeader));
-   if (!u64_isEq(&eih->version, verP))
-      prvWriteNewHeader(eih, EEPROM_UPDATA_AREA_START, EEPROM_UPDATE_AREA_LEN / EEPROM_ERZ_SECTOR_SZ, verP, size);
-   
-   return prvDriveDownload(eih, EEPROM_UPDATA_AREA_START, true);
-}
-
-static uint32_t prvDriveImageDownload(const struct EepromContentsInfo __xdata *eci, uint64_t __xdata *verP, uint32_t size)
-{
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata*)mScreenRow;    //use screen buffer
-   uint32_t PDATA addr;
-   
-   //sort out where next image should live
-   if (eci->latestInprogressImgAddr)
-      addr = eci->latestInprogressImgAddr;
-   else if (!eci->latestCompleteImgAddr)
-      addr = EEPROM_IMG_START;
-   else {
-      addr = eci->latestCompleteImgAddr + EEPROM_IMG_EACH;
-      
-      if (addr >= EEPROM_IMG_START + (mathPrvMul16x8(EEPROM_IMG_EACH >> 8, mNumImgSlots) << 8))
-         addr = EEPROM_IMG_START;
-   }
-   
-   //see what's there already
-   eepromRead(addr, eih, sizeof(struct EepromImageHeader));
-   if (!u64_isEq(&eih->version, verP))
-      prvWriteNewHeader(eih, addr, EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ, verP, size);
-   
-   return prvDriveDownload(eih, addr, false);
-}
-
-static __bit uiPrvIsShowingTooLongWithNoCheckinsMessage(void)
-{
-   return mSettings.failedCheckinsTillBlank && mSettings.numFailedCheckins >= mSettings.failedCheckinsTillBlank;
-}
-
-#ifdef PICTURE_FRAME_FLIP_EVERY_N_CHECKINS
-   static void uiPrvPictureFrameFlip(struct EepromContentsInfo __xdata *eci)
-   {  
-      //if we're showing the "too long since checkin" message, do nothing
-      if (uiPrvIsShowingTooLongWithNoCheckinsMessage())
-         return;
-   
-      if (++mSettings.checkinsToFlipCtr >= PICTURE_FRAME_FLIP_EVERY_N_CHECKINS) {
-         
-         uint16_t prev;
-         uint8_t n;
-         
-         mSettings.checkinsToFlipCtr = 0;
-         
-         if (!eci->numValidImages)
-            return;
-         else if (eci->numValidImages == 1)
-            n = 0;
-         else {
-            n = mathPrvMod32x16(rndGen32(), eci->numValidImages - 1);
-         
-            if (n >= mSettings.lastShownImgSlotIdx)
-               n++;
+         // since we've had succesful contact, and communicated the wakeup reason succesfully, we can now reset to the 'normal' status
+         if(wakeUpReason != WAKEUP_REASON_TIMED) {
+            secondLongCheckIn = true;
          }
-         prev = mSettings.lastShownImgSlotIdx;
-         uiPrvDrawNthValidImage(n);
-         pr("Flip %u->%u\n", prev, mSettings.lastShownImgSlotIdx);
+         wakeUpReason = WAKEUP_REASON_TIMED;
       }
-   }
+      if(tagSettings.enableTagRoaming) {
+         uint8_t roamChannel = channelSelect(1);
+         if(roamChannel) currentChannel = roamChannel;
+      }
+   } else {
+      powerUp(INIT_RADIO);
+
+#ifdef ENABLE_RETURN_DATA
+      // example code to send data back to the AP. Up to 90 bytes can be sent in one packet
+      uint8_t __xdata blaat[2] = {0xAB, 0xBA};
+      sendTagReturnData(blaat, 2, 0x55);
 #endif
 
-static uint32_t uiPaired(void)
-{
-   __bit updateOs, updateImg, checkInSucces = false, wasShowingError;
-   uint64_t __xdata tmp64 = VERSION_SIGNIFICANT_MASK;
-   struct EepromContentsInfo __xdata eci;
-   struct PendingInfo __xdata *pi;
-   uint8_t i;
-   
-   //do this before we get started with the radio
-   prvEepromIndex(&eci);
-   
-   #ifdef PICTURE_FRAME_FLIP_EVERY_N_CHECKINS
-      uiPrvPictureFrameFlip(&eci);
-   #endif
-   
-   //power the radio up
-   radioRxEnable(true, true);
-   
-   //try five times
-   for (i = 0; i < 5; i++) {
-      pi = prvSendCheckin();
-      if (pi) {
-         checkInSucces = true;
+      avail = getShortAvailDataInfo();
+      powerDown(INIT_RADIO);
+   }
+
+   addAverageValue();
+
+   if(avail == NULL) {
+      // no data :( this means no reply from AP
+      nextCheckInFromAP = 0;  // let the power-saving algorithm determine the next sleep period
+   } else {
+      nextCheckInFromAP = avail->nextCheckIn;
+      // got some data from the AP!
+      if(avail->dataType != DATATYPE_NOUPDATE) {
+         // data transfer
+         if(processAvailDataInfo(avail)) {
+            // succesful transfer, next wake time is determined by the NextCheckin;
+         } else {
+            // failed transfer, let the algorithm determine next sleep interval (not the AP)
+            nextCheckInFromAP = 0;
+         }
+      } else {
+         // no data transfer, just sleep.
+      }
+   }
+
+   uint16_t nextCheckin = getNextSleep();
+   longDataReqCounter += nextCheckin;
+
+   if(nextCheckin == INTERVAL_AT_MAX_ATTEMPTS) {
+      // We've averaged up to the maximum interval, this means the tag hasn't been in contact with an AP for some time.
+      if(tagSettings.enableScanForAPAfterTimeout) {
+         currentTagMode = TAG_MODE_CHANSEARCH;
+         return;
+      }
+   }
+
+   if(fastNextCheckin) {
+      // do a fast check-in next
+      fastNextCheckin = false;
+      doSleep(100UL);
+   } else {
+      if(nextCheckInFromAP) {
+         // if the AP told us to sleep for a specific period, do so.
+         if(nextCheckInFromAP & 0x8000) {
+            doSleep((nextCheckInFromAP & 0x7FFF) * 1000UL);
+         } else {
+            doSleep(nextCheckInFromAP * 60000UL);
+         }
+      } else {
+         // sleep determined by algorithm
+         doSleep(getNextSleep() * 1000UL);
+      }
+   }
+   powerUp(INIT_UART);
+}
+
+void TagChanSearch() {
+   // not associated
+   if(((scanAttempts != 0) && (scanAttempts % VOLTAGEREADING_DURING_SCAN_INTERVAL == 0)) || (scanAttempts > (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS))) {
+      doVoltageReading();
+   }
+
+   // try to find a working channel
+   currentChannel = channelSelect(2);
+
+   // Check if we should redraw the screen with icons, info screen or screensaver
+   if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) ||
+      (lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) ||
+      (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) {
+      powerUp(INIT_EPD);
+      wdt60s();
+      if(curImgSlot != 0xFF) {
+         if(!displayCustomImage(CUSTOM_IMAGE_LOST_CONNECTION)) {
+            powerUp(INIT_EEPROM);
+            uint8_t lut = getEepromImageDataArgument(curImgSlot) & 0x03;
+            drawImageFromEeprom(curImgSlot, lut);
+            powerDown(INIT_EEPROM);
+         }
+      } else if((scanAttempts >= (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) {
+         showLongTermSleep();
+      } else {
+         showNoAP();
+      }
+      powerDown(INIT_EPD);
+   }
+
+   // did we find a working channel?
+   if(currentChannel) {
+      // now associated! set up and bail out of this loop.
+      scanAttempts = 0;
+      wakeUpReason = WAKEUP_REASON_NETWORK_SCAN;
+      initPowerSaving(INTERVAL_BASE);
+      doSleep(getNextSleep() * 1000UL);
+      currentTagMode = TAG_MODE_ASSOCIATED;
+      return;
+   } else {
+      // still not associated
+      doSleep(getNextScanSleep(true) * 1000UL);
+   }
+}
+
+#ifndef LEAN_VERSION
+void TagSlideShow() {
+   currentChannel = 11;  // suppress the no-rf image thing
+   displayCustomImage(CUSTOM_IMAGE_SPLASHSCREEN);
+
+   // do a short channel search
+   currentChannel = channelSelect(2);
+
+   pr("Slideshow mode ch: %d\n", currentChannel);
+
+   // if we did find an AP, check in once
+   if(currentChannel) {
+      doVoltageReading();
+      struct AvailDataInfo *__xdata avail;
+      powerUp(INIT_RADIO);
+      avail = getAvailDataInfo();
+
+      if(avail != NULL) {
+         processAvailDataInfo(avail);
+      }
+   }
+   powerDown(INIT_RADIO);
+
+   // suppress the no-rf image
+   currentChannel = 11;
+
+   while(1) {
+      powerUp(INIT_UART);
+      wdt60s();
+      powerUp(INIT_EEPROM);
+      uint8_t img = findNextSlideshowImage(slideShowCurrentImg);
+      if(img != slideShowCurrentImg) {
+         slideShowCurrentImg = img;
+         uint8_t lut = getEepromImageDataArgument(img) & 0x03;
+         powerUp(INIT_EPD);
+         if(SLIDESHOW_FORCE_FULL_REFRESH_EVERY) {
+            slideShowRefreshCount++;
+         }
+         if((slideShowRefreshCount == SLIDESHOW_FORCE_FULL_REFRESH_EVERY) || (lut == 0)) {
+            slideShowRefreshCount = 1;
+            lut = 0;
+         }
+         drawImageFromEeprom(img, lut);
+         powerDown(INIT_EPD | INIT_EEPROM);
+      } else {
+         // same image, so don't update the screen; this only happens when there's exactly one slideshow image
+         powerDown(INIT_EEPROM);
+      }
+      tagSettings.enableRFWake = true;
+      switch(tagSettings.customMode) {
+         case TAG_CUSTOM_SLIDESHOW_FAST:
+            doSleep(1000UL * SLIDESHOW_INTERVAL_FAST);
+            break;
+         case TAG_CUSTOM_SLIDESHOW_MEDIUM:
+            doSleep(1000UL * SLIDESHOW_INTERVAL_MEDIUM);
+            break;
+         case TAG_CUSTOM_SLIDESHOW_SLOW:
+            doSleep(1000UL * SLIDESHOW_INTERVAL_SLOW);
+            break;
+         case TAG_CUSTOM_SLIDESHOW_GLACIAL:
+            doSleep(1000UL * SLIDESHOW_INTERVAL_GLACIAL);
+            break;
+      }
+#ifdef DEBUGMAIN
+      pr("wake...\n");
+#endif
+   }
+}
+
+void TagShowWaitRFWake() {
+#ifdef DEBUGMAIN
+   pr("waiting for RF wake to start slideshow, now showing image\n");
+#endif
+   currentChannel = 11;  // suppress the no-rf image thing
+   displayCustomImage(CUSTOM_IMAGE_SLIDESHOW);
+   // powerDown(INIT_EEPROM | INIT_EPD);
+   tagSettings.enableRFWake = 1;
+   while(1) {
+      doSleep(-1);
+      if(wakeUpReason == WAKEUP_REASON_RF || wakeUpReason == WAKEUP_REASON_BUTTON1) {
          break;
       }
    }
-    
-   if (!checkInSucces) {   //fail
-      
-      mSettings.numFailedCheckins++;
-      if (!mSettings.numFailedCheckins)   //do not allow overflow
-         mSettings.numFailedCheckins--;
-      pr("checkin #%u fails\n", mSettings.numFailedCheckins);
-      
-      //power the radio down
-      radioRxEnable(false, true);
-      
-      if (mSettings.failedCheckinsTillDissoc && mSettings.numFailedCheckins == mSettings.failedCheckinsTillDissoc) {
-         pr("Disassoc as %u = %u\n", mSettings.numFailedCheckins, mSettings.failedCheckinsTillDissoc);
-         mSettings.isPaired = 0;
-         
-         return 1000;   //wake up in a second to try to pair
-      }
-      
-      if (mSettings.failedCheckinsTillBlank && mSettings.numFailedCheckins == mSettings.failedCheckinsTillBlank) {
-         mSettings.lastShownImgSlotIdx = 0xffff;
-         pr("Blank as %u = %u\n", mSettings.numFailedCheckins, mSettings.failedCheckinsTillBlank);
-         drawFullscreenMsg((const __xdata char*)"NO SIGNAL");
-      }
-      
-      //try again in due time
-      return mSettings.checkinDelay;
-   }
-
-   //if we got here, we succeeded with the check-in, but store if we were showing the error ...
-   wasShowingError = uiPrvIsShowingTooLongWithNoCheckinsMessage();
-   mSettings.numFailedCheckins = 0;
-
-   //if screen was blanked, redraw it
-   if (wasShowingError) {
-      
-      #ifdef PICTURE_FRAME_FLIP_EVERY_N_CHECKINS
-         uiPrvPictureFrameFlip(&eci);
-      #else
-         uiPrvDrawImageAtSlotIndex(eci.latestImgIdx);
-      #endif
-   }
-   
-   
-   //if there is an update, we want it. we know our version number is properly masked as we checked it at boot
-   u64_and(&tmp64, &pi->osUpdateVer);
-   updateOs = u64_isLt((uint64_t __xdata*)&mVersion, &tmp64);
-   updateImg = u64_isLt(&eci.latestCompleteImgVer, &pi->imgUpdateVer);
-   
-   pr("Base: OS  ver 0x%*016llx, us 0x%*016llx (upd: %u)\n", (uintptr_near_t)&pi->osUpdateVer, (uintptr_near_t)&mVersion, updateOs);
-   pr("Base: IMG ver 0x%*016llx, us 0x%*016llx (upd: %u)\n", (uintptr_near_t)&pi->imgUpdateVer, (uintptr_near_t)&eci.latestCompleteImgVer, updateImg);
-
-   if (updateOs)
-      return prvDriveUpdateDownload(&pi->osUpdateVer, pi->osUpdateSize);
-   
-   if (updateImg)
-      return prvDriveImageDownload(&eci, &pi->imgUpdateVer, pi->imgUpdateSize);
-   
-   //nothing? guess we'll check again later
-   return mSettings.checkinDelay;
+   tagSettings.enableRFWake = 0;
+   tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_SLOW;
+   powerUp(INIT_EEPROM);
+   writeSettings();
+   powerDown(INIT_EEPROM);
+   wdtDeviceReset();
 }
-
-void main(void)
-{
-   uint32_t __xdata sleepDuration;
-   uint32_t eeSize;
-   uint16_t nSlots;
-   
-   clockingAndIntsInit();
-   timerInit();
-   boardInit();
-   
-   pr("booted at 0x%04x\n", (uintptr_near_t)&main);
-   
-   if (!eepromInit()) {
-      pr("failed to init eeprom\n");
-      while(1);
-   }
-   
-   boardInitStage2();
-
-   irqsOn();
-   
-   if (!showVersionAndVerifyMatch()) {
-      while(1);
-   }
-   
-   if (!boardGetOwnMac(mSelfMac)) {
-      pr("failed to get MAC. Aborting\n");
-      while(1);
-   }
-   pr("MAC %ls\n", (uintptr_near_t)macString());
-   
-   mCurTemperature = adcSampleTemperature();
-   pr("temp: %d\n", mCurTemperature);
-   
-   //for zbs, this must follow temp reading
-   radioInit();
-   
-   //sort out how many images EEPROM stores
-   #ifdef EEPROM_IMG_LEN
-      
-      mNumImgSlots = EEPROM_IMG_LEN / EEPROM_IMG_EACH;
-      
-   #else
-      eeSize = eepromGetSize();
-      nSlots = mathPrvDiv32x16(eeSize - EEPROM_IMG_START, EEPROM_IMG_EACH >> 8) >> 8;
-      if (eeSize < EEPROM_IMG_START || !nSlots) {
-         
-         pr("eeprom is too small\n");
-         while(1);
-      }
-      else if (nSlots >> 8) {
-         
-         pr("eeprom is too big, some will be unused\n");
-         mNumImgSlots = 255;
-      }
-      else
-         mNumImgSlots = nSlots;
-   #endif
-   pr("eeprom has %u image slots\n", mNumImgSlots);
-   
-   if (0) {
-      
-      drawFullscreenMsg((const __xdata char*)"ASSOCIATE READY");
-      //screenTest();
-      while(1);
-   }
-   else if (0) {
-      
-      struct EepromContentsInfo __xdata eci;
-      prvEepromIndex(&eci);
-      uiPrvDrawImageAtSlotIndex(eci.latestImgIdx);
-   }
-   else {
-
-      settingsRead(&mSettings);
-      
-      radioRxFilterCfg(mSelfMac, 0x10000, PROTO_PAN_ID);
-      
-      mCi.myMac = mSelfMac;
-      mCi.masterMac = mSettings.masterMac;
-      mCi.encrKey = mSettings.encrKey;
-      mCi.nextIV = &mSettings.nextIV;
-      
-      //init the "random" number generation unit
-      rndSeed(mSelfMac[0] ^ (uint8_t)timerGetLowBits(), mSelfMac[1] ^ (uint8_t)mSettings.hdr.revision);
-   
-#if defined(RANGE_TEST_RX) || defined(RANGE_TEST_TX)
-      RangeTest();
-#else
-      if (mSettings.isPaired) {
-         
-         radioSetChannel(RADIO_FIRST_CHANNEL + mSettings.channel);
-         radioSetTxPower(10);
-         
-         prvApplyUpdateIfNeeded();
-         
-         sleepDuration = uiPaired();
-      }
-      else {
-         
-         static const uint32_t __xdata presharedKey[] = PROTO_PRESHARED_KEY;
-         
-         radioSetTxPower(10); //rather low
-         
-         xMemCopyShort(mSettings.encrKey, presharedKey, sizeof(mSettings.encrKey));
-   
-         sleepDuration = uiNotPaired();
-      }
-   
-      mSettings.lastRxedLQI = commsGetLastPacketLQI();
-      mSettings.lastRxedRSSI = commsGetLastPacketRSSI();
-      
-      settingsWrite(&mSettings);
 #endif
-      
-      //vary sleep a little to avoid repeated collisions. Only down because 8-bit math is hard...
-      sleepDuration = mathPrvMul32x8(sleepDuration, (rndGen8() & 31) + 224) >> 8;
-   out:
-      pr("sleep: %lu\n", sleepDuration);
-      eepromDeepPowerDown();
-      screenShutdown();
-      
-      powerPortsDownForSleep();
-   
-      sleepForMsec(sleepDuration);
-      
-      //we may wake up here, but we prefer a reset so we cause one
-      wdtDeviceReset();
-      while(true);
+
+void executeCommand(uint8_t cmd) {
+   switch(cmd) {
+      case CMD_DO_REBOOT:
+         wdtDeviceReset();
+         break;
+      case CMD_DO_RESET_SETTINGS:
+         powerUp(INIT_EEPROM);
+         loadDefaultSettings();
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         break;
+      case CMD_DO_SCAN:
+         currentChannel = channelSelect(4);
+         break;
+      case CMD_DO_DEEPSLEEP:
+         powerUp(INIT_EPD);
+         afterFlashScreenSaver();
+         powerDown(INIT_EPD | INIT_UART);
+         while(1) {
+            doSleep(-1);
+         }
+         break;
+      case CMD_ERASE_EEPROM_IMAGES:
+         powerUp(INIT_EEPROM);
+         eraseImageBlocks();
+         powerDown(INIT_EEPROM);
+         break;
+#ifndef LEAN_VERSION
+      case CMD_ENTER_SLIDESHOW_FAST:
+         powerUp(INIT_EEPROM);
+         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
+            powerDown(INIT_EEPROM);
+            return;
+         }
+         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_FAST;
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+      case CMD_ENTER_SLIDESHOW_MEDIUM:
+         powerUp(INIT_EEPROM);
+         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
+            powerDown(INIT_EEPROM);
+            return;
+         }
+         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_MEDIUM;
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+      case CMD_ENTER_SLIDESHOW_SLOW:
+         powerUp(INIT_EEPROM);
+         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
+            powerDown(INIT_EEPROM);
+            return;
+         }
+         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_SLOW;
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+      case CMD_ENTER_SLIDESHOW_GLACIAL:
+         powerUp(INIT_EEPROM);
+         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
+            powerDown(INIT_EEPROM);
+            return;
+         }
+         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_GLACIAL;
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+      case CMD_ENTER_NORMAL_MODE:
+         tagSettings.customMode = TAG_CUSTOM_MODE_NONE;
+         powerUp(INIT_EEPROM);
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+      case CMD_ENTER_WAIT_RFWAKE:
+         tagSettings.customMode = TAG_CUSTOM_MODE_WAIT_RFWAKE;
+         powerUp(INIT_EEPROM);
+         writeSettings();
+         powerDown(INIT_EEPROM);
+         wdtDeviceReset();
+         break;
+#endif
    }
-   while(1);
 }
 
+void main() {
+   setupPortsInitial();
+   powerUp(INIT_BASE | INIT_UART);
+   pr("BOOTED>  %d.%d.%d%s\n", fwVersion / 100, (fwVersion % 100) / 10, (fwVersion % 10), fwVersionSuffix);
+
+#ifdef DEBUGGUI
+   displayLoop();  // remove me
+#endif
+
+   // Find the reason why we're booting; is this a WDT?
+   wakeUpReason = getFirstWakeUpReason();
+
+   // dump(blockbuffer, 1024);
+   //  get our own mac address. this is stored in Infopage at offset 0x10-onwards
+   boardGetOwnMac(mSelfMac);
+
+#ifdef DEBUGMAIN
+   pr("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
+   pr("%02X%02X", mSelfMac[2], mSelfMac[3]);
+   pr("%02X%02X", mSelfMac[4], mSelfMac[5]);
+   pr("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
+#endif
+   // do a little sleep, this prevents a partial boot during battery insertion
+   doSleep(400UL);
+   powerUp(INIT_EEPROM | INIT_UART);
+
+   // load settings from infopage
+   loadSettings();
+   // invalidate the settings, and write them back in a later state
+   invalidateSettingsEEPROM();
+
+#ifdef WRITE_MAC_FROM_FLASH
+   if(mSelfMac[7] == 0xFF && mSelfMac[6] == 0xFF) {
+      wdt10s();
+      timerDelay(TIMER_TICKS_PER_SECOND * 2);
+      writeInfoPageWithMac();
+      for(uint16_t c = 0xE800; c != 0; c += 1024) {
+         flashErase(c);
+      }
+      boardGetOwnMac(mSelfMac);
+      powerUp(INIT_UART | INIT_EEPROM | INIT_RADIO);
+      wdt120s();
+      powerDown(INIT_EEPROM | INIT_RADIO);
+
+      wdt120s();
+      powerUp(INIT_EPD);
+      afterFlashScreenSaver();
+      powerDown(INIT_EPD | INIT_UART);
+      while(1) {
+         doSleep(-1);
+      }
+   }
+#endif
+
+   // get the highest slot number, number of slots
+   initializeProto();
+   powerDown(INIT_EEPROM);
+
+   // detect button or jig
+   detectButtonOrJig();
+
+#ifndef LEAN_VERSION
+   switch(tagSettings.customMode) {
+      case TAG_CUSTOM_MODE_WAIT_RFWAKE:
+         TagShowWaitRFWake();
+         break;
+      case TAG_CUSTOM_SLIDESHOW_FAST:
+      case TAG_CUSTOM_SLIDESHOW_MEDIUM:
+      case TAG_CUSTOM_SLIDESHOW_SLOW:
+      case TAG_CUSTOM_SLIDESHOW_GLACIAL:
+         TagSlideShow();
+         break;
+      default:
+         break;
+   }
+#endif
+
+   if(tagSettings.enableFastBoot) {
+// Fastboot
+#ifdef DEBUGMAIN
+      pr("Doing fast boot\n");
+#endif
+      capabilities = tagSettings.fastBootCapabilities;
+      if(tagSettings.fixedChannel) {
+         currentChannel = tagSettings.fixedChannel;
+      } else {
+         currentChannel = channelSelect(2);
+      }
+   } else {
+      // Normal boot/startup
+#ifdef DEBUGMAIN
+      pr("Normal boot\n");
+#endif
+      // validate the mac address; this will display a warning on the screen if the mac address is invalid
+      validateMacAddress();
+
+      // Get a voltage reading on the tag, loading down the battery with the radio
+      doVoltageReading();
+
+      // show the splashscreen
+      currentChannel = 11;
+      showSplashScreen();
+      currentChannel = 0;
+
+// we've now displayed something on the screen; for the SSD1619, we are now aware of the lut-size
+#ifdef EPD_SSD1619
+      capabilities |= CAPABILITY_SUPPORTS_CUSTOM_LUTS;
+      if(dispLutSize != 7) {
+         capabilities |= CAPABILITY_ALT_LUT_SIZE;
+      }
+#endif
+      tagSettings.fastBootCapabilities = capabilities;
+
+      // now that we've collected all possible capabilities, save it to settings
+
+      // scan for channels
+      wdt30s();
+      if(tagSettings.fixedChannel) {
+         currentChannel = tagSettings.fixedChannel;
+      } else {
+         currentChannel = channelSelect(4);
+      }
+   }
+   // end of the fastboot option split
+
+   wdt10s();
+   if(currentChannel) {
+#ifdef DEBUGMAIN
+      pr("MAIN: Ap Found!\n");
+#endif
+      //showNoAP();
+
+      showAPFound();
+      // write the settings to the eeprom
+      powerUp(INIT_EEPROM);
+      writeSettings();
+      powerDown(INIT_EEPROM);
+
+      initPowerSaving(INTERVAL_BASE);
+      currentTagMode = TAG_MODE_ASSOCIATED;
+      doSleep(5000UL);
+   } else {
+#ifdef DEBUGMAIN
+      pr("MAIN: No AP found...\n");
+#endif
+      //showAPFound();
+      showNoAP();
+      // write the settings to the eeprom
+      powerUp(INIT_EEPROM);
+      writeSettings();
+      powerDown(INIT_EEPROM);
+
+      initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
+      currentTagMode = TAG_MODE_CHANSEARCH;
+      doSleep(120000UL);
+   }
+
+   // this is the loop we'll stay in forever, basically.
+   while(1) {
+      powerUp(INIT_UART);
+      wdt10s();
+      switch(currentTagMode) {
+         case TAG_MODE_ASSOCIATED:
+            TagAssociated();
+            break;
+         case TAG_MODE_CHANSEARCH:
+            TagChanSearch();
+            break;
+      }
+   }
+}

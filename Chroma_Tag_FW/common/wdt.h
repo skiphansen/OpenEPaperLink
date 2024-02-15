@@ -19,5 +19,21 @@ void wdtSetResetVal(uint32_t val);		//speed is CPU-specific. On ZBS it is 62KHz 
 #pragma callee_saves wdtDeviceReset
 void wdtDeviceReset(void);
 
+#define wdt10s()  \
+    do {          \
+    } while (0)   
+
+#define wdt30s()  \
+    do {          \
+    } while (0)   
+
+#define wdt60s()  \
+    do {          \
+    } while (0)   
+
+
+#define wdt120s() \
+    do {          \
+    } while (0)   
 
 #endif
