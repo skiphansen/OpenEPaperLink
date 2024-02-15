@@ -3,6 +3,9 @@
 #include "radio.h"
 #include "board.h"
 #include "cpu.h"
+#define __packed
+#include "../../oepl-definitions.h"
+#include "../../oepl-proto.h"
 
 
 /*
@@ -228,20 +231,13 @@ static void radioPrvSetupRxDma(uint8_t __xdata* buf)
 }
 
 #pragma callee_saves radioPrvSetupTxDma
-static void radioPrvSetupTxDma(const uint8_t __xdata* buf
-#ifdef  PROXY_BUILD
-                               ,const uint8_t Len
-#endif
-)
+static void radioPrvSetupTxDma(const uint8_t __xdata* buf)
 {
    uint16_t addr = (uint16_t)buf;
    
    radioPrvDmaAbort();
    mRadioTxDmaCfg.srcAddrHi = addr >> 8;
    mRadioTxDmaCfg.srcAddrLo = addr & 0xff;
-#ifdef  PROXY_BUILD
-   mRadioTxDmaCfg.lenLo = Len;
-#endif
    radioPrvSetDmaCfgAndArm((uint16_t)(volatile void __xdata*)mRadioTxDmaCfg);
 }
 

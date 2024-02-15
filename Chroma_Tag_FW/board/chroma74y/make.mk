@@ -1,7 +1,7 @@
 
 SOURCES += soc/cc111x/u1shared.c
 
-FLAGS += --code-size 0x8000
+FLAGS += --code-size 0xf000
 
 SOC = cc111x
 

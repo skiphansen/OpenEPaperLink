@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define TIMER_TICKS_PER_MS             (26000 / 128 / 8)
 #define TIMER_TICKS_PER_SECOND			(26000000 / 128 / 8)
 
 //this is a requirement by SDCC. is this prototype is missing when compiling main(), we get no irq handler

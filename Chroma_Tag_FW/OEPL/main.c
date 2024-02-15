@@ -777,3 +777,27 @@ void main() {
       }
    }
 }
+
+const char __xdata* fwVerString(void)
+{
+   static char __xdata fwVer[32];
+   
+   if (!fwVer[0]) {
+      
+      spr(fwVer, "FW v%u.%u.%*u",
+          fwVersion / 100,(fwVersion % 100) / 10,fwVersion % 10);
+   }
+   
+   return fwVer;
+}
+
+const char __xdata* macString(void)
+{
+   static char __xdata macStr[28];
+   
+   if (!macStr[0])
+      spr(macStr, "%M", (uintptr_near_t)mSelfMac);
+   
+   return macStr;
+}
+

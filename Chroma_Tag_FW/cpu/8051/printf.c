@@ -2,19 +2,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "printf.h"
-#include "zbs243.h"
 #include "board.h"
+#include "cpu.h"
 
 typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 
-static __idata __at (0x00) unsigned char R0;
-static __idata __at (0x01) unsigned char R1;
-static __idata __at (0x02) unsigned char R2;
-static __idata __at (0x03) unsigned char R3;
-static __idata __at (0x04) unsigned char R4;
-static __idata __at (0x05) unsigned char R5;
-static __idata __at (0x06) unsigned char R6;
-static __idata __at (0x07) unsigned char R7;
+//this implementation assumes XDATA == CODESPACE (as it is true on TI's CC111x)
+
 
 static uint8_t __xdata mCvtBuf[18];
 
@@ -57,8 +51,7 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		
 		//main loop: get a byte of the format string
 		"00001$:							\n"
-		"	clr   A							\n"
-		"	movc  A, @A + DPTR				\n"
+		"	movx  A, @DPTR					\n"	//unified memory space, movx works too!
 		"	inc   DPTR						\n"
 		//if zero, we're done
 		"	jz    00098$					\n"
@@ -77,8 +70,7 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		
 		//loop for format string ingestion
 		"00002$:							\n"
-		"	clr   A							\n"
-		"	movc  A, @A + DPTR				\n"
+		"	movx  A, @DPTR					\n"	//unified memory space, movx works too!
 		"	inc   DPTR						\n"
 		//if zero, we're done
 		"	jz    00098$					\n"
@@ -125,19 +117,14 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		//go, do
 		"	push  DPH						\n"
 		"	push  DPL						\n"
-		"	lcall 00090$					\n"	//read the short (__xdata) pointer - >DPTR
+		"	lcall 00090$					\n"	//read the short (__code/__xdata) pointer -> DPTR
 		"	mov   R4, #8					\n"	//byteSel
 		"00005$:							\n"
+		"	mov   A, #0xff					\n"	//A = byteSel - 1
+		"	add   A, R4						\n"
+		"	movc  A, @A + DPTR				\n"	//unified memory space, bitches (movc == movx, but with some more addressing modes)!
 		"	push  DPH						\n"
 		"	push  DPL						\n"
-		"	mov   A, R4						\n"
-		"	dec   A							\n"	
-		"	add   A, DPL					\n"
-		"	mov   DPL, A					\n"
-		"	mov   A, DPH					\n"
-		"	addc  A, #0						\n"
-		"	mov   DPH, A					\n"
-		"	movx  A, @DPTR					\n"
 		"	mov   R2, A						\n"
 		"	swap  A							\n"
 		"	mov   R3, #2					\n"
@@ -223,18 +210,17 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	jnz   00015$					\n"
 		"	lcall 00091$					\n"	//get and resolve generic pointer into DPTR
 		"	sjmp  00016$					\n"
-		"00015$:							\n"	//get short pointer into DPTR, record that it is to XRAM
-		"	clr   PSW.5						\n"
-		"	clr   PSW.1						\n"
+		"00015$:							\n"	//get short pointer into DPTR
 		"	lcall 00090$					\n"
 		"00016$:							\n"	//pointer to string now in DPTR
-		//we have the string pointer in {DPTR,PSW}, let's see if we have padding to do
+		//we have the string pointer in DPTR, let's see if we have padding to do
 		"	mov   A, R4						\n"
 		"	anl   A, #0x04					\n"
 		"	jnz   00018$					\n"
 		//print string with no length restrictions
 		"00017$:							\n"
-		"	lcall 00095$					\n"
+		"	movx  A, @DPTR					\n"
+		"	inc   DPTR						\n"
 		"	jz    00055$					\n"
 		"	lcall 00060$					\n"
 		"	sjmp  00017$					\n"
@@ -245,12 +231,13 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	sjmp  00055$					\n"
 		
 		"00019$:							\n"
-		"	lcall 00095$					\n"
+		"	movx  A, @DPTR					\n"
+		"	inc   DPTR						\n"
 		"	jz    00020$					\n"
 		"	lcall 00060$					\n"
 		"	djnz  R2, 00019$				\n"
 		//we get here if we ran out of allowable bytes - we're done then
-		"	ljmp  00055$					\n"
+		"	sjmp  00055$					\n"
 		
 		//just a trampoline for range issues
 		"00035$:							\n"
@@ -289,11 +276,11 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	addc  A, #0x00					\n"
 		"	mov   DPH, A					\n"
 		"00026$:							\n"
-		"	lcall 00079$					\n"
+		"	movx  A, @DPTR					\n"
 		"	anl   A, #0xf0					\n"
 		"	jnz   00028$					\n"
 		"	dec   R1						\n"
-		"	lcall 00079$					\n"
+		"	movx  A, @DPTR					\n"
 		"	jnz   00028$					\n"
 		"	dec   R1						\n"
 		//dec DPTR
@@ -394,13 +381,13 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	jz    00032$					\n"
 		
 		//we're printing just the low nibble of the first byte - set up for it
-		"	lcall 00079$					\n"
+		"	movx  A, @DPTR					\n"
 		"	mov   R1, #1					\n"
 		"	sjmp  00033$					\n"
 		
 		//print loop
 		"00032$:							\n"
-		"	lcall 00079$					\n"
+		"	movx  A, @DPTR					\n"
 		"	mov   R1, #2					\n"
 		"	mov   R3, A						\n"
 		"	swap  A							\n"
@@ -410,7 +397,7 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	push  DPH						\n"
 		"	push  DPL						\n"
 		"	mov   DPTR, #00099$				\n"
-		"	movc  A, @A + DPTR				\n"	
+		"	movc  A, @A + DPTR				\n"
 		"	pop   DPL						\n"
 		"	pop   DPH						\n"
 		"	lcall 00060$					\n"
@@ -463,7 +450,7 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	addc  A, #(_mCvtBuf >> 8)		\n"
 		"	mov   R3, A						\n"
 		"00041$:							\n"
-		"	lcall 00079$					\n"
+		"	movx  A, @DPTR					\n"
 		"	inc   DPTR						\n"
 		"	lcall 00086$					\n"
 		"	movx  @DPTR, A					\n"
@@ -569,7 +556,6 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		//dabbling is done, print it now using hex routine
 		"	mov   DPTR, #(_mCvtBuf + 8)		\n"
 		"	mov   B, #10					\n"
-		"	clr   PSW.5						\n"	//it is now for sure in XRAM
 		"	ljmp  00070$					\n"
 		
 		//read short pointer from param stack
@@ -581,41 +567,13 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	dec   R0						\n"
 		"	ret								\n"
 		
-		//read and increment pointer of the type provided by 00091$ (in {DPTR,PSW}) into A. clobber nothing
-		"00095$:							\n"
-		"	jb    PSW.5, 00066$ 			\n"
-		"	jb    PSW.1, 00067$ 			\n"
-		//XRAM
-		"	movx  A, @DPTR					\n"
-		"	inc   DPTR						\n"
-		"	ret								\n"
-		//CODE
-		"00066$:							\n"
-		"	clr   A							\n"
-		"	movc  A, @A+DPTR				\n"
-		"	inc   DPTR						\n"
-		"	ret								\n"
-		//IRAM
-		"00067$:							\n"
-		"	mov   DPH, R0					\n"
-		"	mov   R0, DPL					\n"
-		"	mov   A, @R0					\n"
-		"	mov   R0, DPH					\n"
-		"	inc   DPL						\n"
-		"	ret								\n"
-		
-		//resolve generic pointer on param stack to an pointer in DPTR and flags in PSW.5 and PSW.1
-		//PSW.5 will be 0 and PSW.1 will be 0 for XRAM (PDATA goes here too)
-		//PSW.5 will be 1 and PSW.1 will be 0 for CODE
-		//PSW.5 will be 0 and PSW.1 will be 1 for IRAM
+		//resolve generic pointer on param stack to an xdata pointer in DPTR
 		"00091$:							\n"
-		"	clr   PSW.5						\n"
-		"	clr   PSW.1						\n"
 		"	mov   A, @R0					\n"
 		"	dec   R0						\n"
 		"	jz    00090$					\n"	//0x00: pointer type: xdata
 		"	xrl   A, #0x80					\n"
-		"	jz    00094$					\n"	//0x80: pointer type: code
+		"	jz    00090$					\n"	//0x80: pointer type: code
 		"	xrl   A, #0xc0					\n"
 		"	jz    00092$					\n"	//0x40: pointer type: idata
 		//pdata
@@ -623,60 +581,43 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	sjmp  00093$					\n"
 		//idata
 		"00092$:							\n"
-		"	setb  PSW.1						\n"
+		"	mov   DPH, #0xff				\n"
 		"	sjmp  00093$					\n"
-		//code
-		"00094$:							\n"
-		"	setb  PSW.5						\n"
-		"	sjmp  00090$					\n"
-		
-		//read the pointer of the type that 00080$ returns (in DPTR) into A. clobber nothing
-		"00079$:							\n"
-		"	jnb   PSW.5, 00078$				\n"
-		"	push  _R0						\n"
-		"	mov   R0, DPL					\n"
-		"	mov   A, @R0					\n"
-		"	pop   _R0						\n"
-		"	ret								\n"
-		"00078$:							\n"
-		"	movx  A, @DPTR					\n"
-		"	ret								\n"
 		
 		//get pointer to a number, might be pushed or might be pointed to, size might vary. return pointer to number's LOW byte in DPTR
 		"00080$:							\n"
 		"	mov   A, R4						\n"
 		"	anl   A, #0x01					\n"
 		"	jnz   00083$					\n"
-		//param is itself on stack - now we care about size, but either way, PSW.5 will be 1
-		"	setb  PSW.5						\n"
-		"	mov   B, #0						\n"
+		//param is itself on stack - now we care about size, but either way, DPH will be 0xFF
+		"	mov   B, R0						\n"
+		"	mov   DPH, #0xff				\n"
 		"	mov   A, R4						\n"
 		"	anl   A, #0x18					\n"
 		"	jz    00081$					\n"
 		"	anl   A, #0x10					\n"
 		"	jz    00082$					\n"
 		//long long (8 bytes)				\n"
-		"	setb  B.2						\n"
 		"	dec   R0						\n"
 		"	dec   R0						\n"
 		"	dec   R0						\n"
 		"	dec   R0						\n"
 		//long (4 bytes)
 		"00082$:							\n"
-		"	setb  B.1						\n"
 		"	dec   R0						\n"
 		"	dec   R0						\n"
 		//int (2 bytes)						\n"
 		"00081$:							\n"
-		"	setb  B.0						\n"
 		"	dec   R0						\n"
 		"	mov   DPL, R0					\n"
 		"	dec   R0						\n"
-		"	inc   B							\n"
+		"	mov   A, B						\n"
+		"	clr   C							\n"
+		"	subb  A, R0						\n"
+		"	mov   B, A						\n"
 		"	ret								\n"
-		//pointer it on stack itself, number is in xram, but we still need to provide the length
+		//pointer it on stack itself, but we still need to provide the length
 		"00083$:							\n"
-		"	clr   PSW.5						\n"	//mark as "in xram"
 		"	mov   A, R4						\n"
 		"	anl   A, #0x18					\n"
 		"	jz    00084$					\n"
@@ -684,15 +625,15 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
 		"	jz    00085$					\n"
 		//long long
 		"	mov   B, #8						\n"
-		"	ljmp  00090$					\n"
+		"	sjmp  00090$					\n"
 		//long
 		"00085$:							\n"
 		"	mov   B, #4						\n"
-		"	ljmp  00090$					\n"
+		"	sjmp  00090$					\n"
 		//int
 		"00084$:							\n"
 		"	mov   B, #2						\n"
-		"	ljmp  00090$					\n"
+		"	sjmp  00090$					\n"
 
 		//swap R3:R1 <-> DPH:DPL
 		"00086$:							\n"
@@ -765,9 +706,13 @@ void pr(const char __code *fmt, ...) __reentrant
 	va_list vl;
 	
 	va_start(vl, fmt);
+#ifndef NO_AUTO_UART_SWITCH
 	dbgUartOn();
+#endif
 	prvPrintFormat(prPrvPutchar, 0, fmt, vl);
+#ifndef NO_AUTO_UART_SWITCH
 	dbgUartOff();
+#endif
 	va_end(vl);
 }
 
@@ -792,4 +737,3 @@ void spr(char __xdata* out, const char __code *fmt, ...) __reentrant
 	
 	*out = 0;
 }
-

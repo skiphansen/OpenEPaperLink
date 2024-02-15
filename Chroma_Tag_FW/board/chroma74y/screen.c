@@ -350,7 +350,8 @@ static void screenPrvSendLut(uint8_t cmd, const uint8_t __code *ptr, uint16_t le
 {
 	uint8_t __xdata *dst = mScreenRow;
 	uint16_t origSendLen = sendLen;
-	
+   int8_t CurTemperature = adcSampleTemperature();
+
 	sendLen -= len;
 	
 	//copy/fill buffer
@@ -384,10 +385,13 @@ static void screenPrvSendLut(uint8_t cmd, const uint8_t __code *ptr, uint16_t le
 			uint8_t i, len = corrections->len;
 			
 			//result guaranteed to be found by our range requirements
-			for (rng = corrections->ranges; mCurTemperature < rng->minTemp || mCurTemperature > rng->maxTemp; rng++);
+			for(rng = corrections->ranges; 
+             CurTemperature< rng->minTemp || CurTemperature > rng->maxTemp; 
+             rng++);
 			
-			for (i = 0; i < len; i++)
+			for (i = 0; i < len; i++) {
 				mScreenRow[ofst++] = rng->vals[i];
+         }
 		}
 	}
 	einkSelect();
