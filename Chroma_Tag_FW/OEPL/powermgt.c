@@ -79,20 +79,18 @@ buttonWentHigh:
 
 void setupPortsInitial() 
 {
-#if 0
-    P0INTEN = 0;
-    P1INTEN = 0;
-    P2INTEN = 0;
-    P0FUNC = 0;
-    P1FUNC = 0;
-    P2FUNC = 0;
-    P0DIR = 0xFF;
-    P1DIR = 0xFF;
-    P2DIR = 0xFF;
-    P0PULL = 0x00;
-    P1PULL = 0x00;
-    P2PULL = 0x00;
-#endif
+   clockingAndIntsInit();
+   timerInit();
+   boardInit();
+   
+   if (!eepromInit()) {
+      pr("failed to init eeprom\n");
+      while(1);
+   }
+   
+   boardInitStage2();
+
+   irqsOn();
 }
 
 void initPowerSaving(const uint16_t initialValue) 

@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define FW_VERSION 0x0026         // version number
-#define FW_VERSION_SUFFIX "-MD5"  // suffix, like -RC1 or whatever.
+#define FW_VERSION 0x0001        // version number
+#define FW_VERSION_SUFFIX ""     // suffix, like -RC1 or whatever.
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 // #define DEBUGPROTO               // debug protocol
 // #define DEBUGOTA                 // debug OTA FW updates
@@ -29,7 +29,9 @@
 // #define LEAN_VERSION             // makes a smaller version, leaving extra flash space for other things
 // #define WRITE_MAC_FROM_FLASH     // takes mac address from flash if none is set in the infopage
 
-#if defined(DEBUGSETTINGS) || defined(DEBUGMSG) || defined(DEBUGBLOCKS) || defined(DEBUGPROTO) || defined(DEBUGOTA) || defined(DEBUGNFC) || defined(DEBUGEPD) || defined(DEBUGMAIN) || defined(DEBUGEEPROM)
+#if defined(DEBUGSETTINGS) || defined(DEBUGMSG) || defined(DEBUGBLOCKS) \
+    || defined(DEBUGPROTO) || defined(DEBUGOTA) || defined(DEBUGNFC) \
+    || defined(DEBUGEPD) || defined(DEBUGMAIN) || defined(DEBUGEEPROM)
 #define ISDEBUGBUILD
 #endif
 

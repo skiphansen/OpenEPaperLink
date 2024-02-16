@@ -240,6 +240,7 @@
 		<Folder
 			Name="Other Files"
 			Filters="">
+			<F N="../zbs243_Tag_FW/buildfw.sh"/>
 		</Folder>
 	</Files>
 	<Macro>

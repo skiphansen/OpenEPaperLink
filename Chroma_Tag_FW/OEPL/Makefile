@@ -1,6 +1,6 @@
 BUILD		?= chroma74y
 
-FW_VER=01
+FW_VER := $(shell grep "\#define FW_VERSION" ../common/settings.h | grep -v "suffix" | awk '{print $$3}' | cut -c 3-)
 
 #file containing main() must be first!
 SOURCES	= main.c eeprom.c drawing.c comms.c settings.c chars.c cpu.c 
@@ -23,7 +23,7 @@ FLAGS += -DPROXY_BUILD
 FLAGS += -I. -MD
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
+IMAGE_NAME?=$(BUILD)_${FW_VER}
 include $(FIRMWARE_ROOT)/make/rules.mk
 
-IMAGE_NAME?=$(BUILD)_${FW_VER}
 

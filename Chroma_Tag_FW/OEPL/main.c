@@ -465,6 +465,7 @@ void main()
    setupPortsInitial();
    powerUp(INIT_BASE | INIT_UART);
    pr("BOOTED>  %d.%d.%d%s\n", fwVersion / 100, (fwVersion % 100) / 10, (fwVersion % 10), fwVersionSuffix);
+   for( ; ; )
 
 #ifdef DEBUGGUI
    displayLoop();  // remove me
