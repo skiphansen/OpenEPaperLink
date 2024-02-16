@@ -47,6 +47,8 @@ void screenTxEnd(void);
 void P1INT_ISR(void) __interrupt (15);
 
 
-__xdata __at (0xfda2) uint8_t mScreenRow[320];	//350 bytes here, we use 320 of them
+// 350 bytes here which do not retain data in power modes PM2 or PM3,
+// we use 320 of them for mScreenRow which doesn't need to be retained
+__xdata __at (0xfda2) uint8_t mScreenRow[320];	
 
 #endif

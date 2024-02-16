@@ -48,7 +48,8 @@ const uint8_t __code channelList[6] = {11, 15, 20, 25, 26, 27};
 uint8_t *rebootP;
 
 #ifdef DEBUGGUI
-void displayLoop() {
+void displayLoop() 
+{
    powerUp(INIT_BASE | INIT_UART);
 
    pr("Splash screen\n");
@@ -103,11 +104,11 @@ void displayLoop() {
    timerDelay(TIMER_TICKS_PER_SECOND * 4);
    wdtDeviceReset();
 }
-
 #endif
 
 #ifdef WRITE_MAC_FROM_FLASH
-void writeInfoPageWithMac() {
+void writeInfoPageWithMac() 
+{
    uint8_t *settemp = blockbuffer + 2048;
    flashRead(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024);
    flashRead(0xFC06, (void *)(settemp + 8), 4);
@@ -151,10 +152,13 @@ void writeInfoPageWithMac() {
 }
 #endif
 
-uint8_t channelSelect(uint8_t rounds) {  // returns 0 if no accesspoints were found
-   powerUp(INIT_RADIO);
+// returns 0 if no accesspoints were found
+uint8_t channelSelect(uint8_t rounds) 
+{
    uint8_t __xdata result[16];
+
    memset(result, 0, sizeof(result));
+   powerUp(INIT_RADIO);
 
    for(uint8_t i = 0; i < rounds; i++) {
       for(uint8_t c = 0; c < sizeof(channelList); c++) {
@@ -180,7 +184,8 @@ uint8_t channelSelect(uint8_t rounds) {  // returns 0 if no accesspoints were fo
    return highestSlot;
 }
 
-void validateMacAddress() {
+void validateMacAddress() 
+{
    // check if the mac contains at least some non-0xFF values
    for(uint8_t __xdata c = 0; c < 8; c++) {
       if(mSelfMac[c] != 0xFF) goto macIsValid;
@@ -213,46 +218,29 @@ uint8_t getFirstWakeUpReason()
 }
 
 
-void detectButtonOrJig() 
-{
-#if 0
-   switch(checkButtonOrJig()) {
-      case DETECT_P1_0_BUTTON:
-         capabilities |= CAPABILITY_HAS_WAKE_BUTTON;
-         break;
-      case DETECT_P1_0_JIG:
-         wdt120s();
-         // show splashscreen
-         powerUp(INIT_EPD);
-         afterFlashScreenSaver();
-         while(1)
-            ;
-         break;
-      case DETECT_P1_0_NOTHING:
-         break;
-      default:
-         break;
-   }
-#endif
-}
 
-void TagAssociated() {
+void TagAssociated() 
+{
    // associated
    struct AvailDataInfo *__xdata avail;
    // Is there any reason why we should do a long (full) get data request (including reason, status)?
-   if((longDataReqCounter > LONG_DATAREQ_INTERVAL) || wakeUpReason != WAKEUP_REASON_TIMED || secondLongCheckIn) {
-      // check if we should do a voltage measurement (those are pretty expensive)
+   if((longDataReqCounter > LONG_DATAREQ_INTERVAL) 
+      || wakeUpReason != WAKEUP_REASON_TIMED 
+      || secondLongCheckIn) 
+   { // check if we should do a voltage measurement (those are pretty expensive)
       if(voltageCheckCounter == VOLTAGE_CHECK_INTERVAL) {
          doVoltageReading();
          voltageCheckCounter = 0;
-      } else {
+      }
+      else {
          powerUp(INIT_TEMPREADING);
       }
       voltageCheckCounter++;
 
-      // check if the battery level is below minimum, and force a redraw of the screen
-
-      if((lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) || (noAPShown && tagSettings.enableNoRFSymbol)) {
+   // check if the battery level is below minimum, and force a redraw of the screen
+      if((lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol)
+          || (noAPShown && tagSettings.enableNoRFSymbol)) 
+      {
          // Check if we were already displaying an image
          if(curImgSlot != 0xFF) {
             powerUp(INIT_EEPROM | INIT_EPD);
@@ -276,35 +264,33 @@ void TagAssociated() {
             externalWakeHandler(CUSTOM_IMAGE_BUTTON1);
             fastNextCheckin = true;
             break;
+
          case WAKEUP_REASON_BUTTON2:
             externalWakeHandler(CUSTOM_IMAGE_BUTTON2);
             fastNextCheckin = true;
             break;
+
          case WAKEUP_REASON_GPIO:
             externalWakeHandler(CUSTOM_IMAGE_GPIO);
             fastNextCheckin = true;
             break;
+
          case WAKEUP_REASON_RF:
             externalWakeHandler(CUSTOM_IMAGE_RF_WAKE);
             fastNextCheckin = true;
             break;
-#ifndef LEAN_VERSION
-         case WAKEUP_REASON_NFC:
-            externalWakeHandler(CUSTOM_IMAGE_NFC_WAKE);
-            fastNextCheckin = true;
-            break;
-#endif
       }
 
       if(avail != NULL) {
-         // we got some data!
+      // we got some data!
          longDataReqCounter = 0;
 
          if(secondLongCheckIn == true) {
             secondLongCheckIn = false;
          }
 
-         // since we've had succesful contact, and communicated the wakeup reason succesfully, we can now reset to the 'normal' status
+       // since we've had succesful contact, and communicated the wakeup 
+       // reason succesfully, we can now reset to the 'normal' status
          if(wakeUpReason != WAKEUP_REASON_TIMED) {
             secondLongCheckIn = true;
          }
@@ -314,7 +300,8 @@ void TagAssociated() {
          uint8_t roamChannel = channelSelect(1);
          if(roamChannel) currentChannel = roamChannel;
       }
-   } else {
+   }
+   else {
       powerUp(INIT_RADIO);
 
 #ifdef ENABLE_RETURN_DATA
@@ -330,20 +317,23 @@ void TagAssociated() {
    addAverageValue();
 
    if(avail == NULL) {
-      // no data :( this means no reply from AP
+   // no data :( this means no reply from AP
       nextCheckInFromAP = 0;  // let the power-saving algorithm determine the next sleep period
-   } else {
+   }
+   else {
       nextCheckInFromAP = avail->nextCheckIn;
       // got some data from the AP!
       if(avail->dataType != DATATYPE_NOUPDATE) {
-         // data transfer
+      // data transfer
          if(processAvailDataInfo(avail)) {
-            // succesful transfer, next wake time is determined by the NextCheckin;
-         } else {
-            // failed transfer, let the algorithm determine next sleep interval (not the AP)
+         // succesful transfer, next wake time is determined by the NextCheckin;
+         }
+         else {
+         // failed transfer, let the algorithm determine next sleep interval (not the AP)
             nextCheckInFromAP = 0;
          }
-      } else {
+      } 
+      else {
          // no data transfer, just sleep.
       }
    }
@@ -352,7 +342,8 @@ void TagAssociated() {
    longDataReqCounter += nextCheckin;
 
    if(nextCheckin == INTERVAL_AT_MAX_ATTEMPTS) {
-      // We've averaged up to the maximum interval, this means the tag hasn't been in contact with an AP for some time.
+   // We've averaged up to the maximum interval, this means the tag 
+   // hasn't been in contact with an AP for some time.
       if(tagSettings.enableScanForAPAfterTimeout) {
          currentTagMode = TAG_MODE_CHANSEARCH;
          return;
@@ -360,38 +351,45 @@ void TagAssociated() {
    }
 
    if(fastNextCheckin) {
-      // do a fast check-in next
+   // do a fast check-in next
       fastNextCheckin = false;
       doSleep(100UL);
-   } else {
+   }
+   else {
       if(nextCheckInFromAP) {
-         // if the AP told us to sleep for a specific period, do so.
+      // if the AP told us to sleep for a specific period, do so.
          if(nextCheckInFromAP & 0x8000) {
             doSleep((nextCheckInFromAP & 0x7FFF) * 1000UL);
-         } else {
+         }
+         else {
             doSleep(nextCheckInFromAP * 60000UL);
          }
-      } else {
-         // sleep determined by algorithm
+      }
+      else {
+      // sleep determined by algorithm
          doSleep(getNextSleep() * 1000UL);
       }
    }
    powerUp(INIT_UART);
 }
 
-void TagChanSearch() {
-   // not associated
-   if(((scanAttempts != 0) && (scanAttempts % VOLTAGEREADING_DURING_SCAN_INTERVAL == 0)) || (scanAttempts > (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS))) {
+void TagChanSearch() 
+{
+// not associated
+   if((scanAttempts != 0 && (scanAttempts % VOLTAGEREADING_DURING_SCAN_INTERVAL == 0))
+      || scanAttempts > (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS))
+   {
       doVoltageReading();
    }
 
-   // try to find a working channel
+// try to find a working channel
    currentChannel = channelSelect(2);
 
-   // Check if we should redraw the screen with icons, info screen or screensaver
-   if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) ||
-      (lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) ||
-      (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) {
+// Check if we should redraw the screen with icons, info screen or screensaver
+   if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 
+      || (lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) 
+      || (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) 
+   {
       powerUp(INIT_EPD);
       wdt60s();
       if(curImgSlot != 0xFF) {
@@ -401,135 +399,50 @@ void TagChanSearch() {
             drawImageFromEeprom(curImgSlot, lut);
             powerDown(INIT_EEPROM);
          }
-      } else if((scanAttempts >= (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) {
+      }
+      else if(scanAttempts >= (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1)) {
          showLongTermSleep();
-      } else {
+      }
+      else {
          showNoAP();
       }
       powerDown(INIT_EPD);
    }
 
-   // did we find a working channel?
+// did we find a working channel?
    if(currentChannel) {
-      // now associated! set up and bail out of this loop.
+   // now associated! set up and bail out of this loop.
       scanAttempts = 0;
       wakeUpReason = WAKEUP_REASON_NETWORK_SCAN;
       initPowerSaving(INTERVAL_BASE);
       doSleep(getNextSleep() * 1000UL);
       currentTagMode = TAG_MODE_ASSOCIATED;
       return;
-   } else {
-      // still not associated
+   }
+   else {
+   // still not associated
       doSleep(getNextScanSleep(true) * 1000UL);
    }
 }
 
-#ifndef LEAN_VERSION
-void TagSlideShow() {
-   currentChannel = 11;  // suppress the no-rf image thing
-   displayCustomImage(CUSTOM_IMAGE_SPLASHSCREEN);
-
-   // do a short channel search
-   currentChannel = channelSelect(2);
-
-   pr("Slideshow mode ch: %d\n", currentChannel);
-
-   // if we did find an AP, check in once
-   if(currentChannel) {
-      doVoltageReading();
-      struct AvailDataInfo *__xdata avail;
-      powerUp(INIT_RADIO);
-      avail = getAvailDataInfo();
-
-      if(avail != NULL) {
-         processAvailDataInfo(avail);
-      }
-   }
-   powerDown(INIT_RADIO);
-
-   // suppress the no-rf image
-   currentChannel = 11;
-
-   while(1) {
-      powerUp(INIT_UART);
-      wdt60s();
-      powerUp(INIT_EEPROM);
-      uint8_t img = findNextSlideshowImage(slideShowCurrentImg);
-      if(img != slideShowCurrentImg) {
-         slideShowCurrentImg = img;
-         uint8_t lut = getEepromImageDataArgument(img) & 0x03;
-         powerUp(INIT_EPD);
-         if(SLIDESHOW_FORCE_FULL_REFRESH_EVERY) {
-            slideShowRefreshCount++;
-         }
-         if((slideShowRefreshCount == SLIDESHOW_FORCE_FULL_REFRESH_EVERY) || (lut == 0)) {
-            slideShowRefreshCount = 1;
-            lut = 0;
-         }
-         drawImageFromEeprom(img, lut);
-         powerDown(INIT_EPD | INIT_EEPROM);
-      } else {
-         // same image, so don't update the screen; this only happens when there's exactly one slideshow image
-         powerDown(INIT_EEPROM);
-      }
-      tagSettings.enableRFWake = true;
-      switch(tagSettings.customMode) {
-         case TAG_CUSTOM_SLIDESHOW_FAST:
-            doSleep(1000UL * SLIDESHOW_INTERVAL_FAST);
-            break;
-         case TAG_CUSTOM_SLIDESHOW_MEDIUM:
-            doSleep(1000UL * SLIDESHOW_INTERVAL_MEDIUM);
-            break;
-         case TAG_CUSTOM_SLIDESHOW_SLOW:
-            doSleep(1000UL * SLIDESHOW_INTERVAL_SLOW);
-            break;
-         case TAG_CUSTOM_SLIDESHOW_GLACIAL:
-            doSleep(1000UL * SLIDESHOW_INTERVAL_GLACIAL);
-            break;
-      }
-#ifdef DEBUGMAIN
-      pr("wake...\n");
-#endif
-   }
-}
-
-void TagShowWaitRFWake() {
-#ifdef DEBUGMAIN
-   pr("waiting for RF wake to start slideshow, now showing image\n");
-#endif
-   currentChannel = 11;  // suppress the no-rf image thing
-   displayCustomImage(CUSTOM_IMAGE_SLIDESHOW);
-   // powerDown(INIT_EEPROM | INIT_EPD);
-   tagSettings.enableRFWake = 1;
-   while(1) {
-      doSleep(-1);
-      if(wakeUpReason == WAKEUP_REASON_RF || wakeUpReason == WAKEUP_REASON_BUTTON1) {
-         break;
-      }
-   }
-   tagSettings.enableRFWake = 0;
-   tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_SLOW;
-   powerUp(INIT_EEPROM);
-   writeSettings();
-   powerDown(INIT_EEPROM);
-   wdtDeviceReset();
-}
-#endif
-
-void executeCommand(uint8_t cmd) {
+void executeCommand(uint8_t cmd) 
+{
    switch(cmd) {
       case CMD_DO_REBOOT:
          wdtDeviceReset();
          break;
+
       case CMD_DO_RESET_SETTINGS:
          powerUp(INIT_EEPROM);
          loadDefaultSettings();
          writeSettings();
          powerDown(INIT_EEPROM);
          break;
+
       case CMD_DO_SCAN:
          currentChannel = channelSelect(4);
          break;
+
       case CMD_DO_DEEPSLEEP:
          powerUp(INIT_EPD);
          afterFlashScreenSaver();
@@ -538,75 +451,17 @@ void executeCommand(uint8_t cmd) {
             doSleep(-1);
          }
          break;
+
       case CMD_ERASE_EEPROM_IMAGES:
          powerUp(INIT_EEPROM);
          eraseImageBlocks();
          powerDown(INIT_EEPROM);
          break;
-#ifndef LEAN_VERSION
-      case CMD_ENTER_SLIDESHOW_FAST:
-         powerUp(INIT_EEPROM);
-         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
-            powerDown(INIT_EEPROM);
-            return;
-         }
-         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_FAST;
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-      case CMD_ENTER_SLIDESHOW_MEDIUM:
-         powerUp(INIT_EEPROM);
-         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
-            powerDown(INIT_EEPROM);
-            return;
-         }
-         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_MEDIUM;
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-      case CMD_ENTER_SLIDESHOW_SLOW:
-         powerUp(INIT_EEPROM);
-         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
-            powerDown(INIT_EEPROM);
-            return;
-         }
-         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_SLOW;
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-      case CMD_ENTER_SLIDESHOW_GLACIAL:
-         powerUp(INIT_EEPROM);
-         if(findSlotDataTypeArg(CUSTOM_IMAGE_SLIDESHOW << 3) == 0xFF) {
-            powerDown(INIT_EEPROM);
-            return;
-         }
-         tagSettings.customMode = TAG_CUSTOM_SLIDESHOW_GLACIAL;
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-      case CMD_ENTER_NORMAL_MODE:
-         tagSettings.customMode = TAG_CUSTOM_MODE_NONE;
-         powerUp(INIT_EEPROM);
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-      case CMD_ENTER_WAIT_RFWAKE:
-         tagSettings.customMode = TAG_CUSTOM_MODE_WAIT_RFWAKE;
-         powerUp(INIT_EEPROM);
-         writeSettings();
-         powerDown(INIT_EEPROM);
-         wdtDeviceReset();
-         break;
-#endif
    }
 }
 
-void main() {
+void main() 
+{
    setupPortsInitial();
    powerUp(INIT_BASE | INIT_UART);
    pr("BOOTED>  %d.%d.%d%s\n", fwVersion / 100, (fwVersion % 100) / 10, (fwVersion % 10), fwVersionSuffix);
@@ -615,11 +470,11 @@ void main() {
    displayLoop();  // remove me
 #endif
 
-   // Find the reason why we're booting; is this a WDT?
+// Find the reason why we're booting; is this a WDT?
    wakeUpReason = getFirstWakeUpReason();
 
-   // dump(blockbuffer, 1024);
-   //  get our own mac address. this is stored in Infopage at offset 0x10-onwards
+// dump(blockbuffer, 1024);
+//  get our own mac address. this is stored in Infopage at offset 0x10-onwards
    boardGetOwnMac(mSelfMac);
 
 #ifdef DEBUGMAIN
@@ -628,13 +483,13 @@ void main() {
    pr("%02X%02X", mSelfMac[4], mSelfMac[5]);
    pr("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
 #endif
-   // do a little sleep, this prevents a partial boot during battery insertion
+// do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM | INIT_UART);
 
-   // load settings from infopage
+// load settings from infopage
    loadSettings();
-   // invalidate the settings, and write them back in a later state
+// invalidate the settings, and write them back in a later state
    invalidateSettingsEEPROM();
 
 #ifdef WRITE_MAC_FROM_FLASH
@@ -660,28 +515,9 @@ void main() {
    }
 #endif
 
-   // get the highest slot number, number of slots
+// get the highest slot number, number of slots
    initializeProto();
    powerDown(INIT_EEPROM);
-
-   // detect button or jig
-   detectButtonOrJig();
-
-#ifndef LEAN_VERSION
-   switch(tagSettings.customMode) {
-      case TAG_CUSTOM_MODE_WAIT_RFWAKE:
-         TagShowWaitRFWake();
-         break;
-      case TAG_CUSTOM_SLIDESHOW_FAST:
-      case TAG_CUSTOM_SLIDESHOW_MEDIUM:
-      case TAG_CUSTOM_SLIDESHOW_SLOW:
-      case TAG_CUSTOM_SLIDESHOW_GLACIAL:
-         TagSlideShow();
-         break;
-      default:
-         break;
-   }
-#endif
 
    if(tagSettings.enableFastBoot) {
 // Fastboot
@@ -691,47 +527,43 @@ void main() {
       capabilities = tagSettings.fastBootCapabilities;
       if(tagSettings.fixedChannel) {
          currentChannel = tagSettings.fixedChannel;
-      } else {
+      }
+      else {
          currentChannel = channelSelect(2);
       }
-   } else {
-      // Normal boot/startup
+   }
+   else {
+   // Normal boot/startup
 #ifdef DEBUGMAIN
       pr("Normal boot\n");
 #endif
-      // validate the mac address; this will display a warning on the screen if the mac address is invalid
+   // validate the mac address; this will display a warning on the screen if the mac address is invalid
       validateMacAddress();
 
       // Get a voltage reading on the tag, loading down the battery with the radio
       doVoltageReading();
 
-      // show the splashscreen
+   // show the splashscreen
       currentChannel = 11;
       showSplashScreen();
       currentChannel = 0;
-
-// we've now displayed something on the screen; for the SSD1619, we are now aware of the lut-size
-#ifdef EPD_SSD1619
-      capabilities |= CAPABILITY_SUPPORTS_CUSTOM_LUTS;
-      if(dispLutSize != 7) {
-         capabilities |= CAPABILITY_ALT_LUT_SIZE;
-      }
-#endif
       tagSettings.fastBootCapabilities = capabilities;
 
-      // now that we've collected all possible capabilities, save it to settings
+   // now that we've collected all possible capabilities, save it to settings
 
-      // scan for channels
+   // scan for channels
       wdt30s();
       if(tagSettings.fixedChannel) {
          currentChannel = tagSettings.fixedChannel;
-      } else {
+      }
+      else {
          currentChannel = channelSelect(4);
       }
    }
-   // end of the fastboot option split
+// end of the fastboot option split
 
    wdt10s();
+
    if(currentChannel) {
 #ifdef DEBUGMAIN
       pr("MAIN: Ap Found!\n");
@@ -739,7 +571,7 @@ void main() {
       //showNoAP();
 
       showAPFound();
-      // write the settings to the eeprom
+   // write the settings to the eeprom
       powerUp(INIT_EEPROM);
       writeSettings();
       powerDown(INIT_EEPROM);
@@ -747,7 +579,8 @@ void main() {
       initPowerSaving(INTERVAL_BASE);
       currentTagMode = TAG_MODE_ASSOCIATED;
       doSleep(5000UL);
-   } else {
+   }
+   else {
 #ifdef DEBUGMAIN
       pr("MAIN: No AP found...\n");
 #endif
@@ -767,10 +600,12 @@ void main() {
    while(1) {
       powerUp(INIT_UART);
       wdt10s();
+
       switch(currentTagMode) {
          case TAG_MODE_ASSOCIATED:
             TagAssociated();
             break;
+
          case TAG_MODE_CHANSEARCH:
             TagChanSearch();
             break;
@@ -781,23 +616,37 @@ void main() {
 const char __xdata* fwVerString(void)
 {
    static char __xdata fwVer[32];
-   
-   if (!fwVer[0]) {
-      
+
+   if(!fwVer[0]) {
+
       spr(fwVer, "FW v%u.%u.%*u",
           fwVersion / 100,(fwVersion % 100) / 10,fwVersion % 10);
    }
-   
+
    return fwVer;
 }
 
 const char __xdata* macString(void)
 {
    static char __xdata macStr[28];
-   
-   if (!macStr[0])
+
+   if(!macStr[0])
       spr(macStr, "%M", (uintptr_near_t)mSelfMac);
-   
+
    return macStr;
+}
+
+void free(void *p)
+{
+}
+
+void __xdata *malloc (size_t size)
+{
+   if(size <= sizeof(mScreenRow)) {
+      return &mScreenRow;
+   }
+   else {
+      return NULL;
+   }
 }
 

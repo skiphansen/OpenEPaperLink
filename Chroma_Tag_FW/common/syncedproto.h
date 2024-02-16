@@ -37,7 +37,6 @@ extern bool processAvailDataInfo(struct AvailDataInfo *__xdata avail);
 extern void initializeProto();
 extern uint8_t detectAP(const uint8_t channel);
 
-extern bool validateMD5(uint32_t __xdata addr, uint16_t __xdata len);
 extern bool validateFWMagic();
 
 #endif
