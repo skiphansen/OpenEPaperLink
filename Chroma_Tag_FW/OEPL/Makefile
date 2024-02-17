@@ -21,6 +21,10 @@ EEPROMDRV ?= eeprom.c
 SOURCES += $(EEPROMDRV)
 FLAGS += -DPROXY_BUILD
 FLAGS += -I. -MD
+# Generic EEPROM routines that use SFDP for configuration are GREAT
+# **IF** you can spare the code space.  We can't !!!
+# Disabling SFDP saves 1538 bytes.
+FLAGS += -DSFDP_DISABLED
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
 IMAGE_NAME?=$(BUILD)_${FW_VER}
