@@ -26,7 +26,6 @@
 #include "userinterface.h"
 #include "wdt.h"
 // #include "uart.h"
-#include "md5.h"
 // #include "flash.h"
 
 // download-stuff

@@ -465,7 +465,6 @@ void main()
    setupPortsInitial();
    powerUp(INIT_BASE | INIT_UART);
    pr("BOOTED>  %d.%d.%d%s\n", fwVersion / 100, (fwVersion % 100) / 10, (fwVersion % 10), fwVersionSuffix);
-   for( ; ; )
 
 #ifdef DEBUGGUI
    displayLoop();  // remove me
@@ -478,18 +477,19 @@ void main()
 //  get our own mac address. this is stored in Infopage at offset 0x10-onwards
    boardGetOwnMac(mSelfMac);
 
-#ifdef DEBUGMAIN
+// #ifdef DEBUGMAIN
    pr("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
    pr("%02X%02X", mSelfMac[2], mSelfMac[3]);
    pr("%02X%02X", mSelfMac[4], mSelfMac[5]);
    pr("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
-#endif
+// #endif
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM | INIT_UART);
 
 // load settings from infopage
    loadSettings();
+   while(true);
 // invalidate the settings, and write them back in a later state
    invalidateSettingsEEPROM();
 
@@ -637,17 +637,60 @@ const char __xdata* macString(void)
    return macStr;
 }
 
+uint16_t __xdata MallocCaller;
 void free(void *p)
 {
+   p;
+   if(MallocCaller == 0) {
+   // Get the caller address
+      __asm__(
+           "mov   dptr,#_MallocCaller\n"
+           "pop   b\n"
+           "pop   acc\n"
+           "movx  @dptr,a\n"
+           "inc   dptr\n"
+           "mov   a,b\n"
+           "movx  @dptr,a\n"
+           "mov   a,sp\n"
+           "inc   a\n"
+           "inc   a\n"
+           "mov   sp,a\n"
+      );
+      pr("\n0x%x: free err\n",MallocCaller);
+   }
+   else {
+      MallocCaller = 0;
+   }
 }
 
 void __xdata *malloc (size_t size)
 {
-   if(size <= sizeof(mScreenRow)) {
-      return &mScreenRow;
+   uint16_t LastCaller = MallocCaller;
+
+// Get the caller address for debugging
+   __asm__(
+        "mov   dptr,#_MallocCaller\n"
+        "pop   b\n"
+        "pop   acc\n"
+        "movx  @dptr,a\n"
+        "inc   dptr\n"
+        "mov   a,b\n"
+        "movx  @dptr,a\n"
+        "mov   a,sp\n"
+        "inc   a\n"
+        "inc   a\n"
+        "mov   sp,a\n"
+   );
+
+   if(LastCaller != 0) {
+      pr("\n0x%x Malloc err 0x%x\n",
+         MallocCaller,LastCaller);
+      while(true);
    }
-   else {
-      return NULL;
+   else if(size > sizeof(mScreenRow)) {
+      pr("\nMalloc err %d 0x%x\n",size,MallocCaller);
+      while(true);
    }
+   return &mScreenRow;
 }
 

@@ -14,7 +14,7 @@
 // #define DEBUGNFC                 // debug NFC functions
 // #define DEBUGGUI                 // debug GUI drawing (enabled)
 // #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
-// #define DEBUGEEPROM              // eeprom-related debug messages
+#define DEBUGEEPROM              // eeprom-related debug messages
 
 
 // The firmware can validate the image MD5 before displaying it. 
