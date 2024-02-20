@@ -142,9 +142,7 @@ int8_t commsRxUnencrypted(uint8_t *data) {
        int8_t Ret = SubGig_commsRxUnencrypted(data);
        gSubGigData.Reply2SubGig = Ret > 0 ? true : false;
        if(Ret > 0) {
-#if 0
           return Ret;
-#endif
         }
     }
 #endif
