@@ -15,6 +15,11 @@ $(BUILD_DIR)/main.elf: $(OBJS)
 %.bin: %.ihx
 	objcopy $^ $(BUILD_DIR)/$(IMAGE_NAME).bin -I ihex -O binary
 	cp $(BUILD_DIR)/$(IMAGE_NAME).bin $(PREBUILT_DIR)
+	@# Display sizes, we're critically short for code and RAM space !
+	@echo -n "total code size: "
+	@ls -l $(PREBUILT_DIR)/$(IMAGE_NAME).bin | cut -f5 -d' '
+	@grep '^C:.\+s_XINIT' $(BUILD_DIR)/main.map
+	@grep '^C:.\+s_XISEG' $(BUILD_DIR)/main.map
 
 $(BUILD_DIR):
 	if [ ! -e $(BUILD_DIR) ]; then mkdir -p $(BUILD_DIR); fi
