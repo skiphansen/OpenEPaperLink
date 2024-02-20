@@ -18,6 +18,7 @@
 #include "timer.h"
 #include "userinterface.h"
 #include "wdt.h"
+#include "logging.h"
 
 // #include "flash.h"
 
@@ -152,6 +153,7 @@ void writeInfoPageWithMac()
 }
 #endif
 
+#if 0
 // returns 0 if no accesspoints were found
 uint8_t channelSelect(uint8_t rounds) 
 {
@@ -183,34 +185,14 @@ uint8_t channelSelect(uint8_t rounds)
    mLastLqi = highestLqi;
    return highestSlot;
 }
-
-void validateMacAddress() 
-{
-   // check if the mac contains at least some non-0xFF values
-   for(uint8_t __xdata c = 0; c < 8; c++) {
-      if(mSelfMac[c] != 0xFF) goto macIsValid;
-   }
-// invalid mac address. Display warning screen and sleep forever
-#ifdef DEBUGMAIN
-   pr("Mac can't be all FF's.\n");
 #endif
-   powerUp(INIT_EPD);
-   showNoMAC();
-   powerDown(INIT_EPD | INIT_UART | INIT_EEPROM);
-   doSleep(-1);
-   wdtDeviceReset();
-   macIsValid:
-   return;
-}
 
 // FIX me !!
 uint8_t getFirstWakeUpReason() 
 {
 #if 0
    if(RESET & 0x01) {
-#ifdef DEBUGMAIN
-      pr("WDT reset!\n");
-#endif
+      MAIN_LOG("WDT reset!\n");
       return WAKEUP_REASON_WDT_RESET;
    }
 #endif
@@ -257,29 +239,8 @@ void TagAssociated()
 
       powerUp(INIT_RADIO);
       avail = getAvailDataInfo();
+      pr("avail %x\n",avail);
       powerDown(INIT_RADIO);
-
-      switch(wakeUpReason) {
-         case WAKEUP_REASON_BUTTON1:
-            externalWakeHandler(CUSTOM_IMAGE_BUTTON1);
-            fastNextCheckin = true;
-            break;
-
-         case WAKEUP_REASON_BUTTON2:
-            externalWakeHandler(CUSTOM_IMAGE_BUTTON2);
-            fastNextCheckin = true;
-            break;
-
-         case WAKEUP_REASON_GPIO:
-            externalWakeHandler(CUSTOM_IMAGE_GPIO);
-            fastNextCheckin = true;
-            break;
-
-         case WAKEUP_REASON_RF:
-            externalWakeHandler(CUSTOM_IMAGE_RF_WAKE);
-            fastNextCheckin = true;
-            break;
-      }
 
       if(avail != NULL) {
       // we got some data!
@@ -296,20 +257,9 @@ void TagAssociated()
          }
          wakeUpReason = WAKEUP_REASON_TIMED;
       }
-      if(tagSettings.enableTagRoaming) {
-         uint8_t roamChannel = channelSelect(1);
-         if(roamChannel) currentChannel = roamChannel;
-      }
    }
    else {
       powerUp(INIT_RADIO);
-
-#ifdef ENABLE_RETURN_DATA
-      // example code to send data back to the AP. Up to 90 bytes can be sent in one packet
-      uint8_t __xdata blaat[2] = {0xAB, 0xBA};
-      sendTagReturnData(blaat, 2, 0x55);
-#endif
-
       avail = getShortAvailDataInfo();
       powerDown(INIT_RADIO);
    }
@@ -382,8 +332,8 @@ void TagChanSearch()
       doVoltageReading();
    }
 
-// try to find a working channel
-   currentChannel = channelSelect(2);
+// Is channel working?
+   currentChannel = detectAP(tagSettings.fixedChannel);
 
 // Check if we should redraw the screen with icons, info screen or screensaver
    if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 
@@ -417,7 +367,6 @@ void TagChanSearch()
       initPowerSaving(INTERVAL_BASE);
       doSleep(getNextSleep() * 1000UL);
       currentTagMode = TAG_MODE_ASSOCIATED;
-      return;
    }
    else {
    // still not associated
@@ -437,10 +386,6 @@ void executeCommand(uint8_t cmd)
          loadDefaultSettings();
          writeSettings();
          powerDown(INIT_EEPROM);
-         break;
-
-      case CMD_DO_SCAN:
-         currentChannel = channelSelect(4);
          break;
 
       case CMD_DO_DEEPSLEEP:
@@ -464,7 +409,7 @@ void main()
 {
    setupPortsInitial();
    powerUp(INIT_BASE | INIT_UART);
-   pr("BOOTED>  %d.%d.%d%s\n", fwVersion / 100, (fwVersion % 100) / 10, (fwVersion % 10), fwVersionSuffix);
+   pr("Chroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
 
 #ifdef DEBUGGUI
    displayLoop();  // remove me
@@ -476,99 +421,43 @@ void main()
 // dump(blockbuffer, 1024);
 //  get our own mac address. this is stored in Infopage at offset 0x10-onwards
    boardGetOwnMac(mSelfMac);
+   InitBcastFrame();
 
-// #ifdef DEBUGMAIN
-   pr("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
-   pr("%02X%02X", mSelfMac[2], mSelfMac[3]);
-   pr("%02X%02X", mSelfMac[4], mSelfMac[5]);
-   pr("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
-// #endif
+   MAIN_LOG("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
+   MAIN_LOG("%02X%02X", mSelfMac[2], mSelfMac[3]);
+   MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
+   MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM | INIT_UART);
 
 // load settings from infopage
    loadSettings();
-   while(true);
 // invalidate the settings, and write them back in a later state
-   invalidateSettingsEEPROM();
-
-#ifdef WRITE_MAC_FROM_FLASH
-   if(mSelfMac[7] == 0xFF && mSelfMac[6] == 0xFF) {
-      wdt10s();
-      timerDelay(TIMER_TICKS_PER_SECOND * 2);
-      writeInfoPageWithMac();
-      for(uint16_t c = 0xE800; c != 0; c += 1024) {
-         flashErase(c);
-      }
-      boardGetOwnMac(mSelfMac);
-      powerUp(INIT_UART | INIT_EEPROM | INIT_RADIO);
-      wdt120s();
-      powerDown(INIT_EEPROM | INIT_RADIO);
-
-      wdt120s();
-      powerUp(INIT_EPD);
-      afterFlashScreenSaver();
-      powerDown(INIT_EPD | INIT_UART);
-      while(1) {
-         doSleep(-1);
-      }
-   }
-#endif
+// invalidateSettingsEEPROM();
 
 // get the highest slot number, number of slots
    initializeProto();
    powerDown(INIT_EEPROM);
-
    if(tagSettings.enableFastBoot) {
-// Fastboot
-#ifdef DEBUGMAIN
-      pr("Doing fast boot\n");
-#endif
-      capabilities = tagSettings.fastBootCapabilities;
-      if(tagSettings.fixedChannel) {
-         currentChannel = tagSettings.fixedChannel;
-      }
-      else {
-         currentChannel = channelSelect(2);
-      }
+   // Fastboot
+      MAIN_LOG("Doing fast boot\n");
    }
    else {
    // Normal boot/startup
-#ifdef DEBUGMAIN
-      pr("Normal boot\n");
-#endif
-   // validate the mac address; this will display a warning on the screen if the mac address is invalid
-      validateMacAddress();
+      MAIN_LOG("Normal boot\n");
 
-      // Get a voltage reading on the tag, loading down the battery with the radio
+   // Get a voltage reading on the tag, loading down the battery with the radio
       doVoltageReading();
 
    // show the splashscreen
-      currentChannel = 11;
       showSplashScreen();
-      currentChannel = 0;
-      tagSettings.fastBootCapabilities = capabilities;
-
-   // now that we've collected all possible capabilities, save it to settings
-
-   // scan for channels
-      wdt30s();
-      if(tagSettings.fixedChannel) {
-         currentChannel = tagSettings.fixedChannel;
-      }
-      else {
-         currentChannel = channelSelect(4);
-      }
    }
-// end of the fastboot option split
 
    wdt10s();
 
    if(currentChannel) {
-#ifdef DEBUGMAIN
-      pr("MAIN: Ap Found!\n");
-#endif
+      MAIN_LOG("MAIN: Ap Found!\n");
       //showNoAP();
 
       showAPFound();
@@ -582,9 +471,7 @@ void main()
       doSleep(5000UL);
    }
    else {
-#ifdef DEBUGMAIN
-      pr("MAIN: No AP found...\n");
-#endif
+      MAIN_LOG("MAIN: No AP found...\n");
       //showAPFound();
       showNoAP();
       // write the settings to the eeprom

@@ -2,7 +2,7 @@
 	Version="10.0"
 	VendorName="SlickEdit"
 	TemplateName="Other C/C++"
-	WorkingDir="../E-Paper_Pricetags/Custom_PriceTag_AccesPoint/ESP32_Async_PlatformIO">
+	WorkingDir="../ESP32_AP-Flasher">
 	<Config
 		Name="Debug"
 		Type="cpp"
@@ -939,6 +939,8 @@
 			Name="Other Files"
 			Filters="">
 			<F N="/cc1xxx/docs/notes.txt"/>
+			<F N="../ESP32_AP-Flasher/platformio.ini"/>
+			<F N="../ESP32_AP-Flasher/update_vpj.sh"/>
 		</Folder>
 	</Files>
 	<Macro>

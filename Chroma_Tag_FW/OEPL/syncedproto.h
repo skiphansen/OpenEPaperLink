@@ -16,10 +16,6 @@ extern bool __xdata fastNextCheckin;
 //extern void killRadio(void);
 
 
-#ifdef ENABLE_RETURN_DATA
-extern bool sendTagReturnData(uint8_t __xdata *data, uint8_t len, uint8_t type);
-#endif
-
 extern void dump(const uint8_t *__xdata a, const uint16_t __xdata l);
 extern bool checkCRC(const void *p, const uint8_t len);
 extern bool validateBlockData();

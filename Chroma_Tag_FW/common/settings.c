@@ -16,11 +16,10 @@
 #include "eeprom.h"
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
+#include "logging.h"
 
 #ifdef DEBUGSETTINGS
-#define LOG(format, ... ) pr(format,## __VA_ARGS__)
-#else
-#define LOG(format, ... )
+const char __code gSettingsPrefix[] = "SETTINGS: ";
 #endif
 
 #define SETTINGS_MAGIC 0xABBA5AA5
@@ -40,23 +39,22 @@ void loadDefaultSettings()
    tagSettings.customMode = 0;
    tagSettings.fastBootCapabilities = 0;
    tagSettings.minimumCheckInTime = INTERVAL_BASE;
-   tagSettings.fixedChannel = 0;
+   tagSettings.fixedChannel = 1;
    tagSettings.batLowVoltage = BATTERY_VOLTAGE_MINIMUM;
 }
 
 void loadSettingsFromBuffer(uint8_t* p) 
 {
-   LOG("SETTINGS: received settings from AP\n");
+   SETTINGS_LOG("received settings from AP\n");
    switch(*p) {
       case SETTINGS_STRUCT_VERSION:  // the current tag struct
          memcpy((void*)tagSettings, (void*)p, sizeof(struct tagsettings));
          break;
 
       default:
-         LOG("SETTINGS: received something we couldn't really process, version %d\n");
+         SETTINGS_LOG("received something we couldn't really process, version %d\n");
          break;
    }
-   tagSettings.fastBootCapabilities = capabilities;
    writeSettings();
 }
 
@@ -77,10 +75,12 @@ static bool compareSettings()
    return false;
 }
 
+#if 0
+// add an upgrade strategy whenever you update the struct version
 static void upgradeSettings() 
 {
-   // add an upgrade strategy whenever you update the struct version
 }
+#endif
 
 void loadSettings() 
 {
@@ -94,16 +94,18 @@ void loadSettings()
    if(tagSettings.settingsVer == 0xFF || valid != SETTINGS_MAGIC) {
    // settings not set. load the defaults
       loadDefaultSettings();
-      LOG("SETTINGS: Loaded default settings\n");
+      SETTINGS_LOG("Loaded defaults\n");
    }
+#if 0
    else if(tagSettings.settingsVer < SETTINGS_STRUCT_VERSION) {
    // upgrade
       upgradeSettings();
-      LOG("SETTINGS: Upgraded from previous version\n");
+      SETTINGS_LOG("Upgraded from previous version\n");
    }
+#endif
    else {
    // settings are valid
-      LOG("SETTINGS: Loaded from EEPROM\n");
+      SETTINGS_LOG("Loaded from EEPROM\n");
    }
    free(settingsTempBuffer);
 }
@@ -111,20 +113,20 @@ void loadSettings()
 void writeSettings() 
 {
    if(compareSettings()) {
-      LOG("SETTINGS: Settings matched current settings\n");
+      SETTINGS_LOG("No change\n");
       return;
    }
    eepromErase(EEPROM_SETTINGS_AREA_START, 1);
    uint32_t __xdata valid = SETTINGS_MAGIC;
    eepromWrite(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
    eepromWrite(EEPROM_SETTINGS_AREA_START + 4, (void*)&tagSettings, sizeof(tagSettings));
-   LOG("SETTINGS: Updated settings in EEPROM\n");
+   SETTINGS_LOG("Save settings\n");
 }
 
 void invalidateSettingsEEPROM() 
 {
    int32_t __xdata valid = 0x0000;
-   LOG("SETTINGS: Invalidated settings in EEPROM\n");
+   SETTINGS_LOG("Invalidate settings\n");
    eepromWrite(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
 }
 

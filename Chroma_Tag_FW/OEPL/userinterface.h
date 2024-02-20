@@ -19,9 +19,6 @@ void showNoEEPROM();
 void showNoMAC();
 
 
-// wakeups from external stimuli
-void externalWakeHandler(uint8_t type);
-
 extern const uint16_t __code fwVersion;
 extern const char __code fwVersionSuffix[];
 extern bool __xdata lowBatteryShown;

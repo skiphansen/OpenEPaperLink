@@ -41,41 +41,11 @@ bool __xdata lowBattery = false;
 uint16_t __xdata longDataReqCounter = 0;
 uint16_t __xdata voltageCheckCounter = 0;
 
-uint8_t __xdata capabilities = 0;
-
 bool __xdata spiActive = false;
 bool __xdata uartActive = false;
 bool __xdata eepromActive = false;
 extern int8_t adcSampleTemperature(void);  // in degrees C
 
-uint8_t checkButtonOrJig() 
-{
-#if 0
-    P1FUNC &= ~(1 << 0);
-    P1DIR &= ~(1 << 0);
-    P1_0 = 0;
-    timerDelay(TIMER_TICKS_PER_MS * 10);
-    P1DIR |= (1 << 0);
-    P1PULL |= (1 << 0);
-    uint16_t loopcount = 0;
-    while (loopcount < 20000) {
-        if (P1_0) {
-            goto buttonWentHigh;
-        }
-        loopcount++;
-    }
-    pr("Jig detected (P1.0 low during boot)\n");
-    return DETECT_P1_0_JIG;
-buttonWentHigh:
-    if (loopcount > 130) {  // 10nF, or thereabout
-        pr("Detected about %d nF capacitance on P1.0, probably a button\n", loopcount / 13);
-        return DETECT_P1_0_BUTTON;
-    }
-    return DETECT_P1_0_NOTHING;
-#else
-#endif
-   return DETECT_P1_0_NOTHING;
-}
 
 void setupPortsInitial() 
 {
@@ -83,11 +53,12 @@ void setupPortsInitial()
    timerInit();
    boardInit();
    
+#ifndef SFDP_DISABLED
    if (!eepromInit()) {
       pr("failed to init eeprom\n");
       while(1);
    }
-   
+#endif
    boardInitStage2();
 
    irqsOn();
@@ -264,8 +235,19 @@ void powerDown(const uint8_t parts)
 #endif
 }
 
+// t = sleep time in milliseconds
 void doSleep(const uint32_t __xdata t) 
 {
+   uint32_t __xdata End = timerGet();
+
+   if(t < 1000L) {
+      End += t * TIMER_TICKS_PER_MS;
+   }
+   else {
+      End += 1000L * TIMER_TICKS_PER_MS;
+   }
+   while(timerGet() < End);
+
 #if 0
     P0FUNC = 0;
     P1FUNC = 0;
@@ -380,20 +362,19 @@ void doVoltageReading()
 
 uint32_t getNextScanSleep(const bool increment) 
 {
-#if 0
     if (increment) {
-        if (scanAttempts < 255)
+        if (scanAttempts < 255) {
             scanAttempts++;
+        }
     }
 
     if (scanAttempts < INTERVAL_1_ATTEMPTS) {
         return INTERVAL_1_TIME;
-    } else if (scanAttempts < (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS)) {
+    } 
+    else if (scanAttempts < (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS)) {
         return INTERVAL_2_TIME;
-    } else {
-        return INTERVAL_3_TIME;
     }
-#endif
+    return INTERVAL_3_TIME;
 }
 
 void addAverageValue() 

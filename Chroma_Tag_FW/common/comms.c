@@ -6,62 +6,51 @@
 #include "radio.h"
 #include "comms.h"
 
-
-#define ADDR_MODE_NONE					(0)
-#define ADDR_MODE_SHORT					(2)
-#define ADDR_MODE_LONG					(3)
-
-#define FRAME_TYPE_BEACON				(0)
-#define FRAME_TYPE_DATA					(1)
-#define FRAME_TYPE_ACK					(2)
-#define FRAME_TYPE_MAC_CMD				(3)
-
-
-static uint8_t __xdata mCommsBuf[127];
-static uint8_t __xdata mSeq = 0;
+static uint8_t __xdata mCommsBuf[COMMS_MAX_PACKET_SZ];
 uint8_t __xdata mLastLqi = 0;
 int8_t __xdata mLastRSSI = 0;
 
-uint8_t commsGetLastPacketLQI(void)
+int8_t commsRxUnencrypted(void __xdata *data) 
 {
-	return mLastLqi;
+   uint8_t __xdata *dstData = (uint8_t __xdata *)data;
+   uint8_t __xdata *__xdata rxedBuf;
+   int8_t ret;
+
+   ret = radioRxDequeuePktGet((void __xdata *__xdata) &rxedBuf,
+                              &mLastLqi,&mLastRSSI);
+
+   if(ret < 0) {
+      ret = COMMS_RX_ERR_NO_PACKETS;
+   } 
+   else {
+      xMemCopyShort(dstData,rxedBuf,ret);
+      pr("Got %d byte packet",ret);
+      uint8_t i;
+      for(i = 0; i < ret; i++) {
+         if((i & 0xf) == 0) {
+            pr("\n");
+         }
+         pr("%02x ",dstData[i]);
+      }
+      pr("\n");
+      radioRxDequeuedPktRelease();
+   }
+
+   return ret;
 }
 
-int8_t commsGetLastPacketRSSI(void)
+bool commsTxUnencrypted(const void __xdata *packetP, uint8_t len) 
 {
-	return mLastRSSI;
+   const uint8_t __xdata *packet = (const uint8_t __xdata *)packetP;
+
+   if(len > COMMS_MAX_PACKET_SZ) {
+      return false;
+   }
+   memset(mCommsBuf, 0, COMMS_MAX_PACKET_SZ);
+   xMemCopyShort(mCommsBuf + 1, packet, len);
+
+   mCommsBuf[0] = len + RADIO_PAD_LEN_BY;
+
+   return radioTx(mCommsBuf);;
 }
-
-int8_t commsRxUnencrypted(void __xdata *data) {
-    uint8_t __xdata *dstData = (uint8_t __xdata *)data;
-    uint8_t __xdata *__xdata rxedBuf;
-    int8_t ret = COMMS_RX_ERR_INVALID_PACKET;
-
-    int8_t rxedLen = radioRxDequeuePktGet((void __xdata *__xdata) & rxedBuf, &mLastLqi, &mLastRSSI);
-
-    if (rxedLen < 0)
-        return COMMS_RX_ERR_NO_PACKETS;
-
-    xMemCopyShort(dstData, rxedBuf, rxedLen);
-    radioRxDequeuedPktRelease();
-    return rxedLen;
-}
-
-bool commsTxUnencrypted(const void __xdata *packetP, uint8_t len) {
-    const uint8_t __xdata *packet = (const uint8_t __xdata *)packetP;
-
-    if (len > COMMS_MAX_PACKET_SZ)
-        return false;
-    memset(mCommsBuf, 0, COMMS_MAX_PACKET_SZ);
-    xMemCopyShort(mCommsBuf + 1, packet, len);
-
-    mCommsBuf[0] = len + RADIO_PAD_LEN_BY;
-    
-    return radioTx(mCommsBuf);;
-}
-
-bool commsTxNoCpy(const void __xdata *packetp) {
-   return radioTx(packetp);
-}
-
 

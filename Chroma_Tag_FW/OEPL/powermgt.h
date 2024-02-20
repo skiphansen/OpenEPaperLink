@@ -47,8 +47,6 @@
 #define SLIDESHOW_INTERVAL_SLOW 300  
 #define SLIDESHOW_INTERVAL_GLACIAL 1800  
 
-extern uint8_t checkButtonOrJig();
-
 extern void setupPortsInitial();
 
 extern void powerUp(const uint8_t parts);
@@ -66,8 +64,6 @@ extern uint32_t getNextScanSleep(const bool increment);
 extern void initPowerSaving(const uint16_t initialValue);
 
 extern uint8_t __xdata wakeUpReason;
-
-extern uint8_t __xdata capabilities;
 
 extern uint16_t __xdata nextCheckInFromAP;
 extern uint8_t __xdata dataReqLastAttempt;

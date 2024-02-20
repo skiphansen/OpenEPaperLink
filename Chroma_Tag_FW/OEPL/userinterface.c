@@ -26,28 +26,8 @@
 const uint16_t __code fwVersion = FW_VERSION;
 const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
 
-extern uint8_t __xdata capabilities;
-
 bool __xdata lowBatteryShown = false;
 bool __xdata noAPShown = false;
-
-void addCapabilities() 
-{
-#if 0
-    if (capabilities) epdpr("Options: ");
-    if (capabilities & CAPABILITY_HAS_NFC) {
-        epdpr("-NFC");
-        if (capabilities & CAPABILITY_NFC_WAKE) {
-            epdpr("+WAKE");
-        } else {
-            epdpr(" ");
-        }
-    }
-    if (capabilities & CAPABILITY_HAS_WAKE_BUTTON) {
-        epdpr("-WAKE BUTTON");
-    }
-#endif
-}
 
 void addOverlay() 
 {
@@ -794,21 +774,3 @@ bool displayCustomImage(uint8_t imagetype)
 #endif
 }
 
-void externalWakeHandler(uint8_t type) 
-{
-#if 0
-    if (displayCustomImage(type)) {
-        sleepForMsec(2000);
-
-        // if something else was previously on the display, draw that
-        if (curImgSlot != 0xFF) {
-            powerUp(INIT_EEPROM);
-            uint8_t lut = getEepromImageDataArgument(curImgSlot);
-            lut &= 0x03;
-            powerUp(INIT_EPD);
-            drawImageFromEeprom(curImgSlot, lut);
-            powerDown(INIT_EPD | INIT_EEPROM);
-        }
-    }
-#endif
-}

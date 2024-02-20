@@ -25,6 +25,8 @@ void boardInitStage2(void);
 //late, after eeprom
 #pragma callee_saves boardInit
 __bit boardGetOwnMac(uint8_t __xdata *mac);
+void InitBcastFrame(void);
+void UpdateBcastFrame(void);
 
 
 //some sanity checks

@@ -269,10 +269,22 @@ static void radioRxStopIfRunning(void)
 
 bool radioTx(const void __xdata *packet)
 {
-   const uint8_t __xdata *src = (const uint8_t __xdata*)packet;
-   
    radioRxStopIfRunning();
+#if 0
+   const uint8_t __xdata *src = (const uint8_t __xdata*)packet;
+   uint8_t i;
    
+   pr("radioTx sending %d",src[0]);
+   for(i = 0; i < src[0]; i++) {
+      if((i & 0xf) == 0) {
+         pr("\n");
+      }
+      pr("%02x ",src[i+1]);
+   }
+   if(i != 0) {
+      pr("\n");
+   }
+#endif
    radioPrvSetupTxDma(packet);
    RFIF = 0;
    
