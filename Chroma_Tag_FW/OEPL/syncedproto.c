@@ -330,7 +330,7 @@ static struct blockRequestAck *__xdata continueToRX()
 
 static void sendBlockRequest() 
 {
-   memset(outBuffer, 0, sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2);
+   xMemSet(outBuffer,0,sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2);
    struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    struct blockRequest *__xdata blockreq = (struct blockRequest *)(outBuffer + 2 + sizeof(struct MacFrameNormal));
    outBuffer[0] = sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2;
@@ -398,7 +398,7 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
 
 static void sendXferCompletePacket() 
 {
-   memset(outBuffer, 0, sizeof(struct MacFrameNormal) + 2 + 4);
+   xMemSet(outBuffer,0,sizeof(struct MacFrameNormal) + 2 + 4);
    struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    outBuffer[0] = sizeof(struct MacFrameNormal) + 2 + 2;
    outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_XFER_COMPLETE;
@@ -596,12 +596,12 @@ static bool getDataBlock(const uint16_t blockSize)
    blockAttempts = BLOCK_TRANSFER_ATTEMPTS;
    if(blockSize == BLOCK_DATA_SIZE) {
       partsThisBlock = BLOCK_MAX_PARTS;
-      memset(curBlock.requestedParts, 0xFF, BLOCK_REQ_PARTS_BYTES);
+      xMemSet(curBlock.requestedParts,0xFF,BLOCK_REQ_PARTS_BYTES);
    }
    else {
       partsThisBlock = (sizeof(struct blockData) + blockSize) / BLOCK_PART_DATA_SIZE;
       if((sizeof(struct blockData) + blockSize) % BLOCK_PART_DATA_SIZE) partsThisBlock++;
-      memset(curBlock.requestedParts, 0x00, BLOCK_REQ_PARTS_BYTES);
+      xMemSet(curBlock.requestedParts,0x00,BLOCK_REQ_PARTS_BYTES);
       for(uint8_t c = 0; c < partsThisBlock; c++) {
          curBlock.requestedParts[c / 8] |= (1 << (c % 8));
       }

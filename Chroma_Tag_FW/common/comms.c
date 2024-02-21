@@ -46,7 +46,7 @@ bool commsTxUnencrypted(const void __xdata *packetP, uint8_t len)
    if(len > COMMS_MAX_PACKET_SZ) {
       return false;
    }
-   memset(mCommsBuf, 0, COMMS_MAX_PACKET_SZ);
+   xMemSet(mCommsBuf,0,COMMS_MAX_PACKET_SZ);
    xMemCopyShort(mCommsBuf + 1, packet, len);
 
    mCommsBuf[0] = len + RADIO_PAD_LEN_BY;
