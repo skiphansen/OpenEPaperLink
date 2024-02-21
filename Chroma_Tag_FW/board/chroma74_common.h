@@ -3,8 +3,6 @@
 
 #include "u1.h"
 
-#define HW_TYPE   0x80  // !!! Fix me
-   
 //colors for ui messages
 #define UI_MSG_MAGNIFY1       3
 #define UI_MSG_MAGNIFY2       2
@@ -42,8 +40,16 @@
 #define EEPROM_PROGRESS_BYTES       (192)
 
 //radio cfg
-#define RADIO_FIRST_CHANNEL            (100)    //sub-GHz channels start at 100
+
+#ifdef BAND_866
+//sub-GHz 866 Mhz channels start at 200
+#define RADIO_FIRST_CHANNEL         (200)    //sub-GHz channels start at 100
+#define RADIO_NUM_CHANNELS          (6)
+#else
+//sub-GHz 915 Mhz channels start at 100
+#define RADIO_FIRST_CHANNEL         (100)    
 #define RADIO_NUM_CHANNELS          (25)
+#endif
 
 //hw types
 #define HW_TYPE_NORMAL              HW_TYPE_74_INCH_DISPDATA_Y

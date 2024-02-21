@@ -172,7 +172,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
                if(pktIsUnicast(inBuffer)) {
                   static struct MacFrameNormal *__xdata f;
                   f = (struct MacFrameNormal *)inBuffer;
-                  memcpy(APmac, f->src, 8);
+                  xMemCopyShort(APmac, (void *) f->src, 8);
                   APsrcPan = f->pan;
                   return c;
                }
@@ -235,7 +235,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
             if(getPacketType(inBuffer) == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
                   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)inBuffer;
-                  memcpy(APmac, f->src, 8);
+                  xMemCopyShort(APmac, (void *)f->src, 8);
                   APsrcPan = f->pan;
                   dataReqLastAttempt = c;
                   return(struct AvailDataInfo *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
@@ -263,7 +263,7 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
             if(getPacketType(inBuffer) == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
                   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)inBuffer;
-                  memcpy(APmac, f->src, 8);
+                  xMemCopyShort(APmac, (void *)f->src, 8);
                   APsrcPan = f->pan;
                   dataReqLastAttempt = c;
                   return(struct AvailDataInfo *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
@@ -340,8 +340,8 @@ static void sendBlockRequest()
    } else {
       outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_BLOCK_REQUEST;
    }
-   memcpy(f->src, mSelfMac, 8);
-   memcpy(f->dst, APmac, 8);
+   xMemCopyShort((void *)(f->src), (void *) mSelfMac, 8);
+   xMemCopyShort((void *)(f->dst), (void *)APmac, 8);
    f->fcs.frameType = 1;
    f->fcs.secure = 0;
    f->fcs.framePending = 0;
@@ -352,7 +352,7 @@ static void sendBlockRequest()
    f->fcs.srcAddrType = 3;
    f->seq = seq++;
    f->pan = APsrcPan;
-   memcpy(blockreq, &curBlock, sizeof(struct blockRequest));
+   xMemCopyShort((void *)blockreq, (void *)&curBlock, sizeof(struct blockRequest));
    addCRC(blockreq, sizeof(struct blockRequest));
    radioTx(outBuffer);
 }
@@ -402,8 +402,8 @@ static void sendXferCompletePacket()
    struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    outBuffer[0] = sizeof(struct MacFrameNormal) + 2 + 2;
    outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_XFER_COMPLETE;
-   memcpy(f->src, mSelfMac, 8);
-   memcpy(f->dst, APmac, 8);
+   xMemCopyShort((void *)(f->src), (void *) mSelfMac, 8);
+   xMemCopyShort((void *)(f->dst), (void *) APmac, 8);
    f->fcs.frameType = 1;
    f->fcs.secure = 0;
    f->fcs.framePending = 0;
@@ -1064,7 +1064,7 @@ void initializeProto()
 
 void InitBcastFrame()
 {
-   memcpy(gBcastFrame.src,mSelfMac,sizeof(gBcastFrame.src));
+   xMemCopyShort(gBcastFrame.src,(void *) mSelfMac,sizeof(gBcastFrame.src));
    gBcastFrame.fcs.frameType = 1;
    gBcastFrame.fcs.ackReqd = 1;
    gBcastFrame.fcs.destAddrType = 2;
@@ -1077,6 +1077,6 @@ void InitBcastFrame()
 void UpdateBcastFrame()
 {
    #define TX_FRAME_PTR ((struct MacFrameBcast __xdata *)(outBuffer + 1))
-   memcpy(TX_FRAME_PTR,&gBcastFrame,sizeof(struct MacFrameBcast));
+   xMemCopyShort(TX_FRAME_PTR,(void *)&gBcastFrame,sizeof(struct MacFrameBcast));
    TX_FRAME_PTR->seq = seq++;
 }

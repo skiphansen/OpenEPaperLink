@@ -48,7 +48,7 @@ void loadSettingsFromBuffer(uint8_t* p)
    SETTINGS_LOG("received settings from AP\n");
    switch(*p) {
       case SETTINGS_STRUCT_VERSION:  // the current tag struct
-         memcpy((void*)tagSettings, (void*)p, sizeof(struct tagsettings));
+         xMemCopyShort((void*)tagSettings, (void*)p, sizeof(struct tagsettings));
          break;
 
       default:
@@ -87,7 +87,7 @@ void loadSettings()
    uint8_t *__xdata settingsTempBuffer = malloc(sizeof(struct tagsettings));
 
    eepromRead(EEPROM_SETTINGS_AREA_START + 4, (void*)settingsTempBuffer, sizeof(struct tagsettings));
-   memcpy((void*)&tagSettings, (void*)settingsTempBuffer, sizeof(struct tagsettings));
+   xMemCopyShort((void*)&tagSettings, (void*)settingsTempBuffer, sizeof(struct tagsettings));
    uint32_t __xdata valid = 0;
    eepromRead(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
    xMemCopy((void*)tagSettings, (void*)settingsTempBuffer, sizeof(struct tagsettings));

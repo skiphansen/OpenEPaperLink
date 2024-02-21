@@ -146,7 +146,7 @@ void writeInfoPageWithMac()
    }
    settemp[0] += cksum & 0x0F;
 
-   memcpy((void *)(blockbuffer + 0x0010), (void *)settemp, 8);
+   xMemCopyShort((void *)(blockbuffer + 0x0010), (void *)settemp, 8);
 
    flashErase(FLASH_INFOPAGE_ADDR + 1);
    flashWrite(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024, false);
@@ -272,9 +272,9 @@ void TagAssociated()
    }
    else {
       nextCheckInFromAP = avail->nextCheckIn;
-      // got some data from the AP!
+   // got some data from the AP!
       if(avail->dataType != DATATYPE_NOUPDATE) {
-      // data transfer
+   // data transfer
          if(processAvailDataInfo(avail)) {
          // succesful transfer, next wake time is determined by the NextCheckin;
          }

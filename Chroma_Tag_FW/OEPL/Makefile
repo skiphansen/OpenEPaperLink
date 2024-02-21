@@ -17,6 +17,14 @@ else
 SOURCES += screen.c
 endif
 
+ifeq ($(BAND_866),y)
+FLAGS += -DBAND_866
+BAND=866
+else
+BAND=915
+endif
+
+
 EEPROMDRV ?= eeprom.c
 SOURCES += $(EEPROMDRV)
 FLAGS += -DPROXY_BUILD
@@ -28,7 +36,7 @@ FLAGS += -DLEAN_VERSION
 FLAGS += -DSFDP_DISABLED
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
-IMAGE_NAME?=$(BUILD)_${FW_VER}
+IMAGE_NAME?=$(BUILD)_${BAND}_${FW_VER}
 include $(FIRMWARE_ROOT)/make/rules.mk
 
 
