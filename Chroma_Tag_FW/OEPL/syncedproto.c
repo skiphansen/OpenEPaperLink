@@ -86,32 +86,45 @@ static uint32_t __xdata markerValid = EEPROM_IMG_VALID;
 extern void executeCommand(uint8_t cmd);  // this is defined in main.c
 
 // tools
-static uint8_t __xdata getPacketType(const void *__xdata buffer) 
+
+static bool pktIsUnicast(void);
+static bool pktIsBcast(void);
+
+uint8_t __xdata getPacketType() 
 {
-   const struct MacFcs *__xdata fcs = buffer;
-   if((fcs->frameType == 1) && (fcs->destAddrType == 2) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 0)) {
-      // broadcast frame
-      uint8_t __xdata type = ((uint8_t *)buffer)[sizeof(struct MacFrameBcast)];
-      return type;
+   if(pktIsBcast()) {
+      return ((uint8_t *)inBuffer)[sizeof(struct MacFrameBcast)];
    }
-   else if((fcs->frameType == 1) && (fcs->destAddrType == 3) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 1)) {
+   if(pktIsUnicast()) {
    // normal frame
-      uint8_t __xdata type = ((uint8_t *)buffer)[sizeof(struct MacFrameNormal)];
-      return type;
+      return ((uint8_t *)inBuffer)[sizeof(struct MacFrameNormal)];
    }
    return 0;
 }
 
-static bool pktIsUnicast(const void *__xdata buffer) {
-   const struct MacFcs *__xdata fcs = buffer;
-   if((fcs->frameType == 1) && (fcs->destAddrType == 2) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 0)) {
-      return false;
-   } else if((fcs->frameType == 1) && (fcs->destAddrType == 3) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 1)) {
-      // normal frame
+static bool pktIsUnicast() 
+{
+   #define fcs ((const struct MacFcs *__xdata) inBuffer)
+   if(fcs->frameType == 1 && fcs->destAddrType == 3 && fcs->srcAddrType == 3
+      && fcs->panIdCompressed == 1) 
+   {  // normal frame
       return true;
    }
-   // unknown type...
    return false;
+   #undef fcs
+}
+
+static bool pktIsBcast()
+{
+   #define fcs ((const struct MacFcs *__xdata) inBuffer)
+   if(fcs->frameType == 1 && fcs->destAddrType == 2 && fcs->srcAddrType == 3
+      && fcs->panIdCompressed == 0)
+   {
+   // broadcast frame
+      return true;
+   }
+   return false;
+   #undef fcs
 }
 
 bool checkCRC(const void *p, const uint8_t len) 
@@ -167,9 +180,9 @@ uint8_t detectAP(const uint8_t channel) __reentrant
 #if 0
                inBuffer[sizeof(struct MacFrameNormal) + 1] == channel &&
 #endif
-               getPacketType(inBuffer) == PKT_PONG) 
+               getPacketType() == PKT_PONG) 
             {
-               if(pktIsUnicast(inBuffer)) {
+               if(pktIsUnicast()) {
                   static struct MacFrameNormal *__xdata f;
                   f = (struct MacFrameNormal *)inBuffer;
                   xMemCopyShort(APmac, (void *) f->src, 8);
@@ -232,7 +245,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
       while(timerGet() < t) {
          int8_t __xdata ret = commsRxUnencrypted(inBuffer);
          if(ret > 1) {
-            if(getPacketType(inBuffer) == PKT_AVAIL_DATA_INFO) {
+            if(getPacketType() == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
                   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)inBuffer;
                   xMemCopyShort(APmac, (void *)f->src, 8);
@@ -260,7 +273,7 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
       while(timerGet() < t) {
          int8_t __xdata ret = commsRxUnencrypted(inBuffer);
          if(ret > 1) {
-            if(getPacketType(inBuffer) == PKT_AVAIL_DATA_INFO) {
+            if(getPacketType() == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
                   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)inBuffer;
                   xMemCopyShort(APmac, (void *)f->src, 8);
@@ -310,7 +323,7 @@ static bool blockRxLoop(const uint32_t timeout)
    while(timerGet() < t) {
       int8_t __xdata ret = commsRxUnencrypted(inBuffer);
       if(ret > 1) {
-         if(getPacketType(inBuffer) == PKT_BLOCK_PART) {
+         if(getPacketType() == PKT_BLOCK_PART) {
             struct blockPart *bp = (struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
             success = processBlockPart(bp);
          }
@@ -369,7 +382,7 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
          static int8_t __xdata ret;
          ret = commsRxUnencrypted(inBuffer);
          if(ret > 1) {
-            switch(getPacketType(inBuffer)) {
+            switch(getPacketType()) {
                case PKT_BLOCK_REQUEST_ACK:
                   if(checkCRC((inBuffer + sizeof(struct MacFrameNormal) + 1), sizeof(struct blockRequestAck)))
                      return(struct blockRequestAck *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
@@ -386,7 +399,7 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
                   return NULL;
 
                default:
-                  PROTO_LOG("pkt type %02X\n", getPacketType(inBuffer));
+                  PROTO_LOG("pkt type %02X\n", getPacketType());
                   break;
             }
          }
@@ -428,7 +441,7 @@ static void sendXferComplete()
       while((timerGet() - start) < (TIMER_TICKS_PER_MS * 6UL)) {
          int8_t __xdata ret = commsRxUnencrypted(inBuffer);
          if(ret > 1) {
-            if(getPacketType(inBuffer) == PKT_XFER_COMPLETE_ACK) {
+            if(getPacketType() == PKT_XFER_COMPLETE_ACK) {
                PROTO_LOG("ACK\n");
                return;
             }
