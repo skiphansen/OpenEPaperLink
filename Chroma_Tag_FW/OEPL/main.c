@@ -36,13 +36,13 @@ static const uint64_t __code __at(0x008b) firmwaremagic = (0xdeadd0d0beefcafeull
 
 uint8_t currentTagMode = TAG_MODE_CHANSEARCH;
 
-uint8_t __xdata slideShowCurrentImg = 0;
+uint8_t __xdata slideShowCurrentImg;
 uint8_t __xdata slideShowRefreshCount = 1;
 
 extern uint8_t *__idata blockp;
 extern uint8_t __xdata blockbuffer[];
 
-static bool __xdata secondLongCheckIn = false;  // send another full request if the previous was a special reason
+static bool __xdata secondLongCheckIn;  // send another full request if the previous was a special reason
 
 const uint8_t __code channelList[6] = {11, 15, 20, 25, 26, 27};
 

@@ -26,8 +26,8 @@
 const uint16_t __code fwVersion = FW_VERSION;
 const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
 
-bool __xdata lowBatteryShown = false;
-bool __xdata noAPShown = false;
+bool __xdata lowBatteryShown;
+bool __xdata noAPShown;
 
 void addOverlay() 
 {

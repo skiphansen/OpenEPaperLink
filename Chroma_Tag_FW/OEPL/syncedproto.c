@@ -48,35 +48,35 @@ this will not do!
 #define BLOCK_XFER_BUFFER_SIZE BLOCK_DATA_SIZE + sizeof(struct blockData)
 
 
-uint8_t __xdata blockbuffer[BLOCK_XFER_BUFFER_SIZE] = {0};
-static struct blockRequest __xdata curBlock = {0};  // used by the block-requester, contains the next request that we'll send
-static uint8_t __xdata curDispDataVer[8] = {0};
-static struct AvailDataInfo __xdata xferDataInfo = {0};  // holds the AvailDataInfo during the transfer
-static bool __xdata requestPartialBlock = false;         // if we should ask the AP to get this block from the host or not
+uint8_t __xdata blockbuffer[BLOCK_XFER_BUFFER_SIZE];
+static struct blockRequest __xdata curBlock;  // used by the block-requester, contains the next request that we'll send
+static uint8_t __xdata curDispDataVer[8];
+static struct AvailDataInfo __xdata xferDataInfo;  // holds the AvailDataInfo during the transfer
+static bool __xdata requestPartialBlock;         // if we should ask the AP to get this block from the host or not
 #define BLOCK_TRANSFER_ATTEMPTS 5
 
 static uint8_t xferImgSlot = 0xFF;          // holds current transfer slot in progress
 uint8_t __xdata curImgSlot = 0xFF;          // currently shown image
-static uint32_t __xdata curHighSlotId = 0;  // current highest ID, will be incremented before getting written to a new slot
-static uint8_t __xdata nextImgSlot = 0;     // next slot in sequence for writing
-static uint8_t __xdata imgSlots = 0;
-static uint32_t __xdata eeSize = 0;
+static uint32_t __xdata curHighSlotId;  // current highest ID, will be incremented before getting written to a new slot
+static uint8_t __xdata nextImgSlot;     // next slot in sequence for writing
+static uint8_t __xdata imgSlots;
+static uint32_t __xdata eeSize;
 
 #define OTA_UPDATE_SIZE 0x8000   // 32k
 
 // stuff we need to keep track of related to the network/AP
-uint8_t __xdata APmac[8] = {0};
-uint16_t __xdata APsrcPan = 0;
-uint8_t __xdata mSelfMac[8] = {0};
-static uint8_t __xdata seq = 0;
-uint8_t __xdata currentChannel = 0;
+uint8_t __xdata APmac[8];
+uint16_t __xdata APsrcPan;
+uint8_t __xdata mSelfMac[8];
+static uint8_t __xdata seq;
+uint8_t __xdata currentChannel;
 
 // buffer we use to prepare/read packets
-static uint8_t __xdata inBuffer[128] = {0};
-static uint8_t __xdata outBuffer[128] = {0};
+static uint8_t __xdata inBuffer[128];
+static uint8_t __xdata outBuffer[128];
 
 // determines if the tagAssociated loop in main.c performs a rapid next checkin
-bool __xdata fastNextCheckin = false;
+bool __xdata fastNextCheckin;
 
 struct MacFrameBcast __xdata gBcastFrame;
 
@@ -600,8 +600,8 @@ static uint32_t getHighSlotId()
 }
 
 // data transfer stuff
-static uint8_t __xdata partsThisBlock = 0;
-static uint8_t __xdata blockAttempts = 0;  // these CAN be local to the function, but for some reason, they won't survive sleep?
+static uint8_t __xdata partsThisBlock;
+static uint8_t __xdata blockAttempts;  // these CAN be local to the function, but for some reason, they won't survive sleep?
                                            // they get overwritten with  7F 32 44 20 00 00 00 00 11, I don't know why.
 
 static bool getDataBlock(const uint16_t blockSize) 
@@ -703,8 +703,8 @@ static bool getDataBlock(const uint16_t blockSize)
    return false;
 }
 
-static uint16_t __xdata dataRequestSize = 0;
-static uint16_t __xdata otaSize = 0;
+static uint16_t __xdata dataRequestSize;
+static uint16_t __xdata otaSize;
 
 #if 0
 static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail) 
@@ -767,7 +767,7 @@ static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail)
 }
 #endif
 
-uint16_t __xdata imageSize = 0;
+uint16_t __xdata imageSize;
 static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail) 
 {
 // check if we already started the transfer of this information & haven't completed it
@@ -890,7 +890,7 @@ eraseSuccess:
    return true;
 }
 
-struct imageDataTypeArgStruct __xdata arg = {0};  // this is related to the function below, but if declared -inside- the function, it gets cleared during sleep...
+struct imageDataTypeArgStruct __xdata arg;  // this is related to the function below, but if declared -inside- the function, it gets cleared during sleep...
 inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail) 
 {
    *((uint8_t *)arg) = avail->dataTypeArgument;

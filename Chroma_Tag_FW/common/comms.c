@@ -7,8 +7,8 @@
 #include "comms.h"
 
 static uint8_t __xdata mCommsBuf[COMMS_MAX_PACKET_SZ];
-uint8_t __xdata mLastLqi = 0;
-int8_t __xdata mLastRSSI = 0;
+uint8_t __xdata mLastLqi;
+int8_t __xdata mLastRSSI;
 
 int8_t commsRxUnencrypted(void __xdata *data) 
 {

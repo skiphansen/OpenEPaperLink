@@ -28,22 +28,22 @@
 #include "userinterface.h"
 #include "wdt.h"
 
-uint16_t __xdata dataReqAttemptArr[POWER_SAVING_SMOOTHING] = {0};  // Holds the amount of attempts required per data_req/check-in
-uint8_t __xdata dataReqAttemptArrayIndex = 0;
-uint8_t __xdata dataReqLastAttempt = 0;
-uint16_t __xdata nextCheckInFromAP = 0;
-uint8_t __xdata wakeUpReason = 0;
-uint8_t __xdata scanAttempts = 0;
+uint16_t __xdata dataReqAttemptArr[POWER_SAVING_SMOOTHING];  // Holds the amount of attempts required per data_req/check-in
+uint8_t __xdata dataReqAttemptArrayIndex;
+uint8_t __xdata dataReqLastAttempt;
+uint16_t __xdata nextCheckInFromAP;
+uint8_t __xdata wakeUpReason;
+uint8_t __xdata scanAttempts;
 
-int8_t __xdata temperature = 0;
+int8_t __xdata temperature;
 uint16_t __xdata batteryVoltage = 2600;
-bool __xdata lowBattery = false;
-uint16_t __xdata longDataReqCounter = 0;
-uint16_t __xdata voltageCheckCounter = 0;
+bool __xdata lowBattery;
+uint16_t __xdata longDataReqCounter;
+uint16_t __xdata voltageCheckCounter;
 
-bool __xdata spiActive = false;
-bool __xdata uartActive = false;
-bool __xdata eepromActive = false;
+bool __xdata spiActive;
+bool __xdata uartActive;
+bool __xdata eepromActive;
 extern int8_t adcSampleTemperature(void);  // in degrees C
 
 

@@ -24,7 +24,7 @@ const char __code gSettingsPrefix[] = "SETTINGS: ";
 
 #define SETTINGS_MAGIC 0xABBA5AA5
 
-struct tagsettings __xdata tagSettings = {0};
+struct tagsettings __xdata tagSettings;
 extern uint8_t __xdata blockbuffer[];
 
 void loadDefaultSettings() 
