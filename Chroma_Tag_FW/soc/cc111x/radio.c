@@ -109,9 +109,7 @@ static const __code uint8_t mRadioCfg[] = {
 #define RX_BUFFER_NUM         3
 
 static volatile uint8_t __xdata mLastAckSeq;
-static uint8_t __xdata mRxFilterLongMac[8];
-static volatile __xdata uint16_t mRxFilterShortMac, mRxFilterPan;
-static volatile __bit mRxOn, mHaveLastAck, mRxFilterAllowShortMac, mAutoAck;
+static volatile __bit mRxOn, mHaveLastAck, mAutoAck;
 static volatile uint8_t __xdata mRxBufs[RX_BUFFER_NUM][RX_BUFFER_SIZE];
 
 #define mRxBufNextR     T2PR
@@ -331,19 +329,6 @@ void DMA_ISR(void) __interrupt (8)
    }
    
    IRCON &= (uint8_t)~(1 << 0);
-}
-
-void radioRxFilterCfg(const uint8_t __xdata *filterForLong, uint32_t myShortMac, uint16_t myPan)
-{
-   xMemCopy8(mRxFilterLongMac, filterForLong);
-   
-   if (myShortMac >> 16)
-      mRxFilterAllowShortMac = false;
-   else {
-      mRxFilterAllowShortMac = true;
-      mRxFilterShortMac = myShortMac;
-   }
-   mRxFilterPan = myPan;
 }
 
 void radioRxAckReset(void)
