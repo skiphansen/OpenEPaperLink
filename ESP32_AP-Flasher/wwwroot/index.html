@@ -261,8 +261,10 @@ options:
 --exit Exit eeprom loader after sending data
 							</pre>
 						</div>
-						<!--<h4>Other actions</h4>-->
+						<h4>Other actions</h4>
 						<div>
+							<button class="button" id="doPowerOn">Power on</button><br><br>
+							<button class="button" id="doPowerOff">Power off</button><br><br>
 						</div>
 					</div>
 					<div class="console" id="flashconsole"></div>
@@ -285,6 +287,13 @@ options:
 						<option value="25">25</option>
 						<option value="26">26</option>
 						<option value="27">27</option>
+					</select>
+				</p>
+				<p title="Enable Bluetooth (BLE) support. Only enable this if you have BLE capable tags. Changing this value requires a reboot to take effect.">
+					<label for="apcfgble">Bluetooth</label>
+					<select id="apcfgble">
+						<option value="1">enabled</option>
+						<option value="0" selected>disabled</option>
 					</select>
 				</p>
 				<p>
@@ -321,6 +330,7 @@ options:
 						<option value="6">SK Slovenčina</option>
 						<option value="7">PL Polski</option>
 						<option value="8">ES Español</option>
+						<option value="9">SV Svenska</option>
 					</select>
 				</p>
 				<p title="Depending on the content, a tag can sleep for

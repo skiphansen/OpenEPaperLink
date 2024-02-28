@@ -44,7 +44,7 @@ let getTagtypeBusy = false;
 
 const loadConfig = new Event("loadConfig");
 window.addEventListener("loadConfig", function () {
-	fetch("/get_ap_config")
+	fetch("get_ap_config")
 		.then(response => response.json())
 		.then(data => {
 			apConfig = data;
@@ -53,13 +53,16 @@ window.addEventListener("loadConfig", function () {
 				$(".logo").innerHTML = data.alias;
 				this.document.title = data.alias;
 			}
-			if (data.C6) {
+			if (data.C6 == 1) {
 				var optionToRemove = $("#apcfgchid").querySelector('option[value="27"]');
 				if (optionToRemove) $("#apcfgchid").removeChild(optionToRemove);
 				$('#c6Option').style.display = 'block';
 			}
 			if (data.hasFlasher) {
 				$('[data-target="flashtab"]').style.display = 'block';
+			}
+			if (data.hasBLE == 0) {
+				$("#apcfgble").parentNode.style.display = 'none';
 			}
 			if (data.savespace) {
 			}
@@ -74,7 +77,7 @@ window.addEventListener("loadConfig", function () {
 window.addEventListener("load", function () {
 	window.dispatchEvent(loadConfig);
 	initTabs();
-	fetch('/content_cards.json')
+	fetch('content_cards.json')
 		.then(response => response.json())
 		.then(data => {
 			cardconfig = data;
@@ -130,7 +133,7 @@ function initTabs() {
 };
 
 function loadTags(pos) {
-	return fetch("/get_db?pos=" + pos)
+	return fetch("get_db?pos=" + pos)
 		.then(response => response.json())
 		.then(data => {
 			processTags(data.tags);
@@ -166,7 +169,7 @@ function formatUptime(seconds) {
 
 function connect() {
 	protocol = location.protocol == "https:" ? "wss://" : "ws://";
-	socket = new WebSocket(protocol + location.host + "/ws");
+	socket = new WebSocket(protocol + location.host + location.pathname + "ws");
 
 	socket.addEventListener("open", (event) => {
 		showMessage("websocket connected");
@@ -306,7 +309,7 @@ function processTags(tagArray) {
 						if (element.isexternal && element.contentMode == 12) {
 							loadImage(tagmac, 'http://' + tagDB[tagmac].apip + '/current/' + tagmac + '.raw?' + cachetag);
 						} else {
-							loadImage(tagmac, '/current/' + tagmac + '.raw?' + cachetag);
+							loadImage(tagmac, 'current/' + tagmac + '.raw?' + cachetag);
 						}
 					} else {
 						$('#tag' + tagmac + ' .tagimg').style.display = 'none'
@@ -494,7 +497,7 @@ $('#taglist').addEventListener("click", (event) => {
 function loadContentCard(mac) {
 	$('#cfgmac').innerHTML = mac;
 	$('#cfgmac').dataset.mac = mac;
-	fetch("/get_db?mac=" + mac)
+	fetch("get_db?mac=" + mac)
 		.then(response => response.json())
 		.then(data => {
 			const tagdata = data.tags[0];
@@ -567,7 +570,7 @@ $('#cfgsave').onclick = function () {
 	formData.append("lut", $('#cfglut').value);
 	formData.append("invert", $('#cfginvert').value);
 
-	fetch("/save_cfg", {
+	fetch("save_cfg", {
 		method: "POST",
 		body: formData
 	})
@@ -584,7 +587,7 @@ function sendCmd(mac, cmd) {
 	let formData = new FormData();
 	formData.append("mac", mac);
 	formData.append("cmd", cmd);
-	fetch("/tag_cmd", {
+	fetch("tag_cmd", {
 		method: "POST",
 		body: formData
 	})
@@ -652,7 +655,7 @@ $('#cfgautoupdate').onclick = async function () {
 		var fullFilename = name + "_" + version + ".bin";
 		var filepath = "/" + fullFilename;
 		var binurl = "https://raw.githubusercontent.com/" + repo + "/master/binaries/Tag/" + fullFilename;
-		var url = "/check_file?path=" + encodeURIComponent(filepath);
+		var url = "check_file?path=" + encodeURIComponent(filepath);
 		var response = await fetch(url);
 		if (response.ok) {
 			var data = await response.json();
@@ -663,7 +666,7 @@ $('#cfgautoupdate').onclick = async function () {
 					var formData2 = new FormData();
 					formData2.append('path', filepath);
 					formData2.append('file', fileContent, fullFilename);
-					var uploadResponse = await fetch('/littlefs_put', {
+					var uploadResponse = await fetch('littlefs_put', {
 						method: 'POST',
 						body: formData2
 					});
@@ -687,7 +690,7 @@ $('#cfgautoupdate').onclick = async function () {
 		else showMessage('Error: auto update failed', true);
 		formData.append("contentmode", 5);
 		formData.append("modecfgjson", JSON.stringify(obj));
-		fetch("/save_cfg", {
+		fetch("save_cfg", {
 			method: "POST",
 			body: formData
 		})
@@ -702,7 +705,7 @@ $('#rebootbutton').onclick = function (event) {
 	event.preventDefault();
 	if (!confirm('Reboot AP now?')) return;
 	socket.close();
-	fetch("/reboot", {
+	fetch("reboot", {
 		method: "POST"
 	});
 	alert('Rebooted. Webpage will reload.');
@@ -720,23 +723,26 @@ document.addEventListener("loadTab", function (event) {
 	switch (event.detail) {
 		case 'configtab':
 		case 'aptab':
-			fetch("/get_ap_config")
+			fetch("get_ap_config")
 				.then(response => response.json())
 				.then(data => {
-					apConfig = data;
-					$('#apcfgalias').value = data.alias;
-					$('#apcfgchid').value = data.channel;
-					$("#apcfgledbrightness").value = data.led;
-					$("#apcfgtftbrightness").value = data.tft;
-					$("#apcfglanguage").value = data.language;
-					$("#apclatency").value = data.maxsleep;
-					$("#apcpreventsleep").value = data.stopsleep;
-					$("#apcpreview").value = data.preview;
-					$("#apclock").value = data.lock;
-					$("#apcwifipower").value = data.wifipower;
-					$("#apctimezone").value = data.timezone;
-					$("#apcnight1").value = data.sleeptime1;
-					$("#apcnight2").value = data.sleeptime2;
+					if (data && 'alias' in data) {
+						apConfig = data;
+						$('#apcfgalias').value = data.alias;
+						$('#apcfgchid').value = data.channel;
+						$('#apcfgble').value = data.ble;
+						$("#apcfgledbrightness").value = data.led;
+						$("#apcfgtftbrightness").value = data.tft;
+						$("#apcfglanguage").value = data.language;
+						$("#apclatency").value = data.maxsleep;
+						$("#apcpreventsleep").value = data.stopsleep;
+						$("#apcpreview").value = data.preview;
+						$("#apclock").value = data.lock;
+						$("#apcwifipower").value = data.wifipower;
+						$("#apctimezone").value = data.timezone;
+						$("#apcnight1").value = data.sleeptime1;
+						$("#apcnight2").value = data.sleeptime2;
+					}
 				})
 			$('#apcfgmsg').innerHTML = '';
 			break;
@@ -745,7 +751,7 @@ document.addEventListener("loadTab", function (event) {
 			loadOTA();
 			break;
 		case 'flashtab':
-			$('#flashconsole').innerHTML = '';
+			// $('#flashconsole').innerHTML = '';
 			loadFlash();
 			break;
 	}
@@ -759,6 +765,7 @@ $('#apcfgsave').onclick = function () {
 	let formData = new FormData();
 	formData.append("alias", $('#apcfgalias').value);
 	formData.append("channel", $('#apcfgchid').value);
+	formData.append('ble', $('#apcfgble').value);
 	formData.append('led', $('#apcfgledbrightness').value);
 	formData.append('tft', $('#apcfgtftbrightness').value);
 	formData.append('language', $('#apcfglanguage').value);
@@ -771,7 +778,7 @@ $('#apcfgsave').onclick = function () {
 	formData.append('sleeptime1', $('#apcnight1').value);
 	formData.append('sleeptime2', $('#apcnight2').value);
 
-	fetch("/save_apcfg", {
+	fetch("save_apcfg", {
 		method: "POST",
 		body: formData
 	})
@@ -789,7 +796,7 @@ $('#uploadButton').onclick = function () {
 	if (file) {
 		const formData = new FormData();
 		formData.append('file', file);
-		fetch('/restore_db', {
+		fetch('restore_db', {
 			method: 'POST',
 			body: formData
 		})
@@ -827,7 +834,7 @@ $('#restoreFromLocal').onclick = function () {
 		const formData = new FormData();
 		formData.append('file', blob, 'tagResult.json');
 
-		fetch('/restore_db', {
+		fetch('restore_db', {
 			method: 'POST',
 			body: formData
 		})
@@ -931,7 +938,7 @@ function contentselected() {
 				case 'binfile':
 				case 'jsonfile':
 					input = document.createElement("select");
-					fetch('/edit?list=%2F&recursive=1')
+					fetch('edit?list=%2F&recursive=1')
 						.then(response => response.json())
 						.then(data => {
 							let files = data.filter(item => item.type === "file" && item.name.endsWith(".jpg"));
@@ -1126,7 +1133,8 @@ function processQueue() {
 			}
 
 			[canvas.width, canvas.height] = [tagTypes[hwtype].width, tagTypes[hwtype].height] || [0, 0];
-			if (tagTypes[hwtype].rotatebuffer) [canvas.width, canvas.height] = [canvas.height, canvas.width];
+			if (tagTypes[hwtype].rotatebuffer%2) [canvas.width, canvas.height] = [canvas.height, canvas.width];
+			if (tagTypes[hwtype].rotatebuffer>=2) canvas.style.transform='rotate(180deg)';
 			const ctx = canvas.getContext('2d');
 			const imageData = ctx.createImageData(canvas.width, canvas.height);
 			if (data.length == 0) {
@@ -1179,6 +1187,8 @@ function processZlib(data) {
 	const subBuffer = data.subarray(4);
 	try {
 		const inflatedBuffer = pako.inflate(subBuffer);
+		// to constrain window size for testing:
+		// const inflatedBuffer = pako.inflate(subBuffer, { windowBits: 12 });
 		const headerSize = inflatedBuffer[0];
 		return inflatedBuffer.subarray(headerSize);
 	} catch (err) {
@@ -1347,7 +1357,7 @@ async function getTagtype(hwtype) {
 	try {
 		getTagtypeBusy = true;
 		tagTypes[hwtype] = { busy: true };
-		const response = await fetch('/tagtypes/' + hwtype.toString(16).padStart(2, '0').toUpperCase() + '.json');
+		const response = await fetch('tagtypes/' + hwtype.toString(16).padStart(2, '0').toUpperCase() + '.json');
 		if (!response.ok) {
 			let data = { name: 'unknown id ' + hwtype.toString(16), width: 0, height: 0, bpp: 0, rotatebuffer: 0, colortable: [], busy: false };
 			tagTypes[hwtype] = data;
@@ -1438,7 +1448,7 @@ function dropUpload() {
 						formData.append('file', blob, 'image.jpg');
 
 						try {
-							const response = await fetch('/imgupload', {
+							const response = await fetch('imgupload', {
 								method: 'POST',
 								body: formData,
 							});
@@ -1468,7 +1478,7 @@ function dropUpload() {
 				const formData = new FormData();
 				formData.append('mac', mac);
 				formData.append('json', jsonContent);
-				fetch('/jsonupload', {
+				fetch('jsonupload', {
 					method: 'POST',
 					body: formData,
 				})
@@ -1529,6 +1539,12 @@ $('#taglist').addEventListener('contextmenu', (e) => {
 		contextMenuOptions.push(
 			{ id: 'del', label: 'Delete tag from list' }
 		);
+		let idletime = (Date.now() / 1000) - servertimediff - clickedGridItem.dataset.lastseen;
+		if ((Date.now() / 1000) - servertimediff - 600 > clickedGridItem.dataset.nextcheckin || idletime > 24 * 3600 || clickedGridItem.dataset.nextcheckin == 3216153600) {
+			contextMenuOptions.push(
+				{ id: 'purge', label: 'Delete all inactive tags' }
+			);
+		}
 		contextMenu.innerHTML = '';
 		contextMenuOptions.forEach(option => {
 			const li = document.createElement('li');
@@ -1594,7 +1610,7 @@ function populateAPCard(msg) {
 
 function populateAPInfo(apip) {
 	let apid = apip.replace(/\./g, "-");
-	fetch('http://' + apip + '/sysinfo')
+	fetch('sysinfo')
 		.then(response => {
 			if (response.status != 200) {
 				$('#ap' + apid + ' .apswversion').innerHTML = "Error fetching sysinfo: " + response.status;

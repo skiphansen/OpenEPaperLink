@@ -6,6 +6,8 @@ const WEBFLASH_ENABLE_AUTOFLASH = 1
 const WEBFLASH_ENABLE_USBFLASHER = 2
 const WEBFLASH_FOCUS = 3
 export const WEBFLASH_BLUR = 4
+const WEBFLASH_POWER_ON = 5
+const WEBFLASH_POWER_OFF = 6
 
 export async function init() {
     wsCmd(WEBFLASH_FOCUS);
@@ -37,6 +39,28 @@ $('#doUSBflash').onclick = function () {
     running = true;
 
     wsCmd(WEBFLASH_ENABLE_USBFLASHER);
+
+    running = false;
+    disableButtons(false);
+}
+
+$('#doPowerOn').onclick = function () {
+    if (running) return;
+    disableButtons(true);
+    running = true;
+
+    wsCmd(WEBFLASH_POWER_ON);
+
+    running = false;
+    disableButtons(false);
+}
+
+$('#doPowerOff').onclick = function () {
+    if (running) return;
+    disableButtons(true);
+    running = true;
+
+    wsCmd(WEBFLASH_POWER_OFF);
 
     running = false;
     disableButtons(false);
@@ -103,7 +127,7 @@ const fetchAndPost = async (url, name, path) => {
         formData.append('path', path);
         formData.append('file', fileContent, name);
 
-        const uploadResponse = await fetch('/littlefs_put', {
+        const uploadResponse = await fetch('littlefs_put', {
             method: 'POST',
             body: formData
         });
@@ -122,7 +146,7 @@ const fetchAndPost = async (url, name, path) => {
 
 async function checkTagFW() {
     const fwfile = "/Tag_FW_Pack.bin";
-    const url = "/check_file?path=" + encodeURIComponent(fwfile);
+    const url = "check_file?path=" + encodeURIComponent(fwfile);
     const response = await fetch(url);
     if (response.ok) {
         const data = await response.json();

@@ -350,6 +350,8 @@
           "AT": "Austria",
           "BE": "Belgium",
           "CZ": "Czech Republic",
+          "DK1": "Denmark DK1",
+          "DK2": "Denmark DK2",
           "EE": "Estonia",
           "FI": "Finland",
           "FR": "France",
@@ -368,6 +370,10 @@
           "SK": "Slovakia",
           "SI": "Slovenia",
           "ES": "Spain",
+          "SE1": "Sweden SE1",
+          "SE2": "Sweden SE2",
+          "SE3": "Sweden SE3",
+          "SE4": "Sweden SE4",
           "CH": "Switzerland"
         }
       },
@@ -405,7 +411,7 @@
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "In case of an url, wow often (in minutes) the template is being fetched. Minimum is 3 minutes.",
+        "desc": "In case of an url, how often (in minutes) the template is being fetched. Minimum is 3 minutes.",
         "type": "int"
       }
     ]

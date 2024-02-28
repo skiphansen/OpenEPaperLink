@@ -25,9 +25,7 @@
 *.o
 sdcc/sdcc
 *.d
-ESP32_AP-Flasher/.vscode/extensions.json
 *.log
 *.vpw
 *.vpwhist
 *.vtg
-

@@ -11,6 +11,7 @@
 #include "ips_display.h"
 #include "settings.h"
 // #include "storage.h"
+
 #include "powermgt.h"
 #include "swd.h"
 #include "usbflasher.h"
@@ -39,6 +40,7 @@
 
 uint8_t webFlashMode = FLASHMODE_OFF;
 uint8_t autoFlashStep = AUTOFLASH_STEP_IDLE;
+bool serialPassthroughState = false;
 // TaskHandle_t usbFlasherTaskHandle;
 
 AsyncServer TCPserver(243);
@@ -166,6 +168,9 @@ void onClientConnect(void* arg, AsyncClient* client) {
                 zbsflasherp = nullptr;
             }
 
+            pinMode(FLASHER_EXT_MISO, INPUT);
+            pinMode(FLASHER_EXT_CLK, INPUT);
+
 #ifdef HAS_TFT
             if (autoFlashStep == AUTOFLASH_USBFLASHER_RUNNING && tftOverride == true) {
                 tft2.fillRect(0, 62, tft2.width(), 18, TFT_BLUE);
@@ -209,8 +214,8 @@ void webFlasherTask(void* parameter) {
                 infoDisplay("Connecting", 0);
                 vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-                pinMode(FLASHER_EXT_TEST, OUTPUT);
-                digitalWrite(FLASHER_EXT_TEST, LOW);
+                // pinMode(FLASHER_EXT_TEST, OUTPUT);
+                // digitalWrite(FLASHER_EXT_TEST, LOW);
 
                 zbsflasherp = new flasher();
                 errors = 0;
@@ -440,15 +445,23 @@ void webFlasherTask(void* parameter) {
             }
 
             case AUTOFLASH_USBFLASHER_RUNNING: {
-                vTaskDelay(500 / portTICK_PERIOD_MS);
                 break;
             }
 
             case AUTOFLASH_END_USBFLASHER: {
                 autoFlashStep = AUTOFLASH_STEP_FINISHED;
+                break;
             }
         }
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+
+        /* work in progress
+        if (serialPassthroughState) {
+            tagDebugPassthrough();
+            vTaskDelay(1 / portTICK_PERIOD_MS);
+        } else {
+        */
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+        // }
     }
 }
 
@@ -495,6 +508,51 @@ void handleWSdata(uint8_t* data, size_t len, AsyncWebSocketClient* client) {
                 sendAvail(0xFC);
 #endif
                 break;
+            case WEBFLASH_POWER_ON: {
+                wsSerial("Power up", "yellow");
+
+                extern bool rxSerialStopTask2;
+                if (rxSerialStopTask2 == false) {
+                    rxSerialStopTask2 = true;
+                    vTaskDelay(500 / portTICK_PERIOD_MS);
+                }
+
+                int8_t powerPins2[] = FLASHER_EXT_POWER;
+                uint8_t numPowerPins = sizeof(powerPins2);
+                powerControl(true, (uint8_t*)powerPins2, numPowerPins);
+
+                /*  work in progress
+                if (Serial2) Serial2.end();
+                Serial2.begin(115200, SERIAL_8N1, FLASHER_EXT_RXD, FLASHER_EXT_TXD);
+                Serial.println(">>>");
+                serialPassthroughState = true;
+                */
+                break;
+            }
+            case WEBFLASH_POWER_OFF: {
+                wsSerial("Power down", "yellow");
+                if (serialPassthroughState) {
+                    serialPassthroughState = false;
+                    vTaskDelay(500 / portTICK_PERIOD_MS);
+                }
+                extern bool rxSerialStopTask2;
+                if (rxSerialStopTask2 == false) {
+                    rxSerialStopTask2 = true;
+                    vTaskDelay(500 / portTICK_PERIOD_MS);
+                }
+
+                if (Serial2) Serial2.end();
+                pinMode(FLASHER_EXT_MISO, INPUT);
+                pinMode(FLASHER_EXT_CLK, INPUT);
+                pinMode(FLASHER_EXT_TEST, INPUT);
+                pinMode(FLASHER_EXT_RXD, INPUT);
+                pinMode(FLASHER_EXT_TXD, INPUT);
+                pinMode(FLASHER_EXT_RESET, INPUT);
+                int8_t powerPins2[] = FLASHER_EXT_POWER;
+                uint8_t numPowerPins = sizeof(powerPins2);
+                powerControl(false, (uint8_t*)powerPins2, numPowerPins);
+                break;
+            }
         }
     }
 

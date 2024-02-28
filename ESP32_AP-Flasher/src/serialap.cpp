@@ -150,6 +150,7 @@ void setAPstate(bool isOnline, uint8_t state) {
         CRGB::YellowGreen};
     rgbIdleColor = colorMap[state];
     rgbIdlePeriod = (isOnline ? 767 : 255);
+    if (isOnline) rgbIdle();
 #endif
 }
 
@@ -159,6 +160,11 @@ void APTagReset() {
     uint8_t powerPins = sizeof(APpowerPins);
     if (powerPins > 0 && APpowerPins[0] == -1)
         powerPins = 0;
+
+#ifdef FLASHER_DEBUG_PROG
+    pinMode(FLASHER_DEBUG_PROG, OUTPUT);
+    digitalWrite(FLASHER_DEBUG_PROG, HIGH);
+#endif
     pinMode(AP_RESET_PIN, OUTPUT);
     digitalWrite(AP_RESET_PIN, LOW);
     vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -304,7 +310,7 @@ bool sendChannelPower(struct espSetChannelPower* scp) {
     return false;
 }
 bool sendPing() {
-    if (apInfo.state == AP_STATE_FLASHING) return true;
+    if (apInfo.state == AP_STATE_FLASHING) return false;
     Serial.print("ping");
     int t = millis();
     if (!txStart()) return false;
@@ -715,10 +721,10 @@ bool bringAPOnline() {
     if (!APrdy) {
         if (apInfo.state == AP_STATE_FLASHING) return false;
         APTagReset();
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
         bootTimeout = millis();
         APrdy = false;
-        while ((!APrdy) && (millis() - bootTimeout < 10 * 1000)) {
+        while ((!APrdy) && (millis() - bootTimeout < 10 * 1000) && (apInfo.state != AP_STATE_FLASHING)) {
             APrdy = sendPing();
             vTaskDelay(300 / portTICK_PERIOD_MS);
         }
@@ -749,6 +755,9 @@ bool bringAPOnline() {
 }
 
 bool checkRadio() {
+#ifndef C6_OTA_FLASHING
+    return true;
+#endif
     // make a short between FLASHER_AP_TXD and FLASHER_AP_RXD to indicate that no radio is present
     // e.g. for flasher only, or just to use the S3 to generate images for smaller AP's
     pinMode(FLASHER_AP_TXD, OUTPUT);
@@ -790,6 +799,7 @@ void APTask(void* parameter) {
     xTaskCreate(rxSerialTask2, "rxSerialTask2", 1750, NULL, 2, NULL);
 #endif
 
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     bringAPOnline();
 
 #ifndef C6_OTA_FLASHING
@@ -956,7 +966,7 @@ void APTask(void* parameter) {
                     setAPstate(true, AP_STATE_ONLINE);
                 attempts = 0;
             }
-            if (attempts > 5) {
+            if (attempts > 5 && apInfo.state != AP_STATE_FLASHING) {
                 setAPstate(false, AP_STATE_WAIT_RESET);
                 if (!bringAPOnline()) {
                     // tried to reset the AP, but we failed... Maybe the AP-Tag died?

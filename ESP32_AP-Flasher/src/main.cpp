@@ -47,6 +47,9 @@ void delayedStart(void* parameter) {
 
 void setup() {
     Serial.begin(115200);
+#if ARDUINO_USB_CDC_ON_BOOT == 1
+    Serial.setTxTimeoutMs(0); // workaround bug in USB CDC that slows down serial output when no usb connected
+#endif
     Serial.print(">\n");
 #ifdef HAS_TFT
     extern void yellow_ap_display_init(void);
@@ -136,12 +139,16 @@ void setup() {
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
 #ifdef HAS_BLE_WRITER
-    xTaskCreate(BLETask, "BLE Writer", 12000, NULL, 5, NULL);
+    if (config.ble) {
+        xTaskCreate(BLETask, "BLE Writer", 12000, NULL, 5, NULL);
+    }
 #endif
 
 #ifdef HAS_USB
     // We'll need to start the 'usbflasher' task for boards with a second (USB) port. This can be used as a 'flasher' interface, using a python script on the host
     xTaskCreate(usbFlasherTask, "usbflasher", 10000, NULL, 5, NULL);
+#else
+    pinMode(0, INPUT_PULLUP);
 #endif
 
 #ifdef HAS_EXT_FLASHER

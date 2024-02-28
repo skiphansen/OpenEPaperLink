@@ -371,6 +371,17 @@ void init_web() {
                         wsSendTaginfo(mac, SYNC_DELETE);
                         deleteRecord(mac);
                     }
+                    if (strcmp(cmdValue, "purge") == 0) {
+                        time_t now;
+                        time(&now);
+                        for (int c = tagDB.size() - 1; c >= 0; --c) {
+                            tagRecord *tag = tagDB.at(c);
+                            if (tag->expectedNextCheckin == 3216153600 || tag->lastseen < now - 24 * 3600 || now > tag->expectedNextCheckin + 600) {
+                                wsSendTaginfo(tag->mac, SYNC_DELETE);
+                                deleteRecord(tag->mac);
+                            }
+                        }
+                    }
                     if (strcmp(cmdValue, "clear") == 0) {
                         clearPending(taginfo);
                         while (dequeueItem(mac)) {
@@ -481,7 +492,7 @@ void init_web() {
 #ifdef C6_OTA_FLASHING
         response->print("\"C6\": \"1\", ");
 #else
-        response->print("\"C6\": \"1\", ");
+        response->print("\"C6\": \"0\", ");
 #endif
 #ifdef SAVE_SPACE
         response->print("\"savespace\": \"1\", ");
@@ -493,10 +504,16 @@ void init_web() {
 #else
         response->print("\"hasFlasher\": \"0\", ");
 #endif
-        response->print("\"apstate\": \"" + String(apInfo.state) + "\", ");
+#ifdef HAS_BLE_WRITER
+        response->print("\"hasBLE\": \"1\", ");
+#else
+        response->print("\"hasBLE\": \"0\", ");
+#endif
+        response->print("\"apstate\": \"" + String(apInfo.state) + "\"");
 
         File configFile = contentFS->open("/current/apconfig.json", "r");
         if (configFile) {
+            response->print(", ");
             configFile.seek(1);
             const size_t bufferSize = 64;
             uint8_t buffer[bufferSize];
@@ -548,6 +565,9 @@ void init_web() {
         }
         if (request->hasParam("lock", true)) {
             config.lock = static_cast<uint8_t>(request->getParam("lock", true)->value().toInt());
+        }
+        if (request->hasParam("ble", true)) {
+            config.ble = static_cast<uint8_t>(request->getParam("ble", true)->value().toInt());
         }
         if (request->hasParam("sleeptime1", true)) {
             config.sleepTime1 = static_cast<uint8_t>(request->getParam("sleeptime1", true)->value().toInt());

@@ -88,10 +88,16 @@ uint32_t colorDistance(Color &c1, Color &c2, Error &e1) {
 void spr2color(TFT_eSprite &spr, imgParam &imageParams, uint8_t *buffer, size_t buffer_size, bool is_red) {
     uint8_t rotate = imageParams.rotate;
     long bufw = spr.width(), bufh = spr.height();
-    if (imageParams.rotatebuffer) {
+
+    if (imageParams.rotatebuffer % 2) {
+        //turn the image 90 or 270
         rotate = (rotate + 3) % 4;
+        rotate = (rotate + (imageParams.rotatebuffer - 1)) % 4;
         bufw = spr.height();
         bufh = spr.width();
+    } else {
+        // rotate 180
+        rotate = (rotate + (imageParams.rotatebuffer)) % 4;
     }
 
     memset(buffer, 0, buffer_size);
@@ -234,8 +240,8 @@ size_t prepareHeader(uint8_t headerbuf[], uint16_t bufw, uint16_t bufh, imgParam
     uint8_t headersize = 6;
 
     headerbuf[0] = headersize;
-    memcpy(headerbuf + (imageParams.rotatebuffer == 1 ? 3 : 1), &bufw, sizeof(uint16_t));
-    memcpy(headerbuf + (imageParams.rotatebuffer == 1 ? 1 : 3), &bufh, sizeof(uint16_t));
+    memcpy(headerbuf + (imageParams.rotatebuffer % 2 == 1 ? 3 : 1), &bufw, sizeof(uint16_t));
+    memcpy(headerbuf + (imageParams.rotatebuffer % 2 == 1 ? 1 : 3), &bufh, sizeof(uint16_t));
 
     if (imageParams.hasRed && imageParams.bpp > 1) {
         totalbytes = buffer_size * 2 + headersize;
@@ -249,7 +255,7 @@ size_t prepareHeader(uint8_t headerbuf[], uint16_t bufw, uint16_t bufh, imgParam
 }
 
 bool initializeCompressor(Miniz::tdefl_compressor *comp, int flags) {
-    return Miniz::tdefl_init(comp, NULL, NULL, flags) == Miniz::TDEFL_STATUS_OKAY;
+    return Miniz::tdefl_initOEPL(comp, NULL, NULL, flags) == Miniz::TDEFL_STATUS_OKAY;
 }
 
 size_t compressAndWrite(Miniz::tdefl_compressor *comp, const void *inbuf, size_t inbytes, void *zlibbuf, size_t outsize, size_t totalbytes, File &f_out, Miniz::tdefl_flush flush) {
@@ -257,8 +263,8 @@ size_t compressAndWrite(Miniz::tdefl_compressor *comp, const void *inbuf, size_t
     size_t outbytes_compressed = outsize;
 
     uint32_t t = millis();
-    tdefl_compress(comp, inbuf, &inbytes_compressed, zlibbuf, &outbytes_compressed, flush);
-    Serial.printf("zlib: compressed %d into %d bytes in %d ms\n", inbytes_compressed, outbytes_compressed, millis()-t);
+    Miniz::tdefl_compressOEPL(comp, inbuf, &inbytes_compressed, zlibbuf, &outbytes_compressed, flush);
+    Serial.printf("zlib: compressed %d into %d bytes in %d ms\n", inbytes_compressed, outbytes_compressed, millis() - t);
 
     f_out.write((const uint8_t *)zlibbuf, outbytes_compressed);
     return outbytes_compressed;
@@ -266,7 +272,8 @@ size_t compressAndWrite(Miniz::tdefl_compressor *comp, const void *inbuf, size_t
 
 void rewriteHeader(File &f_out) {
     // https://www.rfc-editor.org/rfc/rfc1950
-    const uint8_t cmf = 0x48;
+    const uint8_t cmf = 0x48;  // 4096
+    // const uint8_t cmf = 0x58; // 8192
     uint8_t flg, flevel = 3;
     uint16_t header = cmf << 8 | (flevel << 6);
     header += 31 - (header % 31);
@@ -275,7 +282,6 @@ void rewriteHeader(File &f_out) {
     f_out.write(cmf);
     f_out.write(flg);
 }
-
 
 void spr2buffer(TFT_eSprite &spr, String &fileout, imgParam &imageParams) {
     long t = millis();
@@ -333,6 +339,7 @@ void spr2buffer(TFT_eSprite &spr, String &fileout, imgParam &imageParams) {
 
                 f_out.write(reinterpret_cast<uint8_t *>(&totalbytes), sizeof(uint32_t));
 
+                // 768 = compression level 9, 1500 = unofficial level 10
                 if (comp == NULL || zlibbuf == NULL || totalbytes == 0 || !initializeCompressor(comp, Miniz::TDEFL_WRITE_ZLIB_HEADER | 1500)) {
                     Serial.println("Failed to initialize compressor or allocate memory for zlib");
                     if (zlibbuf != NULL) free(zlibbuf);
@@ -348,10 +355,10 @@ void spr2buffer(TFT_eSprite &spr, String &fileout, imgParam &imageParams) {
                     compressAndWrite(comp, buffer, buffer_size, zlibbuf, buffer_size, buffer_size, f_out, Miniz::TDEFL_FINISH);
                 }
 
-                rewriteHeader(f_out);
-
                 free(zlibbuf);
                 free(comp);
+
+                rewriteHeader(f_out);
             } else {
                 f_out.write(buffer, buffer_size);
                 if (imageParams.hasRed && imageParams.bpp > 1) {
