@@ -72,7 +72,7 @@ static uint8_t __xdata seq;
 uint8_t __xdata currentChannel;
 
 // buffer we use to prepare/read packets
-static uint8_t __xdata inBuffer[128];
+uint8_t __xdata inBuffer[128];
 static uint8_t __xdata outBuffer[128];
 
 // determines if the tagAssociated loop in main.c performs a rapid next checkin
@@ -174,7 +174,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
       t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW * 100);
       while(timerGet() < t) {
          static int8_t __xdata ret;
-         ret = commsRxUnencrypted(inBuffer);
+         ret = radioRx();
          if(ret > 1) {
             if(
 #if 0
@@ -243,7 +243,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
       sendAvailDataReq();
       t = timerGet() + (TIMER_TICKS_PER_MS * DATA_REQ_RX_WINDOW_SIZE);
       while(timerGet() < t) {
-         int8_t __xdata ret = commsRxUnencrypted(inBuffer);
+         int8_t __xdata ret = radioRx();
          if(ret > 1) {
             if(getPacketType() == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
@@ -271,7 +271,7 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
       // sendAvailDataReq();
       t = timerGet() + (TIMER_TICKS_PER_MS * DATA_REQ_RX_WINDOW_SIZE);
       while(timerGet() < t) {
-         int8_t __xdata ret = commsRxUnencrypted(inBuffer);
+         int8_t __xdata ret = radioRx();
          if(ret > 1) {
             if(getPacketType() == PKT_AVAIL_DATA_INFO) {
                if(checkCRC(inBuffer + sizeof(struct MacFrameNormal) + 1, sizeof(struct AvailDataInfo))) {
@@ -321,7 +321,7 @@ static bool blockRxLoop(const uint32_t timeout)
    radioRxEnable(true, true);
    t = timerGet() + (TIMER_TICKS_PER_MS * (timeout + 20));
    while(timerGet() < t) {
-      int8_t __xdata ret = commsRxUnencrypted(inBuffer);
+      int8_t __xdata ret = radioRx();
       if(ret > 1) {
          if(getPacketType() == PKT_BLOCK_PART) {
             struct blockPart *bp = (struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
@@ -380,7 +380,7 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
       t = timerGet() + (TIMER_TICKS_PER_MS * (7UL + c / 10));
       do {
          static int8_t __xdata ret;
-         ret = commsRxUnencrypted(inBuffer);
+         ret = radioRx();
          if(ret > 1) {
             switch(getPacketType()) {
                case PKT_BLOCK_REQUEST_ACK:
@@ -439,7 +439,7 @@ static void sendXferComplete()
       sendXferCompletePacket();
       uint32_t __xdata start = timerGet();
       while((timerGet() - start) < (TIMER_TICKS_PER_MS * 6UL)) {
-         int8_t __xdata ret = commsRxUnencrypted(inBuffer);
+         int8_t __xdata ret = radioRx();
          if(ret > 1) {
             if(getPacketType() == PKT_XFER_COMPLETE_ACK) {
                PROTO_LOG("ACK\n");

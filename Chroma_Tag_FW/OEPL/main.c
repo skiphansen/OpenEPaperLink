@@ -187,20 +187,6 @@ uint8_t channelSelect(uint8_t rounds)
 }
 #endif
 
-// FIX me !!
-uint8_t getFirstWakeUpReason() 
-{
-#if 0
-   if(RESET & 0x01) {
-      MAIN_LOG("WDT reset!\n");
-      return WAKEUP_REASON_WDT_RESET;
-   }
-#endif
-   return WAKEUP_REASON_FIRSTBOOT;
-}
-
-
-
 void TagAssociated() 
 {
    // associated
@@ -215,7 +201,7 @@ void TagAssociated()
          voltageCheckCounter = 0;
       }
       else {
-         powerUp(INIT_TEMPREADING);
+         temperature = adcSampleTemperature();
       }
       voltageCheckCounter++;
 
@@ -230,7 +216,8 @@ void TagAssociated()
             uint8_t lut = getEepromImageDataArgument(curImgSlot) & 0x03;
             drawImageFromEeprom(curImgSlot, lut);
             powerDown(INIT_EEPROM | INIT_EPD);
-         } else {
+         }
+         else {
             powerUp(INIT_EPD);
             showAPFound();
             powerDown(INIT_EPD);
@@ -407,26 +394,30 @@ void executeCommand(uint8_t cmd)
 
 void main() 
 {
-   setupPortsInitial();
-   powerUp(INIT_BASE | INIT_UART);
-   pr("Chroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
+   powerUp(INIT_BASE);
+   LOG("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
+   boardInitStage2();
 
 #ifdef DEBUGGUI
    displayLoop();  // remove me
 #endif
 
 // Find the reason why we're booting; is this a WDT?
-   wakeUpReason = getFirstWakeUpReason();
+   wakeUpReason = WAKEUP_REASON_FIRSTBOOT;
+   SLEEP_LOG("SLEEP reg %02x\n",SLEEP);
+   if((SLEEP & SLEEP_RST) == SLEEP_RST_WDT) {
+      wakeUpReason = WAKEUP_REASON_WDT_RESET;
+   }
 
 // dump(blockbuffer, 1024);
-//  get our own mac address. this is stored in Infopage at offset 0x10-onwards
-   boardGetOwnMac(mSelfMac);
    InitBcastFrame();
 
    MAIN_LOG("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
    MAIN_LOG("%02X%02X", mSelfMac[2], mSelfMac[3]);
    MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
    MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
+
+
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM | INIT_UART);
@@ -506,7 +497,6 @@ const char __xdata* fwVerString(void)
    static char __xdata fwVer[32];
 
    if(!fwVer[0]) {
-
       spr(fwVer, "FW v%u.%u.%*u",
           fwVersion / 100,(fwVersion % 100) / 10,fwVersion % 10);
    }

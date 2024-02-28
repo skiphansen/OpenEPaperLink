@@ -14,7 +14,4 @@
 extern uint8_t __xdata mLastLqi;
 extern int8_t __xdata mLastRSSI;
 
-int8_t commsRxUnencrypted(void __xdata *data);
-bool commsTxUnencrypted(const void __xdata *packetP, uint8_t len);
-
 #endif

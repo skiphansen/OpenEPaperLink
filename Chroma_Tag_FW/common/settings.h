@@ -15,7 +15,15 @@
 // #define DEBUGGUI                 // debug GUI drawing (enabled)
 // #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
 // #define DEBUGEEPROM              // eeprom-related debug messages
+#define DEBUG_NV_DATA            // debug eeprom-related data accesses
+#define DEBUG_SLEEP              // debug sleeping
+#define DEBUG_RX_DATA            // display subgig rx packets
+#define DEBUG_TX_DATA            // display subgig tx packets
+#define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 
+#if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
+#define DEBUG_COMMS
+#endif
 
 // The firmware can validate the image MD5 before displaying it. 
 // This costs about 8mAS (milliamp-second) for a 1.54, 16

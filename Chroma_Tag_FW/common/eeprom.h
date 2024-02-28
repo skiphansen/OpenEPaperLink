@@ -28,6 +28,8 @@ bool eepromWrite(uint32_t addr, const void __xdata *src, uint16_t len) __reentra
 bool eepromErase(uint32_t addr, uint16_t numSectors) __reentrant;
 
 void eepromDeepPowerDown(void);
+void eepromWakeFromPowerdown(void);
+
 
 #ifdef SFDP_DISABLED
    #define eepromGetSize()    EEPROM_SIZE

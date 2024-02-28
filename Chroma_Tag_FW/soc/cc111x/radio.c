@@ -3,6 +3,11 @@
 #include "radio.h"
 #include "board.h"
 #include "cpu.h"
+#include "comms.h"
+#include "printf.h"
+#include "settings.h"
+#include "timer.h"
+#include "logging.h"
 #define __packed
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
@@ -10,7 +15,7 @@
 /*
    we use 1-MHz spaced channels 903MHz..927MHz
    250 Kbps, 165KHz deviation, GFSK
-   Packets will be variable length, CRC16 will be provided by the radio, as will whitening. 
+   Packets are variable length, CRC16 provided by the radio, as is whitening. 
 */
 
 struct MacHeaderGenericAddr {
@@ -112,6 +117,10 @@ static volatile uint8_t __xdata mLastAckSeq;
 static volatile __bit mRxOn, mHaveLastAck, mAutoAck;
 static volatile uint8_t __xdata mRxBufs[RX_BUFFER_NUM][RX_BUFFER_SIZE];
 
+#ifdef DEBUG_COMMS
+static uint32_t __xdata gLastTxTime;
+#endif
+
 #define mRxBufNextR     T2PR
 #define mRxBufNextW     T4CC0
 #define mRxBufNumFree   T4CC1
@@ -150,10 +159,12 @@ static volatile struct DmaDescr __xdata mRadioTxDmaCfg = {
 
 void radioSetChannel(uint8_t ch)
 {
+   COMMS_LOG("Set chan %d/",ch);
    ch -= RADIO_FIRST_CHANNEL;
    if(ch < RADIO_NUM_CHANNELS) {
       CHANNR = ch * 3;
    }
+   COMMS_LOG("0x%x\n",CHANNR);
 }
 
 #pragma callee_saves radioPrvGoIdle
@@ -170,8 +181,9 @@ void radioInit(void)
    
    radioPrvGoIdle();
    
-   for (i = 0; i < sizeof(mRadioCfg); i++)
+   for (i = 0; i < sizeof(mRadioCfg); i++) {
       radioRegs[i] = mRadioCfg[i];
+   }
 
    TEST2 = 0x88;
    TEST1 = 0x31;
@@ -184,10 +196,11 @@ void radioInit(void)
    mRxBufNumFree = RX_BUFFER_NUM;
 }
 
-void radioSetTxPower(int8_t dBm) //-30..+10 dBm
+//-30..+10 dBm
+void radioSetTxPower(int8_t dBm)
 {
-   //for 915 mhz, as per https://www.ti.com/lit/an/swra151a/swra151a.pdf
-   //this applies to cc1110 as per: https://e2e.ti.com/support/wireless-connectivity/other-wireless/f/667/t/15808
+// for 915 mhz, as per https://www.ti.com/lit/an/swra151a/swra151a.pdf
+// this applies to cc1110 as per: https://e2e.ti.com/support/wireless-connectivity/other-wireless/f/667/t/15808
    static const __code uint8_t powTab[] = {
       /* -30 dBm */0x03, /* -28 dBm */0x05, /* -26 dBm */0x06, /* -24 dBm */0x08,
       /* -22 dBm */0x0b, /* -20 dBm */0x0e, /* -18 dBm */0x19, /* -16 dBm */0x1c,
@@ -197,14 +210,16 @@ void radioSetTxPower(int8_t dBm) //-30..+10 dBm
       /*  10 dBm */0xc0,
    };
    
-   if (dBm < -30)
+   if (dBm < -30) {
       dBm = -30;
-   else if (dBm > 10)
+   }
+   else if (dBm > 10) {
       dBm = 10;
+   }
    
-   //sdcc calles integer division here is we use " / 2", le sigh...
+// sdcc calles integer division here is we use " / 2", le sigh...
    PA_TABLE0 = powTab[((uint8_t)(dBm + 30)) >> 1];
-   pr("PA_TABLE0 %d\n",PA_TABLE0);
+   COMMS_LOG("TxPwr %ddBm/0x%x\n",dBm,PA_TABLE0);
 }
 
 #pragma callee_saves radioPrvSetDmaCfgAndArm
@@ -241,6 +256,9 @@ static void radioPrvSetupTxDma(const uint8_t __xdata* buf)
    radioPrvDmaAbort();
    mRadioTxDmaCfg.srcAddrHi = addr >> 8;
    mRadioTxDmaCfg.srcAddrLo = addr & 0xff;
+#ifdef DEBUG_COMMS
+   gLastTxTime = timerGet();
+#endif
    radioPrvSetDmaCfgAndArm((uint16_t)(volatile void __xdata*)mRadioTxDmaCfg);
 }
 
@@ -272,22 +290,20 @@ static void radioRxStopIfRunning(void)
 
 bool radioTx(const void __xdata *packet)
 {
-   radioRxStopIfRunning();
-#if 0
-   const uint8_t __xdata *src = (const uint8_t __xdata*)packet;
+#ifdef DEBUG_TX_DATA
    uint8_t i;
-   
-   pr("radioTx sending %d",src[0]);
-   for(i = 0; i < src[0]; i++) {
+   uint8_t Len = ((uint8_t __xdata*) packet)[0];
+
+   TX_DATA_LOG("Sending %d bytes\n",Len);
+   for(i = 1; i < Len; i++) {
       if((i & 0xf) == 0) {
-         pr("\n");
+         TX_DATA_LOG("\n");
       }
-      pr("%02x ",src[i+1]);
+      TX_DATA_LOG("%02x ",((uint8_t __xdata*) packet)[i+1]);
    }
-   if(i != 0) {
-      pr("\n");
-   }
+   TX_DATA_LOG("\n");
 #endif
+   radioRxStopIfRunning();
    radioPrvSetupTxDma(packet);
    RFIF = 0;
    
@@ -358,42 +374,61 @@ void radioRxEnable(__bit on, __bit autoAck)
    mAutoAck = autoAck;
 }
 
-int8_t radioRxDequeuePktGet(const void __xdata * __xdata *dstBufP, uint8_t __xdata *lqiP, int8_t __xdata *rssiP)
-{
-   const uint8_t __xdata *buf = mRxBufs[mRxBufNextR];
-   uint8_t lqi, len = buf[0];
-   
-   if (mRxBufNumFree == RX_BUFFER_NUM)
-      return -1;
-   
-   lqi = 148 - (buf[len + 2] & 0x7f);
-   if (lqi >= 127)
-      lqi = 255;
-   else
-      lqi *= 2;
-   *lqiP = lqi;
-   
-   *rssiP = ((int8_t)buf[len + 1] >> 1) - 77;
-   
-   if (dstBufP)
-      *dstBufP = buf + 1;
-   
-   return len;
-}
-
-void radioRxDequeuedPktRelease(void)
+int8_t radioRx()
 {
    uint8_t prevNumFree;
+   uint8_t lqi;
+   const uint8_t __xdata *buf = mRxBufs[mRxBufNextR];
+   uint8_t len = buf[0];
    
-   if (++mRxBufNextR == RX_BUFFER_NUM)
+   if(mRxBufNumFree == RX_BUFFER_NUM) {
+      return COMMS_RX_ERR_NO_PACKETS;
+   }
+
+#ifdef DEBUG_COMMS
+   if(gLastTxTime != 0) {
+      COMMS_LOG("%ld ",
+                mathPrvDiv32x16(timerGet() - gLastTxTime,TIMER_TICKS_PER_MS));
+      gLastTxTime = 0;
+   }
+#endif
+   
+   lqi = 148 - (buf[len + 2] & 0x7f);
+   if (lqi >= 127){
+      lqi = 255;
+   }
+   else {
+      lqi *= 2;
+   }
+   mLastLqi = lqi;
+   mLastRSSI = ((int8_t)buf[len + 1] >> 1) - 77;
+   xMemCopyShort(inBuffer,buf + 1,len);
+   
+   if(++mRxBufNextR == RX_BUFFER_NUM) {
       mRxBufNextR = 0;
+   }
    
    __critical {
       prevNumFree = mRxBufNumFree++;
    }
    
-   if (!prevNumFree)
+   if(!prevNumFree) {
       radioPrvRxStartListenIfNeeded();
+   }
+   
+#ifdef DEBUG_RX_DATA
+   RX_DATA_LOG("Got %d bytes",len);
+   uint8_t i;
+   for(i = 0; i < len; i++) {
+      if((i & 0xf) == 0) {
+         RX_DATA_LOG("\n");
+      }
+      RX_DATA_LOG("%02x ",inBuffer[i]);
+   }
+   RX_DATA_LOG("\n");
+#endif
+      
+   return len;
 }
 
 void radioRxFlush(void)

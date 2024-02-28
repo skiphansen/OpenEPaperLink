@@ -1,32 +1,41 @@
+#include <stdbool.h>
+
 #include "cpu.h"
 #include "u1.h"
-
-
+#include "board.h"
+#include "powermgt.h"
 
 void u1init(void)
 {
-   //UART pins
-   P1DIR = (P1DIR &~ (1 << 7)) | (1 << 6);      //P1.6 is out, P1.7 is in
-   P2SEL |= 1 << 6;
-   P1 |= 1 << 6;                       //when it is not uart mode, idle high
-   U1UCR = 0b00000010;  //no parity, 8 bits per char, normal polarity
+// UART pins
+// P1.6 is out, P1.7 is in
+   P1DIR = (P1DIR & ~P1_SERIAL_IN) | P1_SERIAL_OUT;      
+   P2SEL |= P2SEL_PRI3P1;
+   P2SEL &= (uint8_t) ~P2SEL_SELP2_0;
+   P1 |= P1_SERIAL_OUT;  //when it is not uart mode, idle high
+   U1UCR = U1UCR_STOP;     //no parity, 8 bits per char, normal polarity
    
-   //EEPROM pins
-   P0DIR = (P0DIR & (uint8_t)~(1 << 5)) | (1 << 3) | (1 << 4);
+// EEPROM pins
+   P0DIR = (P0DIR & (uint8_t) ~P0_EEPROM_MISO) | P0_EEPROM_CLK | P0_EEPROM_MOSI;
    
-   P2DIR = (P2DIR & (uint8_t)~(3 << 6)) | (1 << 6);   //usart1 beats usart0 on port 0, p2.0 is output
+// p2.0 is output, usart1 beats usart0 on port 0 
+   P2DIR = P2_EEPROM_nCS |
+           (P2DIR & (uint8_t)~(P2DIR_PRIP0_3) | P2DIR_PRIP0_1);
    
-   P0 &= (uint8_t)~(1 << 3);  //clock idles low
-   
-   u1setEepromMode();
+   P2 |= P2_EEPROM_nCS;  // set EEPROM nCS high
+   P0 &= (uint8_t) ~P0_EEPROM_CLK;  //clock idles low
+   gU1Init = 1;
 }
 
 uint8_t u1byte(uint8_t v)
 {
    U1DBUF = v;
-   while (!(U1CSR & 0x02));
-   U1CSR &= (uint8_t)~0x02;
-   while (U1CSR & 0x01);
+// Wait until last byte has been sent
+   while(!(U1CSR & U1CSR_TX_BYTE));
+   U1CSR &= (uint8_t)~U1CSR_TX_BYTE;
+// Wait for USART1 idle
+   while(U1CSR & U1CSR_ACTIVE);
+// read and return data
    return U1DBUF;
 }
 
@@ -42,32 +51,41 @@ uint8_t u1byte(uint8_t v)
 
 void u1setUartMode(void)
 {
-   P0SEL &= (uint8_t)~((1 << 4) | (1 << 3) | (1 << 5));
+   if(!gU1Init) {
+      u1init();
+   }
+// Disconnect USART from EEPROM pins
+   P0SEL &= (uint8_t) ~(P0_EEPROM_MOSI | P0_EEPROM_CLK | P0_EEPROM_MISO);
       
 #ifdef BAUD_115200
    U1BAUD = 34;      //BAUD_M = 34 (115200)
-   U1GCR = 0b00001100;  //BAUD_E = 12, lsb first
+   U1GCR = U1GCR_BAUD_E(12);  //BAUD_E = 12, lsb first
 #else
 // Default 1meg baud
    U1BAUD = 60;      //BAUD_M = 60
-   U1GCR = 15;       //BAUD_E = 15, lsb first
+   U1GCR = U1GCR_BAUD_E(15);       //BAUD_E = 15, lsb first
 #endif                        //
-   U1CSR = 0b11000000;  //UART mode, RX on
+// UART mode, RX on
+   U1CSR = U1CSR_MODE | U1CSR_RE;
    
-   P1SEL |= (uint8_t)((1 << 6) | (1 << 7));
-   
-   PERCFG |= (uint8_t)(1 << 1);
+// Connect USART to debug pins
+   P1SEL |= P1_SERIAL_OUT | P1_SERIAL_IN;
+// Set USART 1 alternate 2 locaton connecting it to p1
+   PERCFG |= PERCFG_U1CFG; 
 }
 
 void u1setEepromMode(void)
 {
-   PERCFG &= (uint8_t)~(1 << 1);
-   P1SEL &= (uint8_t)~((1 << 6) | (1 << 7));
+// Clear USART 1 alternate 2 location, connecting USART to P0
+   PERCFG &= (uint8_t) ~PERCFG_U1CFG;
+// Disconnect USART from debug pins
+   P1SEL &= (uint8_t) ~(P1_SERIAL_OUT | P1_SERIAL_IN);
    
    U1BAUD = 0;       //F/8 is max for spi - 3.25 MHz
-   U1GCR = 0b00110001;  //BAUD_E = 0x11, msb first
-   U1CSR = 0b01000000;  //SPI master mode, RX on
+   U1GCR = U1GCR_ORDER | U1GCR_BAUD_E(0x11);  //BAUD_E = 0x11, msb first
+   U1CSR = U1CSR_RE;    //SPI master mode, RX on
    
-   P0SEL |= (uint8_t)((1 << 4) | (1 << 3) | (1 << 5));
+// Connect USART to EEPROM pins
+   P0SEL |= P0_EEPROM_MOSI | P0_EEPROM_CLK | P0_EEPROM_MISO;
 }
 

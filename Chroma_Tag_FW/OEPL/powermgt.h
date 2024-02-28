@@ -2,23 +2,21 @@
 #define _POWERMGT_H_
 #include <stdint.h>
 
-#define DETECT_P1_0_NOTHING 0
-#define DETECT_P1_0_BUTTON 1
-#define DETECT_P1_0_JIG 2
-
-#define INIT_EPD_VOLTREADING 0x80
-#define INIT_RADIO 0x40
-#define INIT_I2C 0x20
-#define INIT_UART 0x10
-#define INIT_EPD 0x08
-#define INIT_EEPROM 0x04
-#define INIT_TEMPREADING 0x02
-#define INIT_BASE 0x01
+#define INIT_EPD_VOLTREADING  0x80  // Not used by Chroma port
+#define INIT_RADIO            0x40
+#define INIT_I2C              0x20  // Not used by Chroma port
+#define INIT_UART             0x10
+#define INIT_EPD              0x08
+#define INIT_EEPROM           0x04
+#define INIT_TEMPREADING      0x02
+#define INIT_BASE             0x01
 
 // power saving algorithm
 #define INTERVAL_BASE 40              // interval (in seconds) (when 1 packet is sent/received) for target current (7.2µA)
 #define INTERVAL_AT_MAX_ATTEMPTS 600  // interval (in seconds) (at max attempts) for target average current
-#define DATA_REQ_RX_WINDOW_SIZE 5UL   // How many milliseconds we should wait for a packet during the data_request.
+// Revisit this later ... a quick test shows a response time of 37 ms, 
+// set timeout for much bigger for now
+#define DATA_REQ_RX_WINDOW_SIZE 200UL  // How many milliseconds we should wait for a packet during the data_request.
                                       // If the AP holds a long list of data for tags, it may need a little more time to lookup the mac address
 #define DATA_REQ_MAX_ATTEMPTS 14      // How many attempts (at most) we should do to get something back from the AP
 #define POWER_SAVING_SMOOTHING 8      // How many samples we should use to smooth the data request interval
@@ -47,13 +45,11 @@
 #define SLIDESHOW_INTERVAL_SLOW 300  
 #define SLIDESHOW_INTERVAL_GLACIAL 1800  
 
-extern void setupPortsInitial();
-
 extern void powerUp(const uint8_t parts);
 extern void powerDown(const uint8_t parts);
 
 extern void initAfterWake();
-extern void doSleep(const uint32_t __xdata t);
+extern void doSleep(uint32_t __xdata t);
 
 void doVoltageReading();
 
@@ -69,7 +65,10 @@ extern uint16_t __xdata nextCheckInFromAP;
 extern uint8_t __xdata dataReqLastAttempt;
 extern int8_t __xdata temperature;
 extern uint16_t __xdata batteryVoltage;
-extern bool __xdata lowBattery;
+extern __bit lowBattery;
+extern __bit gU1Init;
+extern __bit gUartActive;
+extern __bit gEepromActive;
 extern uint8_t __xdata scanAttempts;
 extern uint16_t __xdata longDataReqCounter;
 extern uint16_t __xdata voltageCheckCounter;

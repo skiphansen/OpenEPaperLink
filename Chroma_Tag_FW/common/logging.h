@@ -28,5 +28,36 @@
 #define SETTINGS_LOG(format, ... )
 #endif
 
+#ifdef DEBUG_NV_DATA
+   #define NV_DATA_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define NV_DATA_LOG(format, ... )
+#endif
+
+#ifdef DEBUG_SLEEP
+   #define SLEEP_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define SLEEP_LOG(format, ... )
+#endif
+
+#ifdef DEBUG_RX_DATA
+   #define RX_DATA_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define RX_DATA_LOG(format, ... )
+#endif
+
+#ifdef DEBUG_TX_DATA
+   #define TX_DATA_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define TX_DATA_LOG(format, ... )
+#endif
+
+#ifdef DEBUG_COMMS
+   #define COMMS_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define COMMS_LOG(format, ... )
+#endif
+
+
 #endif   // _LOGGING_H_
 

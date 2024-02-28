@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define TIMER_TICKS_PER_MS             (26000 / 128 / 8)
-#define TIMER_TICKS_PER_SECOND			(26000000 / 128 / 8)
+#define TIMER_TICKS_PER_MS             (26000UL / 128UL / 8UL)
+#define TIMER_TICKS_PER_SECOND         (26000000UL / 128UL / 8UL)
 
 //this is a requirement by SDCC. is this prototype is missing when compiling main(), we get no irq handler
 void T1_ISR(void) __interrupt (9);
@@ -16,7 +16,7 @@ void timerInit(void);
 uint32_t timerGet(void);
 
 #pragma callee_saves timerGetLowBits
-uint8_t timerGetLowBits(void);	//probaly only useful for random seeds
+uint8_t timerGetLowBits(void);   //probaly only useful for random seeds
 
 void timerDelay(uint32_t ticks);
 

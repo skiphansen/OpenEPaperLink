@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include "settings.h"
 
-extern uint8_t __xdata mSelfMac[];
 extern uint8_t __xdata currentChannel;
 extern uint8_t __xdata APmac[];
 

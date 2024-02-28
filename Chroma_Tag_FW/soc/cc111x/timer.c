@@ -2,12 +2,19 @@
 #include "cpu.h"
 
 
+// T1CC0 increments at at a 0.38743 Hz rate
+// 26 mhz / 128 / 8 / 65536
+// system clock divided by 128 tick speed (CLKCON register), 
+// divided by 8 timer prescaler (T1CTL register), divided by 16 bits
 
 void T1_ISR(void) __interrupt (9)
 {
 	T1CC0++;
 }
 
+// Return 24 bit timer which increments at a 33,854.16 Hz rate 
+// (29.54 microseconds / count)
+// The timer rolls over about every 11 minutes
 uint32_t timerGet(void)
 {
 	union {

@@ -96,11 +96,12 @@ static bool eepromWriteLL(uint32_t addr, const void __xdata *srcP, uint16_t len)
    return eepromPrvBusyWait();
 }
 
-void eepromDeepPowerDown(void) {
+void eepromDeepPowerDown(void) 
+{
    eepromPrvSimpleCmd(0xb9);
 }
 
-static void eepromPrvWakeFromPowerdown(void) 
+void eepromWakeFromPowerdown(void) 
 {
    eepromPrvSimpleCmd(0xab);
 }
@@ -125,8 +126,6 @@ __bit eepromInit(void)
    uint8_t i, nParamHdrs;
    uint8_t __xdata *tempBufferE = malloc(320);
    __bit Ret = false;
-
-   eepromPrvWakeFromPowerdown();
 
 // process SFDP
    eepromPrvSfdpRead(0, buf, 8);

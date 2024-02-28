@@ -93,13 +93,34 @@ __sfr __at (0x9C) T2CT;
 __sfr __at (0x9D) T2PR;       //used by radio for storage
 __sfr __at (0x9E) TCTL;
 __sfr __at (0xA0) P2;
+
+// WORIRQ (0xA1) - Sleep Timer Interrupt Control
 __sfr __at (0xA1) WORIRQ;
+#define WORIRQ_EVENT0_MASK                0x10
+#define WORIRQ_EVENT0_FLAG                0x01
+
+// WORCTL (0xA2) - Sleep Timer Control
 __sfr __at (0xA2) WORCTRL;
+#define WORCTL_WOR_RESET                  0x04
+#define WORCTL_WOR_RES                    0x03
+#define WORCTL_WOR_RES0                   0x01
+#define WORCTL_WOR_RES1                   0x02
+
 __sfr __at (0xA3) WOREVT0;
 __sfr __at (0xA4) WOREVT1;
 __sfr __at (0xA5) WORTIME0;
 __sfr __at (0xA6) WORTIME1;
+
+// IEN0 (0xA8) – Interrupt Enable 0 Register
 __sfr __at (0xA8) IEN0;
+#define IEN0_EA               0x80     // Enable All
+#define IEN0_STIE             0x20     // Sleep Timer
+#define IEN0_ENCIE            0x10     // AES
+#define IEN0_URX1IE           0x08     // USART1 Rx
+#define IEN0_URX0IE           0x04     // USART0 Rx
+#define IEN0_ADCIE            0x02     // ADC
+#define IEN0_RFTXRXIE         0x01     // RF Rx/Tx
+
 __sfr __at (0xA9) IP0;
 __sfr __at (0xAB) FWT;
 __sfr __at (0xAC) FADDRL;
@@ -118,14 +139,76 @@ __sfr __at (0xBA) ADCL;
 __sfr __at (0xBB) ADCH;
 __sfr __at (0xBC) RNDL;
 __sfr __at (0xBD) RNDH;
+
+// SLEEP (0xBE) - Sleep Mode Control
 __sfr __at (0xBE) SLEEP;
+#define SLEEP_USB_EN                      0x80
+#define SLEEP_XOSC_S                      0x40
+#define SLEEP_HFRC_S                      0x20
+#define SLEEP_RST                         0x18
+#define SLEEP_RST0                        0x08
+#define SLEEP_RST1                        0x10
+#define SLEEP_OSC_PD                      0x04
+#define SLEEP_MODE                        0x03
+#define SLEEP_MODE1                       0x02
+#define SLEEP_MODE0                       0x01
+
+#define SLEEP_RST_POR_BOD                 (0x00 << 3)
+#define SLEEP_RST_EXT                     (0x01 << 3)
+#define SLEEP_RST_WDT                     (0x02 << 3)
+
+#define SLEEP_MODE_PM0                    (0x00)
+#define SLEEP_MODE_PM1                    (0x01)
+#define SLEEP_MODE_PM2                    (0x02)
+#define SLEEP_MODE_PM3                    (0x03)
+
+// IRCON (0xC0) - CPU Interrupt Flag 4 - bit accessible SFR register
 __sfr __at (0xC0) IRCON;
+#define IRCON_STIE            0x80     // Sleep Timer
+#define IRCON_POIF            0x20     // Port 0
+#define IRCON_T4IF            0x10     // Timer 4
+#define IRCON_T3IF            0x08     // Timer 3
+#define IRCON_T2IF            0x04     // Timer 2
+#define IRCON_T1IF            0x02     // Timer 1
+#define IRCON_DMAIF           0x01     // DMA
+
 __sfr __at (0xC1) U0DBUF;
 __sfr __at (0xC2) U0BAUD;
 __sfr __at (0xC4) U0UCR;
 __sfr __at (0xC5) U0GCR;
+
+// CLKCON (0xC6) - Clock Control
 __sfr __at (0xC6) CLKCON;
+#define CLKCON_OSC32          0x80  // bit mask, for the slow 32k clock oscillator
+#define CLKCON_OSC            0x40  // bit mask, for the system clock oscillator
+#define CLKCON_TICKSPD_MASK   0x38  // bit mask, for timer ticks output setting
+#define CLKCON_TICKSPD(x)     (x << 3) // for timer tick speed 0->7
+#define CLKCON_CLKSPD_MASK    0x07  // bit mask, for the clock speed
+#define CLKCON_CLKSPD(x)      (x)   // speed 0-> 7)
+
+#define TICKSPD_DIV_1                     (0x00 << 3)
+#define TICKSPD_DIV_2                     (0x01 << 3)
+#define TICKSPD_DIV_4                     (0x02 << 3)
+#define TICKSPD_DIV_8                     (0x03 << 3)
+#define TICKSPD_DIV_16                    (0x04 << 3)
+#define TICKSPD_DIV_32                    (0x05 << 3)
+#define TICKSPD_DIV_64                    (0x06 << 3)
+#define TICKSPD_DIV_128                   (0x07 << 3)
+
+#define CLKSPD_DIV_1                      (0x00)
+#define CLKSPD_DIV_2                      (0x01)
+#define CLKSPD_DIV_4                      (0x02)
+#define CLKSPD_DIV_8                      (0x03)
+#define CLKSPD_DIV_16                     (0x04)
+#define CLKSPD_DIV_32                     (0x05)
+#define CLKSPD_DIV_64                     (0x06)
+#define CLKSPD_DIV_128                    (0x07)
+
+// MEMCTR (0xC7) - Memory Arbiter Control
 __sfr __at (0xC7) MEMCTR;
+#define MEMCTR_CACHD                      0x02
+#define MEMCTR_PREFD                      0x01
+
 __sfr __at (0xC9) WDCTL;
 __sfr __at (0xCA) T3CNT;
 __sfr __at (0xCB) T3CTL;
@@ -189,21 +272,72 @@ __sfr __at (0xED) T4CC0;      //used by radio for storage
 __sfr __at (0xEE) T4CCTL1;
 __sfr __at (0xEF) T4CC1;      //used by radio for storage
 
+// PERCFG (0xF1) - Peripheral Control
 __sfr __at (0xF1) PERCFG;
+#define PERCFG_T1CFG    0x40  // timer 1 alternate location
+#define PERCFG_T3CFG    0x20  // timer 3 alternate location
+#define PERCFG_T4CFG    0x10  // timer 4 alternate location
+#define PERCFG_U1CFG    0x02  // USART 1 alternate location 0: P0, 1: P1
+#define PERCFG_U0CFG    0x01  // USART 0 alternate location
+
 __sfr __at (0xF2) ADCCFG;
 __sfr __at (0xF3) P0SEL;
 __sfr __at (0xF4) P1SEL;
 __sfr __at (0xF5) P2SEL;
 __sfr __at (0xF6) P1INP;
 __sfr __at (0xF7) P2INP;
+
+// U1CSR (0xF8) - USART 1 Control and Status - bit accessible SFR register
 __sfr __at (0xF8) U1CSR;
+#define U1CSR_MODE                        0x80  // 1 = uart, 0 = SPI
+#define U1CSR_RE                          0x40
+#define U1CSR_SLAVE                       0x20
+#define U1CSR_FE                          0x10
+#define U1CSR_ERR                         0x08
+#define U1CSR_RX_BYTE                     0x04
+#define U1CSR_TX_BYTE                     0x02
+#define U1CSR_ACTIVE                      0x01
+
 __sfr __at (0xF9) U1DBUF;
 __sfr __at (0xFA) U1BAUD;
+
+// U1UCR (0xFB) - USART 1 UART Control
 __sfr __at (0xFB) U1UCR;
+#define U1UCR_FLUSH                       0x80
+#define U1UCR_FLOW                        0x40
+#define U1UCR_D9                          0x20
+#define U1UCR_BIT9                        0x10
+#define U1UCR_PARITY                      0x08
+#define U1UCR_SPB                         0x04
+#define U1UCR_STOP                        0x02
+#define U1UCR_START                       0x01
+
+// U1GCR (0xFC) - USART 1 Generic Control
 __sfr __at (0xFC) U1GCR;
+#define U1GCR_CPOL            0x80
+#define U1GCR_CPHA            0x40
+#define U1GCR_ORDER           0x20  // 0: LSB first, 1: MSB first 
+#define U1GCR_BAUD_MASK       0x1F
+#define U1GCR_BAUD_E(x)       (x)
+
 __sfr __at (0xFD) P0DIR;
 __sfr __at (0xFE) P1DIR;
+
+// P2DIR (0xFF) - Port 2 Direction
 __sfr __at (0xFF) P2DIR;
+
+// ms P2DIR bits
+#define P2DIR_PRIP0_0                     (0x00 << 6)
+#define P2DIR_PRIP0_1                     (0x01 << 6)
+#define P2DIR_PRIP0_2                     (0x02 << 6)
+#define P2DIR_PRIP0_3                     (0x03 << 6)
+
+#define P2DIR_DIRP2_4                     (0x10)
+#define P2DIR_DIRP2_3                     (0x08)
+#define P2DIR_DIRP2_2                     (0x04)
+#define P2DIR_DIRP2_1                     (0x02)
+#define P2DIR_DIRP2_0                     (0x01)
+
 
 static __xdata __at (0xdf00) unsigned char SYNC1;
 static __xdata __at (0xdf01) unsigned char SYNC0;
@@ -311,5 +445,15 @@ struct DmaDescr {
 #define UCSR_SLAVE      0x20  // SPI master or slave mode select 0:master 1:slave
 #define UCSR_RE         0x40  // UART receiver enable 0:disabled 1:enabled
 #define UCSR_MODE       0x80  // USART mode select 0:SPI 1:UART
+
+// P2SEL bits
+#define P2SEL_PRI3P1    0x40
+#define P2SEL_PRI2P1    0x20
+#define P2SEL_PRI1P1    0x10
+#define P2SEL_PRI0P1    0x08
+#define P2SEL_SELP2_4   0x04
+#define P2SEL_SELP2_3   0x02
+#define P2SEL_SELP2_0   0x01
+
 
 #endif

@@ -27,8 +27,10 @@
 // #include "uart.h"  // for initUart
 #include "userinterface.h"
 #include "wdt.h"
+#include "logging.h"
 
-uint16_t __xdata dataReqAttemptArr[POWER_SAVING_SMOOTHING];  // Holds the amount of attempts required per data_req/check-in
+// Holds the amount of attempts required per data_req/check-in
+uint16_t __xdata dataReqAttemptArr[POWER_SAVING_SMOOTHING];  
 uint8_t __xdata dataReqAttemptArrayIndex;
 uint8_t __xdata dataReqLastAttempt;
 uint16_t __xdata nextCheckInFromAP;
@@ -36,370 +38,216 @@ uint8_t __xdata wakeUpReason;
 uint8_t __xdata scanAttempts;
 
 int8_t __xdata temperature;
-uint16_t __xdata batteryVoltage = 2600;
-bool __xdata lowBattery;
+uint16_t __xdata batteryVoltage = 2600;   //in mV
+__bit lowBattery;
 uint16_t __xdata longDataReqCounter;
 uint16_t __xdata voltageCheckCounter;
 
-bool __xdata spiActive;
-bool __xdata uartActive;
-bool __xdata eepromActive;
+__bit gU1Init;
+__bit gUartActive;
+__bit gEepromActive;
 extern int8_t adcSampleTemperature(void);  // in degrees C
 
 
-void setupPortsInitial() 
-{
-   clockingAndIntsInit();
-   timerInit();
-   boardInit();
-   
-#ifndef SFDP_DISABLED
-   if (!eepromInit()) {
-      pr("failed to init eeprom\n");
-      while(1);
-   }
-#endif
-   boardInitStage2();
-
-   irqsOn();
-}
-
 void initPowerSaving(const uint16_t initialValue) 
 {
-#if 0
-    for (uint8_t c = 0; c < POWER_SAVING_SMOOTHING; c++) {
-        dataReqAttemptArr[c] = initialValue;
-    }
-#endif
+   for(uint8_t c = 0; c < POWER_SAVING_SMOOTHING; c++) {
+      dataReqAttemptArr[c] = initialValue;
+   }
 }
 
 static void configSPI(const bool setup) 
 {
 #if 0
-    if (setup == spiActive) return;
-    if (setup) {
-        P0FUNC |= (1 << 0) | (1 << 1) | (1 << 2);
-        P0DIR |= (1 << 2);                // MISO as input
-        P0DIR &= ~((1 << 0) | (1 << 1));  // CLK and MOSI as output
-        P0PULL |= (1 << 2);
-        spiInit();
-        wdtOn();
-    } else {
-        P0FUNC &= ~((1 << 0) | (1 << 1) | (1 << 2));
-        P0DIR |= (1 << 0) | (1 << 1) | (1 << 2);
-        P0PULL &= ~(1 << 2);
-        uint8_t bcp;
-        CLKEN &= ~(0x08);
-        bcp = CFGPAGE;
-        CFGPAGE = 4;
-        SPIENA &= ~(0x81);
-        CFGPAGE = bcp;
-    }
-    spiActive = setup;
+   if(setup == spiActive) return;
+   if(setup) {
+      P0FUNC |= (1 << 0) | (1 << 1) | (1 << 2);
+      P0DIR |= (1 << 2);                // MISO as input
+      P0DIR &= ~((1 << 0) | (1 << 1));  // CLK and MOSI as output
+      P0PULL |= (1 << 2);
+      spiInit();
+      wdtOn();
+   } else {
+      P0FUNC &= ~((1 << 0) | (1 << 1) | (1 << 2));
+      P0DIR |= (1 << 0) | (1 << 1) | (1 << 2);
+      P0PULL &= ~(1 << 2);
+      uint8_t bcp;
+      CLKEN &= ~(0x08);
+      bcp = CFGPAGE;
+      CFGPAGE = 4;
+      SPIENA &= ~(0x81);
+      CFGPAGE = bcp;
+   }
+   spiActive = setup;
 #endif
 }
-
-static void configUART(const bool setup) 
-{
-#if 0
-    if (uartActive == setup) return;
-    if (setup) {
-        P0FUNC |= (1 << 6);
-        P0DIR &= ~(1 << 6);
-        uartInit();
-    } else {
-        P0DIR |= (1 << 6);
-        P0FUNC &= ~(1 << 6);
-        CLKEN &= ~(0x20);
-    }
-    uartActive = setup;
-#endif
-}
-
-static void configEEPROM(const bool setup) 
-{
-#if 0
-    if (setup == eepromActive) return;
-    if (setup) {
-#ifdef EXTRA_EEPROM_LINES
-        P1FUNC &= ~(1 << 1) | (1 << 2) | (1 << 6);
-        P1DIR &= ~(1 << 1) | (1 << 2) | (1 << 6);
-        P1_6 = 1;
-        P1_2 = 1;
-#else
-        P1FUNC &= ~(1 << 1);
-        P1DIR &= ~(1 << 1);
-#endif
-        if (!eepromInit()) {
-            powerDown(INIT_RADIO);
-            powerUp(INIT_EPD);
-            showNoEEPROM();
-            powerDown(INIT_EEPROM | INIT_EPD);
-            doSleep(-1);
-            wdtDeviceReset();
-        }
-    } else {
-        P1DIR |= (1 << 1);
-    }
-    setup == eepromActive;  // wtf, this does nothing.
-#endif
-}
-
 
 void powerUp(const uint8_t parts) 
 {
+   if(parts & INIT_BASE) {
+      clockingAndIntsInit();
+      timerInit();
+      irqsOn();
+      wdtOn();
+      wdt10s();
+      u1init();
+   }
+
 #if 0
-    if (parts & INIT_BASE) {
-        clockingAndIntsInit();
-        timerInit();
-        irqsOn();
-        wdtOn();
-        wdt10s();
-    }
-
-    if (parts & INIT_EPD) {
-        configSPI(true);
-        epdConfigGPIO(true);
-        epdSetup();
-    }
-
-    if (parts & INIT_EPD_VOLTREADING) {
-        epdConfigGPIO(true);
-        configSPI(true);
-        batteryVoltage = epdGetBattery();
-        if (batteryVoltage < tagSettings.batLowVoltage) {
-            lowBattery = true;
-        } else {
-            lowBattery = false;
-        }
-        configSPI(false);
-        epdConfigGPIO(false);
-    }
-
-    if (parts & INIT_UART) {
-        configUART(true);
-    }
-
-    if (parts & INIT_EEPROM) {
-        configSPI(true);
-        configEEPROM(true);
-    }
-
-    if (parts & INIT_TEMPREADING) {
-        temperature = adcSampleTemperature();
-    }
-
-    if (parts & INIT_RADIO) {
-        radioInit();
-        radioRxFilterCfg(mSelfMac, 0x10000, PROTO_PAN_ID);
-        radioSetTxPower(10);
-        if (currentChannel >= 11 && currentChannel <= 27) {
-            radioSetChannel(currentChannel);
-        } else {
-            radioSetChannel(RADIO_FIRST_CHANNEL);
-        }
-    }
+   if(parts & INIT_EPD) {
+      configSPI(true);
+      epdConfigGPIO(true);
+      epdSetup();
+   }
 #endif
+   if(parts & INIT_EPD_VOLTREADING) {
+      batteryVoltage = adcSampleBattery();
+   }
+
+// The debug UART and the EEPROM both use USART1 on Chroma devices
+// so we can't have both.  The EEPROM has priority
+   if((parts & INIT_EEPROM) && !gEepromActive) {
+      gEepromActive = true;
+      u1setEepromMode();
+      eepromWakeFromPowerdown();
+   } 
+#if 0
+// never set Uart mode here...  maybe for now anyway
+   else if((parts & INIT_UART) && !gUartActive) {
+      u1setUartMode();
+   }
+#endif
+
+   if(parts & INIT_RADIO) {
+      radioInit();
+      radioSetTxPower(10);
+      if(currentChannel >= RADIO_FIRST_CHANNEL && 
+         currentChannel < (RADIO_FIRST_CHANNEL + RADIO_NUM_CHANNELS)) {
+         radioSetChannel(currentChannel);
+      }
+      else {
+         radioSetChannel(RADIO_FIRST_CHANNEL);
+      }
+   }
 }
 
 void powerDown(const uint8_t parts) 
 {
 #if 0
-    if (parts & INIT_UART) {
-        configUART(false);
-    }
-    if (parts & INIT_RADIO) {  // warning; this also touches some stuff about the EEPROM, apparently. Re-init EEPROM afterwards
-        radioRxEnable(false, true);
-        RADIO_IRQ4_pending = 0;
-        UNK_C1 &= ~0x81;
-        TCON &= ~0x20;
-        uint8_t __xdata cfgPg = CFGPAGE;
-        CFGPAGE = 4;
-        RADIO_command = 0xCA;
-        RADIO_command = 0xC5;
-        CFGPAGE = cfgPg;
-    }
-    if (parts & INIT_EEPROM) {
-        eepromDeepPowerDown();
-        eepromPrvDeselect();
-        configEEPROM(false);
-    }
-    if (parts & INIT_EPD) {
-        epdConfigGPIO(true);
-        epdEnterSleep();
-        epdConfigGPIO(false);
-    }
-    if (!eepromActive && !epdGPIOActive) {
-        configSPI(false);
-    }
+   if(parts & INIT_UART) {
+      configUART(false);
+   }
+   if(parts & INIT_RADIO) {  // warning; this also touches some stuff about the EEPROM, apparently. Re-init EEPROM afterwards
+      radioRxEnable(false, true);
+      RADIO_IRQ4_pending = 0;
+      UNK_C1 &= ~0x81;
+      TCON &= ~0x20;
+      uint8_t __xdata cfgPg = CFGPAGE;
+      CFGPAGE = 4;
+      RADIO_command = 0xCA;
+      RADIO_command = 0xC5;
+      CFGPAGE = cfgPg;
+   }
+#endif
+   if(parts & INIT_EEPROM) {
+      eepromDeepPowerDown();
+      gEepromActive = false;
+      gUartActive = false;
+      LOG("Powered down EEPROM\n");
+   }
+#if 0
+   if(parts & INIT_EPD) {
+      epdConfigGPIO(true);
+      epdEnterSleep();
+      epdConfigGPIO(false);
+   }
+   if(!gEepromActive && !epdGPIOActive) {
+      configSPI(false);
+   }
 #endif
 }
 
 // t = sleep time in milliseconds
-void doSleep(const uint32_t __xdata t) 
+void doSleep(uint32_t __xdata t) 
 {
-   uint32_t __xdata End = timerGet();
-
-   if(t < 1000L) {
-      End += t * TIMER_TICKS_PER_MS;
+#ifdef DEBUG_SLEEP
+   uint32_t hrs = t;
+   uint32_t Ms = mathPrvMod32x16(hrs,1000);
+   hrs = mathPrvDiv32x16(hrs,1000);
+   uint32_t Sec = mathPrvMod32x16(hrs,60);
+   hrs = mathPrvDiv32x16(hrs,60);
+   uint32_t Mins = mathPrvMod32x16(hrs,60);
+   hrs = mathPrvDiv32x16(hrs,60);
+   SLEEP_LOG("Sleep for %ld (%ld:%02ld:%02ld.%03ld)",t,hrs,Mins,Sec,Ms);
+#ifdef DEBUG_MAX_SLEEP
+   if(t > DEBUG_MAX_SLEEP) {
+      t = DEBUG_MAX_SLEEP;
+      SLEEP_LOG(" {reduced to %ld sec)",mathPrvDiv32x16(t,1000));
    }
-   else {
-      End += 1000L * TIMER_TICKS_PER_MS;
+#endif
+   SLEEP_LOG("...");
+#endif
+   if(gEepromActive) {
+      eepromDeepPowerDown();
+      gEepromActive = false;
    }
-   while(timerGet() < End);
-
+   screenShutdown();
 #if 0
-    P0FUNC = 0;
-    P1FUNC = 0;
-    P2FUNC = 0;
-
-    P0DIR = 1;
-    P0 = 0;
-    P0PULL = 1;
-
-    P1DIR = 0x86;
-    P1PULL = 0x86;
-
-    P2DIR = 7;
-    P2 = 0;
-    P2PULL = 5;
-
-    spiActive = false;
-    uartActive = false;
-    eepromActive = false;
-
-#ifdef ISDEBUGBUILD
-    capabilities |= CAPABILITY_HAS_WAKE_BUTTON;
+   powerPortsDownForSleep();
+   gUartActive = false;
 #endif
 
-    if (capabilities & CAPABILITY_HAS_WAKE_BUTTON) {
-        // Button setup on TEST pin 1.0 (input pullup)
-        P1FUNC &= ~(1 << 0);
-        P1DIR |= (1 << 0);
-        P1PULL |= (1 << 0);
-        P1LVLSEL |= (1 << 0);
-        P1INTEN |= (1 << 0);
-        P1CHSTA &= ~(1 << 0);
-
-        // Button setup on RXD pin 0.7 (input pullup)
-        P0FUNC &= ~(1 << 7);
-        P0DIR |= (1 << 7);
-        P0PULL |= (1 << 7);
-        P0LVLSEL |= (1 << 7);
-        P0INTEN |= (1 << 7);
-        P0CHSTA &= ~(1 << 7);
-    }
-
-#ifdef ENABLE_GPIO_WAKE
-    // enable wake on pin 0.2 (MISO)
-    P0FUNC &= ~(1 << 3);
-    P0DIR |= (1 << 3);
-    P0PULL |= (1 << 3);
-    P0LVLSEL |= (1 << 3);
-    P0INTEN |= (1 << 3);
-    P0CHSTA &= ~(1 << 3);
-#endif
-
-    if (capabilities & CAPABILITY_NFC_WAKE) {
-        P1FUNC &= ~(1 << 3);
-        P1DIR |= (1 << 3);
-        P1PULL |= (1 << 3);
-        P1LVLSEL |= (1 << 3);
-        P1INTEN |= (1 << 3);
-        P1CHSTA &= ~(1 << 3);
-    }
-
-    if (tagSettings.enableRFWake) {
-        //  enabled RF wake, adds a little extra energy draw!
-        RADIO_RadioPowerCtl &= 0xFB;
-    }
-
-    // sleepy time
-    sleepForMsec(t);
-    P1INTEN = 0;
-    P0INTEN = 0;
-
-    switch (RADIO_Wake_Reason) {
-        case RADIO_WAKE_REASON_RF:
-            wakeUpReason = WAKEUP_REASON_RF;
-            break;
-        case RADIO_WAKE_REASON_EXT:
-            if ((P1CHSTA & (1 << 0)) && (capabilities & CAPABILITY_HAS_WAKE_BUTTON)) {
-                wakeUpReason = WAKEUP_REASON_BUTTON1;
-                P1CHSTA &= ~(1 << 0);
-            }
-            if ((P0CHSTA & (1 << 7)) && (capabilities & CAPABILITY_HAS_WAKE_BUTTON)) {
-                wakeUpReason = WAKEUP_REASON_BUTTON2;
-                P0CHSTA &= ~(1 << 7);
-            }
-            if ((P1CHSTA & (1 << 3)) && (capabilities & CAPABILITY_NFC_WAKE)) {
-                wakeUpReason = WAKEUP_REASON_NFC;
-                P1CHSTA &= ~(1 << 3);
-            }
-#ifdef ENABLE_GPIO_WAKE
-            if (P0CHSTA & (1 << 3)) {
-                wakeUpReason = WAKEUP_REASON_GPIO;
-                P0CHSTA &= ~(1 << 3);
-            }
-#endif
-            break;
-        case RADIO_WAKE_REASON_TIMER:
-            // this stops the compiler from whining about a conditional flow optimization
-            wakeUpReason = wakeUpReason;
-            break;
-    }
-#endif
+// sleepy time
+   sleepForMsec(t);
+   powerUp(INIT_BASE);
+   SLEEP_LOG("\nAwake\n");
 }
 
 void doVoltageReading() 
 {
-#if 0
-    powerUp(INIT_RADIO);  // load down the battery using the radio to get a good voltage reading
-    powerUp(INIT_EPD_VOLTREADING | INIT_TEMPREADING);
-    powerDown(INIT_RADIO);
-#endif
+   powerUp(INIT_RADIO);  // load down the battery using the radio to get a good voltage reading
+   temperature = adcSampleTemperature();
+   powerDown(INIT_RADIO);
 }
 
 uint32_t getNextScanSleep(const bool increment) 
 {
-    if (increment) {
-        if (scanAttempts < 255) {
-            scanAttempts++;
-        }
-    }
+   if(increment) {
+      if(scanAttempts < 255) {
+         scanAttempts++;
+      }
+   }
 
-    if (scanAttempts < INTERVAL_1_ATTEMPTS) {
-        return INTERVAL_1_TIME;
-    } 
-    else if (scanAttempts < (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS)) {
-        return INTERVAL_2_TIME;
-    }
-    return INTERVAL_3_TIME;
+   if(scanAttempts < INTERVAL_1_ATTEMPTS) {
+      return INTERVAL_1_TIME;
+   } else if(scanAttempts < (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS)) {
+      return INTERVAL_2_TIME;
+   }
+   return INTERVAL_3_TIME;
 }
 
 void addAverageValue() 
 {
-#if 0
-    uint16_t __xdata curval = INTERVAL_AT_MAX_ATTEMPTS - INTERVAL_BASE;
-    curval *= dataReqLastAttempt;
-    curval /= DATA_REQ_MAX_ATTEMPTS;
-    curval += INTERVAL_BASE;
-    dataReqAttemptArr[dataReqAttemptArrayIndex % POWER_SAVING_SMOOTHING] = curval;
-    dataReqAttemptArrayIndex++;
-#endif
+   uint16_t __xdata curval = INTERVAL_AT_MAX_ATTEMPTS - INTERVAL_BASE;
+
+   curval *= dataReqLastAttempt;
+   curval /= DATA_REQ_MAX_ATTEMPTS;
+   curval += INTERVAL_BASE;
+   dataReqAttemptArr[dataReqAttemptArrayIndex % POWER_SAVING_SMOOTHING] = curval;
+   dataReqAttemptArrayIndex++;
 }
 
 uint16_t getNextSleep() 
 {
-#if 0
-    uint16_t avg = 0;
-    for (uint8_t c = 0; c < POWER_SAVING_SMOOTHING; c++) {
-        avg += dataReqAttemptArr[c];
-    }
-    avg /= POWER_SAVING_SMOOTHING;
+   uint16_t avg = 0;
+   for(uint8_t c = 0; c < POWER_SAVING_SMOOTHING; c++) {
+      avg += dataReqAttemptArr[c];
+   }
+   avg /= POWER_SAVING_SMOOTHING;
 
-    // check if we should sleep longer due to an override in the config
-    if (avg < tagSettings.minimumCheckInTime) return tagSettings.minimumCheckInTime;
-    return avg;
-#endif
+// check if we should sleep longer due to an override in the config
+   if(avg < tagSettings.minimumCheckInTime) {
+      return tagSettings.minimumCheckInTime;
+   }
+   return avg;
 }

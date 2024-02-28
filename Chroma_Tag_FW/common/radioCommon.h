@@ -19,6 +19,8 @@
 
 #define SHORT_MAC_UNUSED            (0x10000000UL) //for radioRxFilterCfg's myShortMac
 
+extern uint8_t __xdata inBuffer[128];
+
 void radioInit(void);
 //waits for tx end
 bool radioTx(const void __xdata *packet);
@@ -36,12 +38,7 @@ void radioSetTxPower(int8_t dBm);   //-30..+10 dBm
 void radioSetChannel(uint8_t ch);
 
 void radioRxFlush(void);
-int8_t radioRxDequeuePktGet(const void __xdata * __xdata *dstBufP, uint8_t __xdata *lqiP, int8_t __xdata *rssiP);
-void radioRxDequeuedPktRelease(void);
-
-
-
-
+int8_t radioRx(void);
 
 #endif
 
