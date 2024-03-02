@@ -319,12 +319,22 @@ SubGigErr SubGig_radioTx(uint8_t *packet)
          break;
       }
 
+      if(packet[0] < 2) {
+         Ret = SUBGIG_TX_BAD_LEN;
+         break;
+      }
+
+   // All packets seem to be padded by 2 bytes (RAW_PKT_PADDING).
+   // Remove the padding before sending so the length is correct when received
+      packet[0] -= 2;
       TxLen = packet[0];
       LOG("Sending %d byte subgig frame:\n",TxLen);
       LOG_HEX(&packet[1],TxLen);
       if(CC1101_Tx(packet)) {
          Ret = SUBGIG_TX_FAILED;
       }
+   // restore original len just in case anyone cares
+      packet[0] += 2;
    } while(false);
 
    return Ret;

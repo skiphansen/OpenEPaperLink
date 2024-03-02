@@ -6,7 +6,8 @@ typedef enum {
    SUBGIG_CC1101_NOT_FOUND,
    SUBGIG_NOT_INITIALIZED,
    SUBGIG_NOT_ENABLED,
-   SUBGIG_TX_FAILED
+   SUBGIG_TX_FAILED,
+   SUBGIG_TX_BAD_LEN
 } SubGigErr;
 
 typedef struct {
