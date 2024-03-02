@@ -2446,15 +2446,12 @@
 		<Folder
 			Name="Other Files"
 			Filters="">
+			<F N="../ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/main/CMakeLists.txt"/>
+			<F N="../ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/main/Kconfig.projbuild"/>
 			<F N="/cc1xxx/docs/notes.txt"/>
 			<F N="../ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/README.md"/>
 		</Folder>
 	</Files>
 	<Macro>
-		<ExecMacro CmdLine="add_tag z:\vs\espidf.vtg"/>
-		<ExecMacro CmdLine="add_next_tag z:\vs\ArduinoJson.vtg"/>
-		<ExecMacro CmdLine="add_next_tag z:\vs\BitBang_I2C.vtg"/>
-		<ExecMacro CmdLine="add_next_tag z:\vs\OneBitDisplay.vtg"/>
-		<ExecMacro CmdLine="add_next_tag z:\vs\WiFiManager.vtg"/>
 	</Macro>
 </Project>

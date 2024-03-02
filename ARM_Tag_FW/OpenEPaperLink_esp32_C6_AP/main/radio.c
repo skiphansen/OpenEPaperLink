@@ -33,9 +33,6 @@ uint8_t mSelfMac[8];
 volatile uint8_t isInTransmit = 0;
 QueueHandle_t packet_buffer = NULL;
 
-#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-#endif
-
 void esp_ieee802154_receive_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info) {
     ESP_EARLY_LOGI(TAG, "RX %d", frame[0]);
     BaseType_t xHigherPriorityTaskWoken;
@@ -100,20 +97,26 @@ void radio_init(uint8_t ch) {
 
 // uint32_t lastZbTx = 0;
 bool radioTx(uint8_t *packet) {
-    static uint8_t txPKT[130];
-
-    led_flash(1);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigData.Reply2SubGig) {
-       return SubGig_radioTx(packet);
-    }
+// The subghz driver uses DMA 
+    static DMA_ATTR uint8_t txPKT[130];
+#else
+    static uint8_t txPKT[130];
 #endif
+    led_flash(1);
     while (isInTransmit) {
     }
     // while (getMillis() - lastZbTx < 6) {
     // }
     // lastZbTx = getMillis();
     memcpy(txPKT, packet, packet[0]);
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    struct MacFrameNormal  *txHeader = (struct MacFrameNormal *) (packet + 1);
+
+    if(txHeader->pan == PROTO_PAN_ID_SUBGHZ) {
+       return SubGig_radioTx(packet);
+    }
+#endif
     isInTransmit = 1;
     esp_ieee802154_transmit(txPKT, false);
     return true;
@@ -140,7 +143,6 @@ int8_t commsRxUnencrypted(uint8_t *data) {
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
     if(gSubGigData.Enabled) {
        int8_t Ret = SubGig_commsRxUnencrypted(data);
-       gSubGigData.Reply2SubGig = Ret > 0 ? true : false;
        if(Ret > 0) {
           return Ret;
         }

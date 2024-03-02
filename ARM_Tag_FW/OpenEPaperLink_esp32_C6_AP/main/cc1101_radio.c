@@ -33,10 +33,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <driver/spi_master.h>
+#include "proto.h"
 #include "cc1101_radio.h"
 #include "radio.h"
 
-#define ENABLE_LOGGING  0
+#define ENABLE_LOGGING  1
 
 #if ENABLE_LOGGING
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
@@ -137,8 +138,11 @@ enum RFSTATE {
 #define CC1101_LQI_MASK                0x7f
 #define CC1101_CRC_OK_MASK             0x6f
 
-#define CC1101_DEFVAL_IOCFG2           0x2E
+// IOCFG2 GDO2: high when TX FIFO at or above the TX FIFO threshold
+#define CC1101_DEFVAL_IOCFG2           0x02
 #define CC1101_DEFVAL_IOCFG1           0x2E
+// GDO0 Asserts when sync word has been sent / received, and 
+// de-asserts at the end of the packet.
 #define CC1101_DEFVAL_IOCFG0           0x06
 #define CC1101_DEFVAL_FIFOTHR          0x07
 #define CC1101_DEFVAL_RCCTRL1          0x41
@@ -161,7 +165,6 @@ RfSetting gFixedConfig[] = {
    {0xff,0},
 };
 
-void CC1101_writeBurstReg(uint8_t regAddr,uint8_t* buffer,uint8_t len);
 void CC1101_readBurstReg(uint8_t *buffer,uint8_t regAddr,uint8_t len);
 void CC1101_cmdStrobe(uint8_t cmd);
 void CC1101_wakeUp(void);
@@ -264,6 +267,8 @@ static uint8_t gRfState;
 #define getGDO0state()     gpio_get_level(CONFIG_GDO0_GPIO)
 #define wait_GDO0_high()   while(!getGDO0state())
 #define wait_GDO0_low()    while(getGDO0state())
+#define getGDO2state()     gpio_get_level(CONFIG_GDO2_GPIO)
+#define wait_GDO2_low()    while(getGDO2state())
 
 /**
  * Arduino Macros
@@ -359,32 +364,6 @@ void CC1101_writeReg(uint8_t regAddr, uint8_t value)
    cc1101_Deselect();                              // Deselect CC1101
 }
 
-/**
- * CC1101_writeBurstReg
- * 
- * Write multiple registers into the CC1101 IC via SPI
- * 
- * @param regAddr Register address
- * @param buffer Data to be writen
- * @param len Data length
- */
-void CC1101_writeBurstReg(uint8_t regAddr, uint8_t* buffer, uint8_t len)
-{
-   uint8_t addr, i;
-
-   LOG("%d bytes to 0x%x\n",len,regAddr);
-
-   addr = regAddr | WRITE_BURST; // Enable burst transfer
-   cc1101_Select();
-   wait_Miso();
-   spi_transfer(addr);
-
-   for(i = 0; i < len; i++) {
-      spi_transfer(buffer[i]);   // Send value
-   }
-
-   cc1101_Deselect();
-}
 
 /**
  * CC1101_cmdStrobe
@@ -508,88 +487,84 @@ void CC1101_DumpRegs()
       LOG("%02x %s: 0x%02X\n",regAddr,RegNamesCC1101[regAddr],value);
    }
 
+#if 0
    for(regAddr = 0; regAddr < 0x2f; regAddr++) {
       value = CC1101_readReg(regAddr,READ_SINGLE);
       LOG("<Register><Name>%s</Name><Value>0x%02X</Value></Register>\n",RegNamesCC1101[regAddr],value);
    }
 #endif
+#endif
 }
 
 
-bool CC1101_Tx(uint8_t *TxData,size_t TxLen)
+bool CC1101_Tx(uint8_t *TxData)
 {
-   uint8_t marcState;
-   bool Ret = false;
+   bool Ret = true;
    int ErrLine = 0;
-   int tries = 0;
-
-// Declare to be in Tx state. This will avoid receiving TxDatas whilst
-// transmitting
-   gRfState = RFSTATE_TX;
-
-// Enter RX state
-   CC1101_setRxState();
+   spi_transaction_t SPITransaction;
+   uint8_t BytesSent = 0;
+   uint8_t Bytes2Send;
+   uint8_t len = 1 + *TxData;
+   uint8_t CanSend;
 
    do {
-      // Check that the RX state has been entered
-      while(tries++ < 1000) {
-         marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
-         if(marcState == CC1101_STATE_RX) {
-            break;
-         }
-         if(marcState == CC1101_STATE_RXFIFO_OVERFLOW) {
-            flushRxFifo(); // flush receive queue
-         }
-      }
+      memset(&SPITransaction,0,sizeof(spi_transaction_t));
+      SPITransaction.tx_buffer = TxData;
 
-      if(marcState != CC1101_STATE_RX) {
-      // TODO: MarcState sometimes never enters the expected state; 
-      // this is a hack workaround.
-         ErrLine = __LINE__;
-         break;
-      }
-
-      delayMicroseconds(500);
-
-      if(TxLen == 0) {
-         CC1101_setTxState();
-      }
-      else {
-      // Set data length at the first position of the TX FIFO
-         CC1101_writeReg(CC1101_TXFIFO,TxLen);
-      // Write data into the TX FIFO
-         CC1101_writeBurstReg(CC1101_TXFIFO, TxData,TxLen);
-         CC1101_setTxState();
-      // Check that TX state is being entered (state = RXTX_SETTLING)
-         marcState = readStatusReg(CC1101_MARCSTATE) & 0x1F;
-         if(marcState != CC1101_STATE_TX 
-            && marcState != CC1101_STATE_TX_END
-            && marcState != CC1101_STATE_RXTX_SWITCH)
-         {
-            ErrLine = __LINE__;
-            break;
-         }
-
-      // Wait for the sync word to be transmitted
-         wait_GDO0_high();
-
-      // Wait until the end of the TxData transmission
-         wait_GDO0_low();
-
-      // Check that the TX FIFO is empty
-         if((readStatusReg(CC1101_TXBYTES) & 0x7F) != 0) {
-            ErrLine = __LINE__;
-            break;
-         }
-      }
-      Ret = true;
-   } while(false);
-
-   if(TxLen > 0) {
       setIdleState();
       flushTxFifo();
-      CC1101_setRxState();
-   }
+
+      while(BytesSent < len) {
+         Bytes2Send = len - BytesSent;
+         if(BytesSent == 0) {
+         // First chunk, the FIFO is empty and can take 64 bytes
+            if(Bytes2Send > 64) {
+               Bytes2Send = 64;
+            }
+         }
+         else {
+         // Not the first chunk, we can only send FIFO_THRESHOLD bytes 
+         // and only when GDO2 says we can
+            if(getGDO2state()) {
+               wait_GDO2_low();
+            }
+            CanSend = readStatusReg(CC1101_TXBYTES);
+            if(CanSend & 0x80) {
+               LOG("TX FIFO underflow\n");
+               Ret = false;
+               break;
+            }
+            CanSend = 64 - CanSend;
+            if(Bytes2Send > CanSend) {
+               Bytes2Send = CanSend;
+            }
+         }
+         SPITransaction.length = Bytes2Send * 8;
+         SPITransaction.rxlength = 0;
+         cc1101_Select();
+         wait_Miso();
+         spi_transfer(CC1101_TXFIFO | WRITE_BURST);
+         spi_device_transmit(gSpiHndl,&SPITransaction);
+         cc1101_Deselect();
+//       LOG("Sending %d bytes\n",Bytes2Send);
+         if(BytesSent == 0) {
+         // some or all of the tx data has been written to the FIFO, 
+         // start transmitting
+//          LOG("Start tx\n");
+            CC1101_setTxState();
+         // Wait for the sync word to be transmitted
+            wait_GDO0_high();
+         }
+         SPITransaction.tx_buffer += Bytes2Send;
+         BytesSent += Bytes2Send;
+      }
+
+   // Wait until the end of the TxData transmission
+      wait_GDO0_low();
+   } while(false);
+
+   setIdleState();
+   CC1101_setRxState();
 
    if(ErrLine != 0) {
       LOG("%s#%d: failure\n",__FUNCTION__,ErrLine);

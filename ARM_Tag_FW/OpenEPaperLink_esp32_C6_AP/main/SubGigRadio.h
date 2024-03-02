@@ -16,7 +16,6 @@ typedef struct {
    uint8_t FreqTest:1;
    uint8_t RxAvailable:1;
    uint8_t Initialized:1;
-   uint8_t Reply2SubGig:1;
 } SubGigData;
 
 extern SubGigData gSubGigData;
