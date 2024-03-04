@@ -7,7 +7,7 @@ SOURCES	= main.c eeprom.c drawing.c comms.c settings.c chars.c cpu.c
 SOURCES += board.c powermgt.c syncedproto.c userinterface.c
 include ../make/common.mk
 SOURCES += $(SOC_DIR)/wdt.c $(SOC_DIR)/timer.c $(SOC_DIR)/sleep.c 
-SOURCES += $(SOC_DIR)/adc.c $(SOC_DIR)/radio.c $(SOC_DIR)/aes.c 
+SOURCES += $(SOC_DIR)/adc.c $(SOC_DIR)/radio.c
 SOURCES += $(SOC_DIR)/soc.c $(SOC_DIR)/printf.c
 SOURCES += board.c
 
