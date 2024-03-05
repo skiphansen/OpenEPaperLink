@@ -41,8 +41,10 @@
 
 #if ENABLE_LOGGING
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
+#define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
 #else
 #define LOG(format, ... )
+#define LOG_RAW(format, ... )
 #endif
 
 #include <string.h>
@@ -158,6 +160,7 @@ RfSetting gFixedConfig[] = {
    {CC1101_IOCFG1,CC1101_DEFVAL_IOCFG1},
    {CC1101_IOCFG0,CC1101_DEFVAL_IOCFG0},
    {CC1101_FIFOTHR,CC1101_DEFVAL_FIFOTHR},
+   {CC1101_FSCTRL0,CC1101_DEFVAL_FSCTRL0},
    {CC1101_RCCTRL1,CC1101_DEFVAL_RCCTRL1},
    {CC1101_RCCTRL0,CC1101_DEFVAL_RCCTRL0},
    {CC1101_MCSM1,CC1101_DEFVAL_MCSM1},
@@ -499,15 +502,19 @@ void CC1101_DumpRegs()
 
 bool CC1101_Tx(uint8_t *TxData)
 {
-   bool Ret = true;
+   bool Ret = false;
    int ErrLine = 0;
    spi_transaction_t SPITransaction;
    uint8_t BytesSent = 0;
    uint8_t Bytes2Send;
-   uint8_t len = 1 + *TxData;
+   uint8_t len;
    uint8_t CanSend;
+   esp_err_t Err;
 
    do {
+   // The first byte in the buffer is the number of data bytes to send,
+   // we also need to send the first byte
+      len = 1 + *TxData;
       memset(&SPITransaction,0,sizeof(spi_transaction_t));
       SPITransaction.tx_buffer = TxData;
 
@@ -530,11 +537,17 @@ bool CC1101_Tx(uint8_t *TxData)
             }
             CanSend = readStatusReg(CC1101_TXBYTES);
             if(CanSend & 0x80) {
-               LOG("TX FIFO underflow\n");
-               Ret = false;
+               LOG("TX FIFO underflow, BytesSent %d\n",BytesSent);
+               ErrLine = __LINE__;
                break;
             }
             CanSend = 64 - CanSend;
+            if(CanSend == 0) {
+               LOG("CanSend == 0, GDO2 problem\n");
+               ErrLine = __LINE__;
+               break;
+            }
+
             if(Bytes2Send > CanSend) {
                Bytes2Send = CanSend;
             }
@@ -544,7 +557,11 @@ bool CC1101_Tx(uint8_t *TxData)
          cc1101_Select();
          wait_Miso();
          spi_transfer(CC1101_TXFIFO | WRITE_BURST);
-         spi_device_transmit(gSpiHndl,&SPITransaction);
+         if((Err = spi_device_transmit(gSpiHndl,&SPITransaction)) != ESP_OK) {
+            ErrLine = __LINE__;
+            LOG("spi_device_transmit failed %d\n",Err);
+            break;
+         }
          cc1101_Deselect();
 //       LOG("Sending %d bytes\n",Bytes2Send);
          if(BytesSent == 0) {
@@ -561,6 +578,7 @@ bool CC1101_Tx(uint8_t *TxData)
 
    // Wait until the end of the TxData transmission
       wait_GDO0_low();
+      Ret = true;
    } while(false);
 
    setIdleState();
@@ -647,32 +665,40 @@ void CC1101_SetConfig(const RfSetting *pConfig)
 
    memset(RegWasSet,0,sizeof(RegWasSet));
 
-// Set the fixed registers
-   for(i = 0; (Reg = gFixedConfig[i].Reg) != 0xff; i++) {
-      CC1101_writeReg(Reg,gFixedConfig[i].Value);
-      RegWasSet[Reg] = 1;
+   if(pConfig == NULL) {
+// Just set the fixed registers
+      LOG("Setting fixed registers\n");
+      for(i = 0; (Reg = gFixedConfig[i].Reg) != 0xff; i++) {
+         CC1101_writeReg(Reg,gFixedConfig[i].Value);
+      }
+   // Set TX power
+      CC1101_writeReg(CC1101_PATABLE,CC1101_DEFVAL_PATABLE);
    }
-   CC1101_writeReg(CC1101_FSCTRL0,CC1101_DEFVAL_FSCTRL0);
-// Set TX power
-   CC1101_writeReg(CC1101_PATABLE,CC1101_DEFVAL_PATABLE);
+   else {
+      for(i = 0; (Reg = gFixedConfig[i].Reg) != 0xff; i++) {
+         RegWasSet[Reg] = 1;
+      }
 
-   while((Reg = pConfig->Reg) != 0xff) {
-      if(RegWasSet[Reg] == 1) {
-         LOG("%s value ignored\n",RegNamesCC1101[Reg]);
-      }
-      else {
-         if(RegWasSet[Reg] == 2) {
-            LOG("%s value set twice\n",RegNamesCC1101[Reg]);
+      while((Reg = pConfig->Reg) != 0xff) {
+         if(RegWasSet[Reg] == 1) {
+            LOG("%s value ignored\n",RegNamesCC1101[Reg]);
          }
-         CC1101_writeReg(pConfig->Reg,pConfig->Value);
-         RegWasSet[Reg] = 2;
+         else {
+            if(RegWasSet[Reg] == 2) {
+               LOG("%s value set before\n",RegNamesCC1101[Reg]);
+            }
+            CC1101_writeReg(pConfig->Reg,pConfig->Value);
+            RegWasSet[Reg] = 2;
+         }
+         pConfig++;
       }
-      pConfig++;
-   }
-   for(Reg = 0; Reg <= CC1101_TEST0; Reg++) {
-      if(RegWasSet[Reg] == 0) {
-         LOG("%s value not set\n",RegNamesCC1101[Reg]);
+#if 0
+      for(Reg = 0; Reg <= CC1101_TEST0; Reg++) {
+         if(RegWasSet[Reg] == 0) {
+            LOG("%s value not set\n",RegNamesCC1101[Reg]);
+         }
       }
+#endif
    }
 }
 

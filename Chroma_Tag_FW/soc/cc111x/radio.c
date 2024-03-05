@@ -69,25 +69,9 @@ static const __code uint8_t mRadioCfg[] = {
     0x00,  // CHANNR: Channel Number 
     0x0f,  // FSCTRL1: Frequency Synthesizer Control 
     0x00,  // FSCTRL0: Frequency Synthesizer Control 
-#ifdef BAND_866
-// Base Frequency = 863.999756   
-// total channels  6 (0 -> 5) (CHANNR 0 -> 15)
-// CHANNR 0: 863.999756
-// CHANNR 15: 869.034241
-// The user sees these channels as 200 to 206
-    0x21,  // FREQ2: Frequency Control Word, High Byte 
-    0x3b,  // FREQ1: Frequency Control Word, Middle Byte 
-    0x13,  // FREQ0: Frequency Control Word, Low Byte 
-#else
-// Base Frequency = 902.999756
-// total channels 25 (0 -> 24) (CHANNR 0 -> 72)
-// CHANNR 0: 902.999756
-// CHANNR 72: 927.165283
-// The user sees these channels as 100 to 125
     0x22,  // FREQ2: Frequency Control Word, High Byte 
     0xbb,  // FREQ1: Frequency Control Word, Middle Byte 
     0x13,  // FREQ0: Frequency Control Word, Low Byte 
-#endif
     0x1d,  // MDMCFG4: Modem configuration 
     0x3b,  // MDMCFG3: Modem Configuration 
     0x13,  // MDMCFG2: Modem Configuration 
@@ -156,15 +140,47 @@ static volatile struct DmaDescr __xdata mRadioTxDmaCfg = {
    .srcinc = 1,                  //increment src
 };
 
-
 void radioSetChannel(uint8_t ch)
 {
-   COMMS_LOG("Set chan %d/",ch);
-   ch -= RADIO_FIRST_CHANNEL;
-   if(ch < RADIO_NUM_CHANNELS) {
-      CHANNR = ch * 3;
+   if(ch >= FIRST_866_CHAN && ch < FIRST_866_CHAN + NUM_866_CHANNELS) {
+   // Base Frequency = 863.999756   
+   // total channels  6 (0 -> 5) (CHANNR 0 -> 15)
+   // Channel 100 / CHANNR 0: 863.999756
+   // Channel 101 / CHANNR 3: 865.006 Mhz
+   // Channel 102 / CHANNR 6: 866.014 Mhz
+   // Channel 103 / CHANNR 9: 867.020 Mhz
+   // Channel 104 / CHANNR 12: 868.027 Mhz
+   // Channel 105 / CHANNR 15: 869.034 Mhz
+      COMMS_LOG("866");
+      FREQ2 = 0x21;    // Frequency Control Word, High Byte 
+      FREQ1 = 0x3b;    // Frequency Control Word, Middle Byte 
+      FREQ0 = 0x13;    // Frequency Control Word, Low Byte 
+      CHANNR = (ch - FIRST_866_CHAN) * 3;
    }
-   COMMS_LOG("0x%x\n",CHANNR);
+   else {
+   // Base Frequency = 902.999756
+   // Dmitry's orginal code used 25 channels in 915 Mhz (0 -> 24, CHANNR 0 -> 72)
+   // We don't want to have to scan that many so for OEPL we'll just use 6
+   // to match 866.
+   // Channel 200 / CHANNR 0: 903.000 Mhz
+   // Channel 201 / CHANNR 12: 907.027 Mhz
+   // Channel 202 / CHANNR 24: 911.054 Mhz
+   // Channel 203 / CHANNR 24: 915.083 Mhz
+   // Channel 204 / CHANNR 48: 919.110 Mhz
+   // Channel 205 / CHANNR 60: 923.138 Mhz
+      COMMS_LOG("915");
+      FREQ2 = 0x22;  // Frequency Control Word, High Byte 
+      FREQ1 = 0xbb;  // Frequency Control Word, Middle Byte 
+      FREQ0 = 0x13;  // Frequency Control Word, Low Byte 
+
+      if(ch >= FIRST_915_CHAN && ch < FIRST_915_CHAN + NUM_915_CHANNELS) {
+         CHANNR = (ch - FIRST_915_CHAN) * 12;
+      }
+      else {
+         CHANNR = 0; // default to the first channel on 915
+      }
+   }
+   COMMS_LOG(", %d/CHANNR 0x%x\n",ch,CHANNR);
 }
 
 #pragma callee_saves radioPrvGoIdle
@@ -295,11 +311,11 @@ bool radioTx(const void __xdata *packet)
    uint8_t Len = ((uint8_t __xdata*) packet)[0];
 
    TX_DATA_LOG("Sending %d bytes\n",Len);
-   for(i = 1; i < Len; i++) {
+   for(i = 1; i <= Len; i++) {
       if((i & 0xf) == 0) {
          TX_DATA_LOG("\n");
       }
-      TX_DATA_LOG("%02x ",((uint8_t __xdata*) packet)[i+1]);
+      TX_DATA_LOG("%02x ",((uint8_t __xdata*) packet)[i]);
    }
    TX_DATA_LOG("\n");
 #endif
@@ -320,14 +336,12 @@ bool radioTx(const void __xdata *packet)
 void DMA_ISR(void) __interrupt (8)
 {
    if (DMAIRQ & (1 << 0)) {
-      
       #define hdr    ((struct MacHeaderGenericAddr __xdata*)(buf + 1))  //SDCC wastes RAM on these as variables, so make them defines
       #define hdrSA  ((struct MacHeaderShortAddr __xdata*)(buf + 1))
       #define hdrLA  ((struct MacHeaderLongAddr __xdata*)(buf + 1))
       uint8_t __xdata *buf = mRxBufs[mRxBufNextW];
       __bit acceptPacket = false;
       uint8_t len;
-      
       
       DMAIRQ &= (uint8_t)~(1 << 0);
       len = buf[0];
@@ -443,3 +457,4 @@ void radioRxFlush(void)
    if (!wasFree)
       radioPrvRxStartListenIfNeeded();
 }
+

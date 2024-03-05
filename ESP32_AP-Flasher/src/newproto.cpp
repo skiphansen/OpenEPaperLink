@@ -634,6 +634,9 @@ void updateContent(const uint8_t* dst) {
 }
 
 void setAPchannel() {
+    bool bSendRadioLayer = false;
+    struct espSetChannelPower tmp;
+
     if (config.channel == 0) {
         // trigger channel autoselect
         UDPcomm udpsync;
@@ -641,11 +644,22 @@ void setAPchannel() {
     } else {
         if (curChannel.channel != config.channel) {
            curChannel.channel = config.channel;
-#ifdef HAS_SUBGHZ
-           curChannel.subghzchannel = config.subghzchannel;
-#endif
-           sendChannelPower(&curChannel);
+           bSendRadioLayer = true;
         }
+    }
+#ifdef HAS_SUBGHZ
+    if(curChannel.subghzchannel != config.subghzchannel) {
+       curChannel.subghzchannel = config.subghzchannel;
+       bSendRadioLayer = true;
+
+    }
+#endif
+    if(bSendRadioLayer) {
+       tmp = curChannel;
+       if(config.channel == 0) {
+          tmp.channel = 0;    // don't set the 802.15.4 channel
+       }
+       sendChannelPower(&tmp);
     }
 }
 

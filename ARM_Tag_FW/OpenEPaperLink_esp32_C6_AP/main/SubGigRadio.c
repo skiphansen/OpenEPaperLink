@@ -12,6 +12,7 @@
 #include "esp_log.h"
 
 #include "radio.h"
+#include "proto.h"
 #include "cc1101_radio.h"
 #include "SubGigRadio.h"
 
@@ -82,6 +83,23 @@ const RfSetting g866Mhz[] = {
    {CC1101_FREQ0,0xc4},  // FREQ0: Frequency Control Word, Low Byte 
    {0xff,0}   // end of table
 };
+
+// Set Base Frequency to 863.999756
+const RfSetting g864Mhz[] = {
+   {CC1101_FREQ2,0x21},  // FREQ2: Frequency Control Word, High Byte 
+   {CC1101_FREQ1,0x3b},  // FREQ1: Frequency Control Word, Middle Byte 
+   {CC1101_FREQ0,0x13},  // FREQ0: Frequency Control Word, Low Byte 
+   {0xff,0}   // end of table
+};
+
+// Set Base Frequency to 902.999756
+const RfSetting g903Mhz[] = {
+   {CC1101_FREQ2,0x22},  // FREQ2: Frequency Control Word, High Byte 
+   {CC1101_FREQ1,0xbb},  // FREQ1: Frequency Control Word, Middle Byte 
+   {CC1101_FREQ0,0x13},  // FREQ0: Frequency Control Word, Low Byte 
+   {0xff,0}   // end of table
+};
+
 
 // Seet Base Frequency to 915.000000 
 const RfSetting g915Mhz[] = {
@@ -204,7 +222,6 @@ static void IRAM_ATTR gpio_isr_handler(void *arg)
 SubGigErr SubGig_radio_init(uint8_t ch)
 {
    esp_err_t Err;
-   const RfSetting *pConfig = NULL;
    spi_device_interface_config_t devcfg = {
       .clock_speed_hz = 5000000, // SPI clock is 5 MHz!
       .queue_size = 7,
@@ -280,14 +297,9 @@ SubGigErr SubGig_radio_init(uint8_t ch)
          break;
       }
       gSubGigData.Present = true;
-   // Eventually set 866/915 config based on channel argument
       SubGig_CC1101_reset();
-      pConfig = gDmitry915;
-//    pConfig = gIDF_Basic;
-
-      SubGig_CC1101_SetConfig(pConfig);
-      gSubGigData.pConfig = pConfig;
-      gSubGigData.Enabled = true;
+      CC1101_SetConfig(NULL);
+      SubGig_CC1101_SetConfig(gDmitry915);
 #if 1
       CC1101_DumpRegs();
 #endif
@@ -303,7 +315,66 @@ SubGigErr SubGig_radio_init(uint8_t ch)
 
 SubGigErr SubGig_radioSetChannel(uint8_t ch)
 {
-   return SUBGIG_ERR_NONE;
+   SubGigErr Ret = SUBGIG_ERR_NONE;
+
+   RfSetting SetChannr[2] = {
+      {CC1101_CHANNR,0},
+      {0xff,0} // end of table
+   };
+
+   do {
+      if(!gSubGigData.Enabled && gSubGigData.Present && ch != 0) {
+         gSubGigData.Enabled = true;
+         LOG("SubGhz enabled\n");
+      }
+      if((Ret = CheckSubGigState()) != SUBGIG_ERR_NONE) {
+         break;
+      }
+      if(ch == 0) {
+      // Disable SubGhz
+         LOG("SubGhz disabled\n");
+         gSubGigData.Enabled = false;
+         break;
+      }
+      LOG("Set channel %d\n",ch);
+
+      if(ch >= FIRST_866_CHAN && ch < FIRST_866_CHAN + NUM_866_CHANNELS) {
+      // Base Frequency = 863.999756   
+      // total channels  6 (0 -> 5) (CHANNR 0 -> 15)
+      // Channel 100 / CHANNR 0: 863.999756
+      // Channel 101 / CHANNR 3: 865.006 Mhz
+      // Channel 102 / CHANNR 6: 866.014 Mhz
+      // Channel 103 / CHANNR 9: 867.020 Mhz
+      // Channel 104 / CHANNR 12: 868.027 Mhz
+      // Channel 105 / CHANNR 15: 869.034 Mhz
+         SubGig_CC1101_SetConfig(g864Mhz);
+         SetChannr[0].Value = (ch - FIRST_866_CHAN) * 3;
+      }
+      else {
+      // Base Frequency = 902.999756
+      // Dmitry's orginal code used 25 channels in 915 Mhz
+      // We don't want to have to scan that many so for OEPL we'll just use 6
+      // to match 866.
+      // Channel 200 / CHANNR 0: 903.000 Mhz
+      // Channel 201 / CHANNR 12: 907.027 Mhz
+      // Channel 202 / CHANNR 24: 911.054 Mhz
+      // Channel 203 / CHANNR 24: 915.083 Mhz
+      // Channel 204 / CHANNR 48: 919.110 Mhz
+      // Channel 205 / CHANNR 60: 923.138 Mhz
+         SubGig_CC1101_SetConfig(g903Mhz);
+
+         if(ch >= FIRST_915_CHAN && ch < FIRST_915_CHAN + NUM_915_CHANNELS) {
+            SetChannr[0].Value = (ch - FIRST_915_CHAN) * 12;
+         }
+         else {
+            Ret = SUBGIG_INVALID_CHANNEL;
+            SetChannr[0].Value = 0; // default to the first channel on 915
+         }
+      }
+      SubGig_CC1101_SetConfig(SetChannr);
+   } while(false);
+
+   return Ret;
 }
 
 SubGigErr SubGig_radioTx(uint8_t *packet)
@@ -319,14 +390,14 @@ SubGigErr SubGig_radioTx(uint8_t *packet)
          break;
       }
 
-      if(packet[0] < 2) {
+      if(packet[0] < 3 || packet[0] > RADIO_MAX_PACKET_LEN + RAW_PKT_PADDING) {
          Ret = SUBGIG_TX_BAD_LEN;
          break;
       }
 
-   // All packets seem to be padded by 2 bytes (RAW_PKT_PADDING).
+   // All packets seem to be padded by RAW_PKT_PADDING (2 bytes)
    // Remove the padding before sending so the length is correct when received
-      packet[0] -= 2;
+      packet[0] -= RAW_PKT_PADDING;
       TxLen = packet[0];
       LOG("Sending %d byte subgig frame:\n",TxLen);
       LOG_HEX(&packet[1],TxLen);
@@ -334,7 +405,7 @@ SubGigErr SubGig_radioTx(uint8_t *packet)
          Ret = SUBGIG_TX_FAILED;
       }
    // restore original len just in case anyone cares
-      packet[0] += 2;
+      packet[0] += RAW_PKT_PADDING;
    } while(false);
 
    return Ret;
@@ -426,6 +497,7 @@ SubGigErr SubGig_FreqTest(bool b866Mhz,bool bStart)
 void SubGig_CC1101_reset()
 {
    gSubGigData.Initialized = false;
+   gSubGigData.FixedRegsSet = false;
    CC1101_reset();
 }
 
@@ -465,6 +537,5 @@ void DumpHex(void *AdrIn,int Len)
       LOG_RAW("\n");
    }
 }
-
 #endif // CONFIG_OEPL_SUBGIG_SUPPORT
 

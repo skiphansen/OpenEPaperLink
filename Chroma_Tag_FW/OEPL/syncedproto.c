@@ -165,7 +165,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
 #else
    radioInit();
    radioRxEnable(false, true);
-   radioSetChannel(100);
+   radioSetChannel(200);
 #endif
    radioRxFlush();
    radioRxEnable(true, true);
@@ -1082,9 +1082,9 @@ void InitBcastFrame()
    gBcastFrame.fcs.ackReqd = 1;
    gBcastFrame.fcs.destAddrType = 2;
    gBcastFrame.fcs.srcAddrType = 3;
-   gBcastFrame.dstPan = PROTO_PAN_ID;
+   gBcastFrame.dstPan = PROTO_PAN_ID_SUBGHZ;
    gBcastFrame.dstAddr = 0xFFFF;
-   gBcastFrame.srcPan = PROTO_PAN_ID;
+   gBcastFrame.srcPan = PROTO_PAN_ID_SUBGHZ;
 }
 
 void UpdateBcastFrame()

@@ -299,7 +299,9 @@ bool sendChannelPower(struct espSetChannelPower* scp) {
         }
         if (waitCmdReply()) {
             txEnd();
-            apInfo.channel = scp->channel;
+            if(scp->channel != 0) {
+               apInfo.channel = scp->channel;
+            }
             apInfo.power = scp->power;
             return true;
         }

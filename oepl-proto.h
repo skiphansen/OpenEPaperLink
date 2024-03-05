@@ -4,6 +4,7 @@
 #endif
 
 #define PROTO_PAN_ID (0x4447)  // PAN ID compression shall be used
+#define PROTO_PAN_ID_SUBGHZ   (0x1337)  // PAN ID compression shall be used
 
 #define RADIO_MAX_PACKET_LEN (125)  // useful payload, not including the crc
 

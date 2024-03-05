@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define RAW_PKT_PADDING 2
 extern uint8_t mSelfMac[8];
 
 void radio_init(uint8_t ch);

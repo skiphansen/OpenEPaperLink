@@ -4,7 +4,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+//sub-GHz 866 Mhz channels start at 100
+#define FIRST_866_CHAN              (100)
+#define NUM_866_CHANNELS            (6)
 
+//sub-GHz 915 Mhz channels start at 200
+#define FIRST_915_CHAN              (200)
+#define NUM_915_CHANNELS            (25)
 
 #define RADIO_MAX_PACKET_LEN        (125) //useful payload, not including the crc
 
@@ -41,7 +47,3 @@ void radioRxFlush(void);
 int8_t radioRx(void);
 
 #endif
-
-
-
-

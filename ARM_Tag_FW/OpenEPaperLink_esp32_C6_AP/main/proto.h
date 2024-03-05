@@ -131,11 +131,11 @@ struct blockData {
 #define TAG_RETURN_DATA_SIZE 90
 
 struct tagReturnData {
-	uint8_t checksum;
-	uint8_t partId;
-	uint64_t dataVer;
-	uint8_t dataType;
-	uint8_t data[TAG_RETURN_DATA_SIZE];
+   uint8_t checksum;
+   uint8_t partId;
+   uint64_t dataVer;
+   uint8_t dataType;
+   uint8_t data[TAG_RETURN_DATA_SIZE];
 } __attribute__((packed, aligned(1)));
 
 #define BLOCK_PART_DATA_SIZE 99
@@ -179,13 +179,16 @@ struct espSetChannelPower {
     uint8_t checksum;
     uint8_t channel;
     uint8_t power;
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    uint8_t subghzchannel;
+#endif
 } __attribute__((packed, aligned(1)));
 
 struct espTagReturnData {
-	uint8_t checksum;
-	uint8_t src[8];
-	uint8_t len;
-	struct tagReturnData returnData;
+   uint8_t checksum;
+   uint8_t src[8];
+   uint8_t len;
+   struct tagReturnData returnData;
 } __attribute__((packed, aligned(1)));
 
 #endif

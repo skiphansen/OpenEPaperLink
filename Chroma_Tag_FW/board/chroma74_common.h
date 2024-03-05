@@ -39,18 +39,6 @@
 //till end of eeprom really. do not put anything after - it will be erased at pairing time!!!
 #define EEPROM_PROGRESS_BYTES       (192)
 
-//radio cfg
-
-#ifdef BAND_866
-//sub-GHz 866 Mhz channels start at 200
-#define RADIO_FIRST_CHANNEL         (200)    //sub-GHz channels start at 100
-#define RADIO_NUM_CHANNELS          (6)
-#else
-//sub-GHz 915 Mhz channels start at 100
-#define RADIO_FIRST_CHANNEL         (100)    
-#define RADIO_NUM_CHANNELS          (25)
-#endif
-
 //hw types
 #define HW_TYPE_NORMAL              HW_TYPE_74_INCH_DISPDATA_Y
 #define HW_TYPE_CYCLING             HW_TYPE_74_INCH_DISPDATA_Y_FRAME_MODE

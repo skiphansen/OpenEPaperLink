@@ -26,6 +26,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include "SubGigRadio.h"
+
 
 static const char *TAG = "MAIN";
 
@@ -66,6 +68,7 @@ uint32_t lastBlockRequest = 0;
 uint8_t  lastBlockMac[8];
 uint8_t  lastTagReturn[8];
 
+uint8_t curSubGhzChannel;
 uint8_t curChannel = 25;
 uint8_t curPower   = 10;
 
@@ -320,10 +323,18 @@ void     processSerial(uint8_t lastchar) {
             bytesRemain--;
             if (bytesRemain == 0) {
                 if (checkCRC(serialbuffer, sizeof(struct espSetChannelPower))) {
-                    struct espSetChannelPower *scp = (struct espSetChannelPower *) serialbuffer;
+                   struct espSetChannelPower *scp = (struct espSetChannelPower *) serialbuffer;
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+                    if(curSubGhzChannel != scp->subghzchannel) {
+                        curSubGhzChannel = scp->subghzchannel;
+                        ESP_LOGI(TAG,"Set SubGhz channel: %d",curSubGhzChannel);
+                        SubGig_radioSetChannel(scp->subghzchannel);
+                    }
+#endif
                     for (uint8_t c = 0; c < sizeof(channelList); c++) {
                         if (channelList[c] == scp->channel) goto SCPchannelFound;
                     }
+                    ESP_LOGI(TAG, "failed to find channel in channel list");
                     goto SCPfailed;
                 SCPchannelFound:
                     pr("ACK>");
@@ -335,6 +346,7 @@ void     processSerial(uint8_t lastchar) {
                     radioSetTxPower(scp->power);
                     ESP_LOGI(TAG, "Set channel: %d power: %d", curChannel, curPower);
                 } else {
+                   ESP_LOGI(TAG, "Bad crc");
                 SCPfailed:
                     pr("NOK>");
                 }
@@ -773,6 +785,22 @@ void app_main(void) {
                     blockStartTimer = 0;
                 }
             }
+
+#if 0
+            static uint32_t gGhzTestTmr;
+            if(gGhzTestTmr < getMillis()) {
+               uint8_t TestFrame[RADIO_MAX_PACKET_LEN + 1];
+               uint8_t i;
+
+               ESP_LOGI(TAG,"Sending subgig test");
+               gGhzTestTmr = getMillis() + 1000;
+               for(i = 1; i < RADIO_MAX_PACKET_LEN; i++) {
+                  TestFrame[i + 1] = i;
+               }
+               TestFrame[0] = RADIO_MAX_PACKET_LEN + RAW_PKT_PADDING;
+               SubGig_radioTx(TestFrame);
+            }
+#endif
         }
 
         memset(&lastTagReturn, 0, 8);

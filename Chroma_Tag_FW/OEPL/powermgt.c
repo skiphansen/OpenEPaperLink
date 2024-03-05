@@ -121,13 +121,7 @@ void powerUp(const uint8_t parts)
    if(parts & INIT_RADIO) {
       radioInit();
       radioSetTxPower(10);
-      if(currentChannel >= RADIO_FIRST_CHANNEL && 
-         currentChannel < (RADIO_FIRST_CHANNEL + RADIO_NUM_CHANNELS)) {
-         radioSetChannel(currentChannel);
-      }
-      else {
-         radioSetChannel(RADIO_FIRST_CHANNEL);
-      }
+      radioSetChannel(currentChannel);
    }
 }
 

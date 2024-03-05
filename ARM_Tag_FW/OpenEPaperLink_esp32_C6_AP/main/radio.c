@@ -124,11 +124,6 @@ bool radioTx(uint8_t *packet) {
 
 void radioSetChannel(uint8_t ch) {
     radio_init(ch);
-#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(gSubGigData.Enabled) {
-        SubGig_radioSetChannel(ch);
-    }
-#endif
 }
 
 void radioSetTxPower(uint8_t power) {}

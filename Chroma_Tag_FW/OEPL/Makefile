@@ -17,26 +17,18 @@ else
 SOURCES += screen.c
 endif
 
-ifeq ($(BAND_866),y)
-FLAGS += -DBAND_866
-BAND=866
-else
-BAND=915
-endif
-
-
 EEPROMDRV ?= eeprom.c
 SOURCES += $(EEPROMDRV)
 FLAGS += -DPROXY_BUILD
 FLAGS += -I. -MD
 FLAGS += -DLEAN_VERSION
 # Generic EEPROM routines that use SFDP for configuration are GREAT
-# **IF** you can spare the code space.  We can't !!!
-# Disabling SFDP saves 1538 bytes.
+# **IF** you can spare the code space, but we can't !!!
+# Disable SFDP to save 1538 bytes.
 FLAGS += -DSFDP_DISABLED
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
-IMAGE_NAME?=$(BUILD)_${BAND}_${FW_VER}
+IMAGE_NAME?=$(BUILD)_${FW_VER}
 include $(FIRMWARE_ROOT)/make/rules.mk
 
 
