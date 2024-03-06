@@ -31,11 +31,7 @@ void radioInit(void);
 //waits for tx end
 bool radioTx(const void __xdata *packet);
 
-#pragma callee_saves radioRxAckReset
-void radioRxAckReset(void);
-#pragma callee_saves radioRxAckGetLast
-int16_t radioRxAckGetLast(void); //get seq of lask ack we got or -1 if none
-void radioRxEnable(__bit on, __bit autoAck);
+void radioRxEnable(__bit on);
 
 #pragma callee_saves radioSetTxPower
 void radioSetTxPower(int8_t dBm);   //-30..+10 dBm

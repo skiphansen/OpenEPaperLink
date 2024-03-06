@@ -159,40 +159,29 @@ uint8_t detectAP(const uint8_t channel) __reentrant
 {
    static uint32_t __xdata t;
 
-#if 0
-   radioRxEnable(false, true);
+   radioRxEnable(false);
    radioSetChannel(channel);
-#else
-   radioInit();
-   radioRxEnable(false, true);
-   radioSetChannel(200);
-#endif
    radioRxFlush();
-   radioRxEnable(true, true);
+   radioRxEnable(true);
    for(uint8_t c = 1; c <= MAXIMUM_PING_ATTEMPTS; c++) {
+      AP_SEARCH_LOG("Trying ch %d %d\n",channel,c);
       sendPing();
-      t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW * 100);
+      t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW);
       while(timerGet() < t) {
-         static int8_t __xdata ret;
-         ret = radioRx();
-         if(ret > 1) {
-            if(
-#if 0
-               inBuffer[sizeof(struct MacFrameNormal) + 1] == channel &&
-#endif
-               getPacketType() == PKT_PONG) 
-            {
-               if(pktIsUnicast()) {
-                  static struct MacFrameNormal *__xdata f;
-                  f = (struct MacFrameNormal *)inBuffer;
-                  xMemCopyShort(APmac, (void *) f->src, 8);
-                  APsrcPan = f->pan;
-                  return c;
-               }
-            }
+         if(radioRx() > 1
+            && inBuffer[sizeof(struct MacFrameNormal) + 1] == channel 
+            && getPacketType() == PKT_PONG
+            && pktIsUnicast())
+         {
+            #define f ((struct MacFrameNormal *)inBuffer)
+            xMemCopyShort(APmac,f->src,8);
+            APsrcPan = f->pan;
+            #undef f
+            return c;
          }
       }
    }
+
    return 0;
 }
 
@@ -236,7 +225,7 @@ static void sendAvailDataReq()
 
 struct AvailDataInfo *__xdata getAvailDataInfo() 
 {
-   radioRxEnable(true, true);
+   radioRxEnable(true);
    uint32_t __xdata t;
    for(uint8_t c = 0; c < DATA_REQ_MAX_ATTEMPTS; c++) {
       PROTO_LOG("Full AvlData, try %d\n",c);
@@ -264,7 +253,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
 struct AvailDataInfo *__xdata getShortAvailDataInfo() 
 {
    PROTO_LOG("Short AvlData\n");
-   radioRxEnable(true, true);
+   radioRxEnable(true);
    uint32_t __xdata t;
    for(uint8_t c = 0; c < DATA_REQ_MAX_ATTEMPTS; c++) {
       sendShortAvailDataReq();
@@ -318,7 +307,7 @@ static bool blockRxLoop(const uint32_t timeout)
 {
    uint32_t __xdata t;
    bool success = false;
-   radioRxEnable(true, true);
+   radioRxEnable(true);
    t = timerGet() + (TIMER_TICKS_PER_MS * (timeout + 20));
    while(timerGet() < t) {
       int8_t __xdata ret = radioRx();
@@ -329,7 +318,7 @@ static bool blockRxLoop(const uint32_t timeout)
          }
       }
    }
-   radioRxEnable(false, true);
+   radioRxEnable(false);
    radioRxFlush();
    return success;
 }
@@ -373,7 +362,7 @@ static void sendBlockRequest()
 static struct blockRequestAck *__xdata performBlockRequest() __reentrant 
 {
    static uint32_t __xdata t;
-   radioRxEnable(true, true);
+   radioRxEnable(true);
    radioRxFlush();
    for(uint8_t c = 0; c < 30; c++) {
       sendBlockRequest();
@@ -432,7 +421,7 @@ static void sendXferCompletePacket()
 
 static void sendXferComplete() 
 {
-   radioRxEnable(true, true);
+   radioRxEnable(true);
 
    PROTO_LOG("XFC ");
    for(uint8_t c = 0; c < 16; c++) {
@@ -650,7 +639,7 @@ static bool getDataBlock(const uint16_t blockSize)
          } else {
             doSleep(ack->pleaseWaitMs - 10);
             powerUp(INIT_UART | INIT_RADIO);
-            radioRxEnable(true, true);
+            radioRxEnable(true);
          }
       } else {
          // immediately start with the reception of the block data

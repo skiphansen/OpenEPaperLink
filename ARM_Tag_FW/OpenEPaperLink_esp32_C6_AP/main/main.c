@@ -696,6 +696,12 @@ void sendPong(void *buf) {
     struct MacFrameBcast  *rxframe                   = (struct MacFrameBcast *) buf;
     struct MacFrameNormal *frameHeader               = (struct MacFrameNormal *) (radiotxbuffer + 1);
     radiotxbuffer[sizeof(struct MacFrameNormal) + 1] = PKT_PONG;
+#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
+    if(rxframe->srcPan == PROTO_PAN_ID_SUBGHZ) {
+       radiotxbuffer[sizeof(struct MacFrameNormal) + 2] = curSubGhzChannel;
+    }
+    else 
+#endif
     radiotxbuffer[sizeof(struct MacFrameNormal) + 2] = curChannel;
     radiotxbuffer[0]                                 = sizeof(struct MacFrameNormal) + 1 + 1 + RAW_PKT_PADDING;
     memcpy(frameHeader->src, mSelfMac, 8);

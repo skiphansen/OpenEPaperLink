@@ -58,6 +58,13 @@
    #define COMMS_LOG(format, ... )
 #endif
 
+#ifdef DEBUG_AP_SEARCH
+   #define AP_SEARCH_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define AP_SEARCH_LOG(format, ... )
+#endif
+
+
 
 #endif   // _LOGGING_H_
 

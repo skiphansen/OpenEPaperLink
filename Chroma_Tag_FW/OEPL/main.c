@@ -44,7 +44,9 @@ extern uint8_t __xdata blockbuffer[];
 
 static bool __xdata secondLongCheckIn;  // send another full request if the previous was a special reason
 
-const uint8_t __code channelList[6] = {11, 15, 20, 25, 26, 27};
+const uint8_t __code channelList[] = {
+   200,100,201,101,202,102,203,103,204,104,205,105
+};
 
 uint8_t *rebootP;
 
@@ -153,11 +155,10 @@ void writeInfoPageWithMac()
 }
 #endif
 
-#if 0
 // returns 0 if no accesspoints were found
 uint8_t channelSelect(uint8_t rounds) 
 {
-   uint8_t __xdata result[16];
+   uint8_t __xdata result[sizeof(channelList)];
 
    memset(result, 0, sizeof(result));
    powerUp(INIT_RADIO);
@@ -165,10 +166,11 @@ uint8_t channelSelect(uint8_t rounds)
    for(uint8_t i = 0; i < rounds; i++) {
       for(uint8_t c = 0; c < sizeof(channelList); c++) {
          if(detectAP(channelList[c])) {
-            if(mLastLqi > result[c]) result[c] = mLastLqi;
-#ifdef DEBUGMAIN
-            if(rounds > 2) pr("MAIN: Channel: %d - LQI: %d RSSI %d\n", channelList[c], mLastLqi, mLastRSSI);
-#endif
+            AP_SEARCH_LOG("Chan %d LQI %d RSSI %d\n",
+                          channelList[c],mLastLqi,mLastRSSI);
+            if(mLastLqi > result[c]) {
+               result[c] = mLastLqi;
+            }
          }
       }
    }
@@ -182,10 +184,9 @@ uint8_t channelSelect(uint8_t rounds)
       }
    }
 
-   mLastLqi = highestLqi;
+   AP_SEARCH_LOG("Using ch %d\n",highestSlot);
    return highestSlot;
 }
-#endif
 
 void TagAssociated() 
 {
@@ -319,8 +320,8 @@ void TagChanSearch()
       doVoltageReading();
    }
 
-// Is channel working?
-   currentChannel = detectAP(tagSettings.fixedChannel);
+// try to find a working channel
+   currentChannel = channelSelect(2);
 
 // Check if we should redraw the screen with icons, info screen or screensaver
    if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 

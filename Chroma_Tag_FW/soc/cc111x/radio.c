@@ -69,6 +69,7 @@ static const __code uint8_t mRadioCfg[] = {
     0x00,  // CHANNR: Channel Number 
     0x0f,  // FSCTRL1: Frequency Synthesizer Control 
     0x00,  // FSCTRL0: Frequency Synthesizer Control 
+// Default Base Frequency = 902.999756
     0x22,  // FREQ2: Frequency Control Word, High Byte 
     0xbb,  // FREQ1: Frequency Control Word, Middle Byte 
     0x13,  // FREQ0: Frequency Control Word, Low Byte 
@@ -98,7 +99,7 @@ static const __code uint8_t mRadioCfg[] = {
 #define RX_BUFFER_NUM         3
 
 static volatile uint8_t __xdata mLastAckSeq;
-static volatile __bit mRxOn, mHaveLastAck, mAutoAck;
+static volatile __bit mRxOn, mHaveLastAck;
 static volatile uint8_t __xdata mRxBufs[RX_BUFFER_NUM][RX_BUFFER_SIZE];
 
 #ifdef DEBUG_COMMS
@@ -361,31 +362,16 @@ void DMA_ISR(void) __interrupt (8)
    IRCON &= (uint8_t)~(1 << 0);
 }
 
-void radioRxAckReset(void)
-{
-   mHaveLastAck = false;
-}
-
-int16_t radioRxAckGetLast(void)
-{
-   if (mHaveLastAck)
-      return (uint16_t)mLastAckSeq;
-   else
-      return -1;
-}
-
-void radioRxEnable(__bit on, __bit autoAck)
+void radioRxEnable(__bit on)
 {
    if (!on) {
       radioRxStopIfRunning();
       mRxOn = false;
    }
    else if (!mRxOn) {
-      
       mRxOn = true;
       radioPrvRxStartListenIfNeeded();
    }
-   mAutoAck = autoAck;
 }
 
 int8_t radioRx()

@@ -12,31 +12,58 @@
 #define INIT_BASE             0x01
 
 // power saving algorithm
-#define INTERVAL_BASE 40              // interval (in seconds) (when 1 packet is sent/received) for target current (7.2µA)
-#define INTERVAL_AT_MAX_ATTEMPTS 600  // interval (in seconds) (at max attempts) for target average current
+
+// interval (in seconds) (when 1 packet is sent/received) for target current
+#define INTERVAL_BASE 40              
+
+// interval (in seconds) (at max attempts) for target average current
 // Revisit this later ... a quick test shows a response time of 37 ms, 
 // set timeout for much bigger for now
-#define DATA_REQ_RX_WINDOW_SIZE 200UL  // How many milliseconds we should wait for a packet during the data_request.
-                                      // If the AP holds a long list of data for tags, it may need a little more time to lookup the mac address
-#define DATA_REQ_MAX_ATTEMPTS 14      // How many attempts (at most) we should do to get something back from the AP
-#define POWER_SAVING_SMOOTHING 8      // How many samples we should use to smooth the data request interval
-#define MINIMUM_INTERVAL 45           // IMPORTANT: Minimum interval for check-in; this determines overal battery life!
-#define MAXIMUM_PING_ATTEMPTS 20      // How many attempts to discover an AP the tag should do
-#define PING_REPLY_WINDOW 2UL
+#define INTERVAL_AT_MAX_ATTEMPTS 600  
 
-#define LONG_DATAREQ_INTERVAL 300     // How often (in seconds, approximately) the tag should do a long datareq (including temperature)
-#define VOLTAGE_CHECK_INTERVAL 288    // How often the tag should do a battery voltage check (multiplied by LONG_DATAREQ_INTERVAL)
-#define BATTERY_VOLTAGE_MINIMUM 2450  // 2600 or below is the best we can do on the EPD
+// How many milliseconds we should wait for a packet during the data_request.
+// If the AP holds a long list of data for tags, it may need a little more 
+// time to lookup the mac address
+#define DATA_REQ_RX_WINDOW_SIZE 200UL  
+
+// How many attempts (at most) we should do to get something back from the AP
+#define DATA_REQ_MAX_ATTEMPTS    14      
+
+// How many samples we should use to smooth the data request interval
+#define POWER_SAVING_SMOOTHING   8      
+
+//IMPORTANT: Minimum interval for check-in; this determines overal battery life!
+#define MINIMUM_INTERVAL         45
+
+// How many attempts to discover an AP the tag should do
+#define MAXIMUM_PING_ATTEMPTS    3
+
+// Now long to wait for Ping replies in milliseconds
+#define PING_REPLY_WINDOW        150UL
+
+// How often (in seconds, approximately) the tag should do a long datareq (including temperature)
+#define LONG_DATAREQ_INTERVAL 300
+
+// How often the tag should do a battery voltage check 
+// (multiplied by LONG_DATAREQ_INTERVAL)
+#define VOLTAGE_CHECK_INTERVAL 288    
+
+// 2600 or below is the best we can do on the EPD
+#define BATTERY_VOLTAGE_MINIMUM 2450  
 
 #define MAX_RETURN_DATA_ATTEMPTS 15
 
 // power saving when no AP's were found (scanning every X)
-#define VOLTAGEREADING_DURING_SCAN_INTERVAL 2  // how often we should read voltages; this is done every scan attempt in interval bracket 3
-#define INTERVAL_1_TIME 3600UL                 // Try every hour
-#define INTERVAL_1_ATTEMPTS 24                 // for 24 attempts (an entire day)
-#define INTERVAL_2_TIME 7200UL                 // Try every 2 hours
-#define INTERVAL_2_ATTEMPTS 12                 // for 12 attempts (an additional day)
-#define INTERVAL_3_TIME 86400UL                // Finally, try every day
+
+// how often we should read voltages; this is done every scan attempt in 
+// interval bracket 3
+#define VOLTAGEREADING_DURING_SCAN_INTERVAL 2  
+
+#define INTERVAL_1_TIME 3600UL   // Try every hour
+#define INTERVAL_1_ATTEMPTS 24   // for 24 attempts (an entire day)
+#define INTERVAL_2_TIME 7200UL   // Try every 2 hours
+#define INTERVAL_2_ATTEMPTS 12   // for 12 attempts (an additional day)
+#define INTERVAL_3_TIME 86400UL  // Finally, try every day
 
 // slideshow power settings
 #define SLIDESHOW_FORCE_FULL_REFRESH_EVERY 16  // force a full refresh every X screen draws

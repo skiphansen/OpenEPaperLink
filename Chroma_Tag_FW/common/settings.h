@@ -20,6 +20,7 @@
 #define DEBUG_RX_DATA            // display subgig rx packets
 #define DEBUG_TX_DATA            // display subgig tx packets
 #define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
+#define DEBUG_AP_SEARCH          // log ap search details
 
 #if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
 #define DEBUG_COMMS

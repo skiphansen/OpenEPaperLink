@@ -39,7 +39,7 @@ void loadDefaultSettings()
    tagSettings.customMode = 0;
    tagSettings.fastBootCapabilities = 0;
    tagSettings.minimumCheckInTime = INTERVAL_BASE;
-   tagSettings.fixedChannel = 1;
+   tagSettings.fixedChannel = 0;
    tagSettings.batLowVoltage = BATTERY_VOLTAGE_MINIMUM;
 }
 
