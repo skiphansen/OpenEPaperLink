@@ -53,9 +53,6 @@ void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_
 }
 
 void radio_init(uint8_t ch) {
-#ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    SubGig_radio_init(ch);
-#endif
     if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, 130);
 
     // this will trigger a "IEEE802154 MAC sleep init failed" when called a second time, but it works

@@ -37,7 +37,7 @@
 #include "cc1101_radio.h"
 #include "radio.h"
 
-#define ENABLE_LOGGING  1
+#define ENABLE_LOGGING  0
 
 #if ENABLE_LOGGING
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)

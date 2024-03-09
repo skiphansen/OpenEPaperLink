@@ -64,9 +64,9 @@ window.addEventListener("loadConfig", function () {
 			if (data.hasBLE == 0) {
 				$("#apcfgble").parentNode.style.display = 'none';
 			}
-      if (data.hasSubGhz == 0) {
-        $("#apcfgsubgigchid").parentNode.style.display = 'none';
-      }
+			if (data.hasSubGhz == 0) {
+				$("#apcfgsubgigchid").parentNode.style.display = 'none';
+			}
 			if (data.savespace) {
 			}
 			if (data.apstate) {

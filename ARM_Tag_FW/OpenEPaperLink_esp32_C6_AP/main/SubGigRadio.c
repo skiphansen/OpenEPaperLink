@@ -18,7 +18,7 @@
 
 void DumpHex(void *AdrIn,int Len);
 
-#if 1
+#if 0
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
 #define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
 #define LOG_HEX(x,y) DumpHex(x,y)
@@ -303,6 +303,9 @@ SubGigErr SubGig_radio_init(uint8_t ch)
 #if 1
       CC1101_DumpRegs();
 #endif
+      if(ch != 0) {
+         SubGig_radioSetChannel(ch);
+      }
    // good to go!
       Ret = true;
    } while(false);
@@ -380,7 +383,6 @@ SubGigErr SubGig_radioSetChannel(uint8_t ch)
 SubGigErr SubGig_radioTx(uint8_t *packet)
 {
    SubGigErr Ret = SUBGIG_ERR_NONE;
-   uint8_t TxLen;
 
    do {
       if(gSubGigData.FreqTest) {
@@ -398,9 +400,8 @@ SubGigErr SubGig_radioTx(uint8_t *packet)
    // All packets seem to be padded by RAW_PKT_PADDING (2 bytes)
    // Remove the padding before sending so the length is correct when received
       packet[0] -= RAW_PKT_PADDING;
-      TxLen = packet[0];
-      LOG("Sending %d byte subgig frame:\n",TxLen);
-      LOG_HEX(&packet[1],TxLen);
+      LOG("Sending %d byte subgig frame:\n",packet[0]);
+      LOG_HEX(&packet[1],packet[0]);
       if(CC1101_Tx(packet)) {
          Ret = SUBGIG_TX_FAILED;
       }

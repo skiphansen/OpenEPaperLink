@@ -66,6 +66,7 @@ struct rxCmd {
 #define ZBS_RX_WAIT_NOP 16
 #define ZBS_RX_WAIT_TYPE 17
 #define ZBS_RX_WAIT_TAG_RETURN_DATA 18
+#define ZBS_RX_WAIT_SUBCHANNEL 19
 
 bool txStart() {
     while (1) {
@@ -460,6 +461,11 @@ void rxSerialTask(void* parameter) {
                         charindex = 0;
                         memset(cmdbuffer, 0x00, 4);
                     }
+                    if ((strncmp(cmdbuffer, "SCH>", 4) == 0)) {
+                        RXState = ZBS_RX_WAIT_SUBCHANNEL;
+                        charindex = 0;
+                        memset(cmdbuffer, 0x00, 4);
+                    }
                     if ((strncmp(cmdbuffer, "ZPW>", 4) == 0)) {
                         RXState = ZBS_RX_WAIT_POWER;
                         charindex = 0;
@@ -597,7 +603,25 @@ void rxSerialTask(void* parameter) {
                         apInfo.channel = (uint8_t)strtoul(cmdbuffer, NULL, 16);
                     }
                     break;
-                case ZBS_RX_WAIT_POWER:
+#ifdef HAS_SUBGHZ
+                case ZBS_RX_WAIT_SUBCHANNEL:
+                    cmdbuffer[charindex] = lastchar;
+                    charindex++;
+                    if(charindex == 3) {
+                       RXState = ZBS_RX_WAIT_HEADER;
+                       int Channel = atoi(cmdbuffer);
+                       if(Channel != NO_SUBGHZ_CHANNEL) {
+                          apInfo.hasSubGhz = true;
+                          apInfo.SubGhzChannel = Channel;
+                       }
+                       else {
+                          apInfo.hasSubGhz = false;
+                          apInfo.SubGhzChannel = 0;
+                       }
+                    }
+                    break;
+#endif
+                 case ZBS_RX_WAIT_POWER:
                     cmdbuffer[charindex] = lastchar;
                     charindex++;
                     if (charindex == 2) {
