@@ -13,9 +13,9 @@
 #define DEBUGMAIN                // parts in the main loop
 // #define DEBUGNFC                 // debug NFC functions
 // #define DEBUGGUI                 // debug GUI drawing (enabled)
-// #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
+#define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
 // #define DEBUGEEPROM              // eeprom-related debug messages
-#define DEBUG_NV_DATA            // debug eeprom-related data accesses
+// #define DEBUG_NV_DATA            // debug eeprom-related data accesses
 #define DEBUG_SLEEP              // debug sleeping
 #define DEBUG_RX_DATA            // display subgig rx packets
 #define DEBUG_TX_DATA            // display subgig tx packets

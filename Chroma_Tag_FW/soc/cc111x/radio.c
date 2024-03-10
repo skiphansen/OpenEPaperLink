@@ -66,6 +66,7 @@ static const __code uint8_t mRadioCfg[] = {
     0x04,  // PKTCTRL1: Packet Automation Control 
     0x45,  // PKTCTRL0: Packet Automation Control 
     0x22,  // ADDR: Device Address 
+// Default channel 200 902.999756
     0x00,  // CHANNR: Channel Number 
     0x0f,  // FSCTRL1: Frequency Synthesizer Control 
     0x00,  // FSCTRL0: Frequency Synthesizer Control 
@@ -308,17 +309,10 @@ static void radioRxStopIfRunning(void)
 bool radioTx(const void __xdata *packet)
 {
 #ifdef DEBUG_TX_DATA
-   uint8_t i;
    uint8_t Len = ((uint8_t __xdata*) packet)[0];
 
    TX_DATA_LOG("Sending %d bytes\n",Len);
-   for(i = 1; i <= Len; i++) {
-      if((i & 0xf) == 0) {
-         TX_DATA_LOG("\n");
-      }
-      TX_DATA_LOG("%02x ",((uint8_t __xdata*) packet)[i]);
-   }
-   TX_DATA_LOG("\n");
+   DumpHex((void *) packet + 1,Len);
 #endif
    radioRxStopIfRunning();
    radioPrvSetupTxDma(packet);
@@ -417,15 +411,8 @@ int8_t radioRx()
    }
    
 #ifdef DEBUG_RX_DATA
-   RX_DATA_LOG("Got %d bytes",len);
-   uint8_t i;
-   for(i = 0; i < len; i++) {
-      if((i & 0xf) == 0) {
-         RX_DATA_LOG("\n");
-      }
-      RX_DATA_LOG("%02x ",inBuffer[i]);
-   }
-   RX_DATA_LOG("\n");
+   RX_DATA_LOG("Got %d bytes\n",len);
+   DumpHex(inBuffer,len);
 #endif
       
    return len;

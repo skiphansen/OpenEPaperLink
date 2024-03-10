@@ -1,6 +1,8 @@
 #ifndef _LOGGING_H_
 #define _LOGGING_H_
 
+extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
+
 #define LOG(format, ... ) pr(format,## __VA_ARGS__)
 
 #ifdef DEBUGEEPROM
@@ -21,11 +23,18 @@
    #define PROTO_LOG(format, ... )
 #endif
 
-#ifdef DEBUGSETTINGS
-   extern const char __code gSettingsPrefix[];
-   #define PROTO_LOG(format, ... ) pr("%s" format,gSettingsPrefix, ## __VA_ARGS__)
+#ifdef DEBUGBLOCKS
+   #define BLOCK_LOG(format, ... ) pr(format,## __VA_ARGS__)
 #else
-#define SETTINGS_LOG(format, ... )
+   #define BLOCK_LOG(format, ... )
+#endif
+
+#ifdef DEBUGSETTINGS
+   #define SETTINGS_LOG(format, ... ) pr(format,## __VA_ARGS__)
+   #define SETTINGS_LOG_HEX(x,y) DumpHex(x,y)
+#else
+   #define SETTINGS_LOG(format, ... )
+   #define SETTINGS_LOG_HEX(x,y)
 #endif
 
 #ifdef DEBUG_NV_DATA

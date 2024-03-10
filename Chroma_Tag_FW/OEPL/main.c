@@ -109,51 +109,6 @@ void displayLoop()
 }
 #endif
 
-#ifdef WRITE_MAC_FROM_FLASH
-void writeInfoPageWithMac() 
-{
-   uint8_t *settemp = blockbuffer + 2048;
-   flashRead(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024);
-   flashRead(0xFC06, (void *)(settemp + 8), 4);
-   settemp[7] = 0x00;
-   settemp[6] = 0x00;
-   settemp[5] = settemp[8];
-   settemp[4] = settemp[9];
-   settemp[3] = settemp[10];
-   settemp[2] = settemp[11];
-#if (HW_TYPE == SOLUM_29_SSD1619)
-   settemp[1] = 0x3B;
-   settemp[0] = 0x10;
-#endif
-#if (HW_TYPE == SOLUM_M2_BWR_29_UC8151)
-   settemp[1] = 0x3B;
-   settemp[0] = 0x30;
-#endif
-#if (HW_TYPE == SOLUM_154_SSD1619)
-   settemp[1] = 0x34;
-   settemp[0] = 0x10;
-#endif
-#if (HW_TYPE == SOLUM_42_SSD1619)
-   settemp[1] = 0x48;
-   settemp[0] = 0x10;
-#endif
-#if (HW_TYPE == SOLUM_M2_BW_29_LOWTEMP)
-   settemp[1] = 0x2D;
-   settemp[0] = 0x10;
-#endif
-   uint8_t cksum = 0;
-   for(uint8_t c = 0; c < 8; c++) {
-      cksum ^= settemp[c];
-      cksum ^= settemp[c] >> 4;
-   }
-   settemp[0] += cksum & 0x0F;
-
-   xMemCopyShort((void *)(blockbuffer + 0x0010), (void *)settemp, 8);
-
-   flashErase(FLASH_INFOPAGE_ADDR + 1);
-   flashWrite(FLASH_INFOPAGE_ADDR, (void *)blockbuffer, 1024, false);
-}
-#endif
 
 // returns 0 if no accesspoints were found
 uint8_t channelSelect(uint8_t rounds) 
@@ -263,16 +218,19 @@ void TagAssociated()
    // got some data from the AP!
       if(avail->dataType != DATATYPE_NOUPDATE) {
    // data transfer
+         BLOCK_LOG("Update available\n");
          if(processAvailDataInfo(avail)) {
          // succesful transfer, next wake time is determined by the NextCheckin;
          }
          else {
          // failed transfer, let the algorithm determine next sleep interval (not the AP)
             nextCheckInFromAP = 0;
+            BLOCK_LOG("processAvailDataInfo failed\n");
          }
       } 
       else {
          // no data transfer, just sleep.
+         BLOCK_LOG("No update\n");
       }
    }
 
@@ -351,6 +309,9 @@ void TagChanSearch()
    if(currentChannel) {
    // now associated! set up and bail out of this loop.
       scanAttempts = 0;
+      powerUp(INIT_EEPROM);
+      writeSettings();
+      powerDown(INIT_EEPROM);
       wakeUpReason = WAKEUP_REASON_NETWORK_SCAN;
       initPowerSaving(INTERVAL_BASE);
       doSleep(getNextSleep() * 1000UL);
@@ -418,15 +379,11 @@ void main()
    MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
    MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
 
-
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM | INIT_UART);
 
-// load settings from infopage
    loadSettings();
-// invalidate the settings, and write them back in a later state
-// invalidateSettingsEEPROM();
 
 // get the highest slot number, number of slots
    initializeProto();
@@ -448,15 +405,26 @@ void main()
 
    wdt10s();
 
+// Try the saved channel before scanning for an AP to avoid
+// out of band transmissions as much as possible
+   if(currentChannel) {
+      if(!detectAP(currentChannel)) {
+         currentChannel = 0;
+      }
+   }
+
    if(currentChannel) {
       MAIN_LOG("MAIN: Ap Found!\n");
       //showNoAP();
 
       showAPFound();
+#if 0
+// Why ??? 
    // write the settings to the eeprom
       powerUp(INIT_EEPROM);
       writeSettings();
       powerDown(INIT_EEPROM);
+#endif
 
       initPowerSaving(INTERVAL_BASE);
       currentTagMode = TAG_MODE_ASSOCIATED;
@@ -465,11 +433,14 @@ void main()
    else {
       MAIN_LOG("MAIN: No AP found...\n");
       //showAPFound();
+#if 0
+// Why ??? 
       showNoAP();
       // write the settings to the eeprom
       powerUp(INIT_EEPROM);
       writeSettings();
       powerDown(INIT_EEPROM);
+#endif
 
       initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
       currentTagMode = TAG_MODE_CHANSEARCH;
@@ -481,14 +452,11 @@ void main()
       powerUp(INIT_UART);
       wdt10s();
 
-      switch(currentTagMode) {
-         case TAG_MODE_ASSOCIATED:
-            TagAssociated();
-            break;
-
-         case TAG_MODE_CHANSEARCH:
-            TagChanSearch();
-            break;
+      if(currentTagMode == TAG_MODE_ASSOCIATED) {
+         TagAssociated();
+      }
+      else {
+         TagChanSearch();
       }
    }
 }

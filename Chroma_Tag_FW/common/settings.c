@@ -18,11 +18,13 @@
 #include "../../oepl-proto.h"
 #include "logging.h"
 
-#ifdef DEBUGSETTINGS
-const char __code gSettingsPrefix[] = "SETTINGS: ";
-#endif
-
 #define SETTINGS_MAGIC 0xABBA5AA5
+typedef struct {
+   uint32_t Magic;   // SETTINGS_MAGIC
+   uint8_t CurrentChannel;
+   uint8_t Padding[128-sizeof(struct tagsettings) - 5];
+   struct tagsettings OeplSettings;
+} SubGhzSettings;
 
 struct tagsettings __xdata tagSettings;
 extern uint8_t __xdata blockbuffer[];
@@ -45,34 +47,14 @@ void loadDefaultSettings()
 
 void loadSettingsFromBuffer(uint8_t* p) 
 {
-   SETTINGS_LOG("received settings from AP\n");
-   switch(*p) {
-      case SETTINGS_STRUCT_VERSION:  // the current tag struct
-         xMemCopyShort((void*)tagSettings, (void*)p, sizeof(struct tagsettings));
-         break;
-
-      default:
-         SETTINGS_LOG("received something we couldn't really process, version %d\n");
-         break;
+   if(*p == SETTINGS_STRUCT_VERSION) {
+      SETTINGS_LOG("Saved settings from AP\n");
+      xMemCopyShort((void*)tagSettings, (void*)p, sizeof(struct tagsettings));
+      writeSettings();
    }
-   writeSettings();
-}
-
-static bool compareSettings() 
-{
-   uint8_t *__xdata settingsTempBuffer = malloc(sizeof(struct tagsettings));
-   bool Ret = false;
-
-// check if the settings match the settings in the eeprom
-   eepromRead(EEPROM_SETTINGS_AREA_START, (void*)settingsTempBuffer, sizeof(struct tagsettings));
-   if(memcmp((void*)settingsTempBuffer,(void*)tagSettings,sizeof(struct tagsettings)) == 0) {
-   // same
-      Ret = true;
+   else {
+      SETTINGS_LOG("WTF ver %d\n",*p);
    }
-
-   free(settingsTempBuffer);
-   // different
-   return false;
 }
 
 #if 0
@@ -84,43 +66,54 @@ static void upgradeSettings()
 
 void loadSettings() 
 {
-   uint8_t *__xdata settingsTempBuffer = malloc(sizeof(struct tagsettings));
+   SubGhzSettings *__xdata Settings = malloc(sizeof(SubGhzSettings));
 
-   eepromRead(EEPROM_SETTINGS_AREA_START + 4, (void*)settingsTempBuffer, sizeof(struct tagsettings));
-   xMemCopyShort((void*)&tagSettings, (void*)settingsTempBuffer, sizeof(struct tagsettings));
-   uint32_t __xdata valid = 0;
-   eepromRead(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
-   xMemCopy((void*)tagSettings, (void*)settingsTempBuffer, sizeof(struct tagsettings));
-   if(tagSettings.settingsVer == 0xFF || valid != SETTINGS_MAGIC) {
+   eepromRead(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(*Settings));
+   SETTINGS_LOG("Read:\n");
+   SETTINGS_LOG_HEX((void *)Settings,sizeof(SubGhzSettings));
+
+   xMemCopyShort((void*)&tagSettings,(void*)&Settings->OeplSettings,sizeof(tagSettings));
+// Free'in here should be ok since we are single threaded and don't malloc
+// from interrupts (to save a few bytes of code space)
+   free(Settings);  
+   if(tagSettings.settingsVer == 0xFF || Settings->Magic != SETTINGS_MAGIC) {
    // settings not set. load the defaults
+      SETTINGS_LOG("Loaded defaults settingsVer 0x%x Magic 0x%lx\n",
+                   tagSettings.settingsVer,Settings->Magic);
       loadDefaultSettings();
-      SETTINGS_LOG("Loaded defaults\n");
+      currentChannel = 0;
+      return;
    }
-#if 0
-   else if(tagSettings.settingsVer < SETTINGS_STRUCT_VERSION) {
-   // upgrade
-      upgradeSettings();
-      SETTINGS_LOG("Upgraded from previous version\n");
-   }
-#endif
-   else {
-   // settings are valid
-      SETTINGS_LOG("Loaded from EEPROM\n");
-   }
-   free(settingsTempBuffer);
+   currentChannel = Settings->CurrentChannel;
+// settings are valid
+   SETTINGS_LOG("Settings loaded\n");
 }
 
 void writeSettings() 
 {
-   if(compareSettings()) {
+   SubGhzSettings *__xdata Settings = malloc(sizeof(SubGhzSettings));
+
+// check if the settings match the settings in the eeprom
+   eepromRead(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(*Settings));
+// Free'in here should be ok since we are single threaded and don't malloc
+// from interrupts (to save a few bytes of code space)
+   free(Settings);  
+   if(Settings->Magic == SETTINGS_MAGIC
+      && memcmp((void*)&Settings->OeplSettings,(void*)tagSettings,sizeof(tagSettings)) == 0
+      && Settings->CurrentChannel == currentChannel)
+   {
       SETTINGS_LOG("No change\n");
       return;
    }
-   eepromErase(EEPROM_SETTINGS_AREA_START, 1);
-   uint32_t __xdata valid = SETTINGS_MAGIC;
-   eepromWrite(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
-   eepromWrite(EEPROM_SETTINGS_AREA_START + 4, (void*)&tagSettings, sizeof(tagSettings));
-   SETTINGS_LOG("Save settings\n");
+   xMemSet((void *)Settings,0,sizeof(SubGhzSettings));
+   Settings->Magic = SETTINGS_MAGIC;
+   Settings->CurrentChannel = currentChannel;
+   xMemCopyShort((void*)&Settings->OeplSettings,(void*)&tagSettings,sizeof(tagSettings));
+   SETTINGS_LOG("Wrote:\n");
+   SETTINGS_LOG_HEX((void *)Settings,sizeof(SubGhzSettings));
+   eepromErase(EEPROM_SETTINGS_AREA_START,1);
+   eepromWrite(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(SubGhzSettings));
+   SETTINGS_LOG("Saved settings\n");
 }
 
 void invalidateSettingsEEPROM() 

@@ -127,6 +127,18 @@ static bool pktIsBcast()
    #undef fcs
 }
 
+void DumpHex(const uint8_t *__xdata Data, const uint16_t __xdata Len)
+{
+   uint8_t i;
+   for(i = 0; i < Len; i++) {
+      if(i != 0 && (i & 0xf) == 0) {
+         LOG("\n");
+      }
+      LOG("%02x ",Data[i]);
+   }
+   LOG("\n");
+}
+
 bool checkCRC(const void *p, const uint8_t len) 
 {
    uint8_t total = 0;

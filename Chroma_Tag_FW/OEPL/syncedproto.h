@@ -15,7 +15,6 @@ extern bool __xdata fastNextCheckin;
 //extern void killRadio(void);
 
 
-extern void dump(const uint8_t *__xdata a, const uint16_t __xdata l);
 extern bool checkCRC(const void *p, const uint8_t len);
 extern bool validateBlockData();
 
