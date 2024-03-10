@@ -44,7 +44,6 @@ struct pendingData pendingDataArr[MAX_PENDING_MACS];
 // VERSION GOES HERE!
 uint16_t version = 0x0019;
 
-#define RAW_PKT_PADDING 2
 
 uint8_t radiotxbuffer[128];
 uint8_t radiorxbuffer[128];
@@ -332,6 +331,10 @@ void     processSerial(uint8_t lastchar) {
                         curSubGhzChannel = scp->subghzchannel;
                         ESP_LOGI(TAG,"Set SubGhz channel: %d",curSubGhzChannel);
                         SubGig_radioSetChannel(scp->subghzchannel);
+                        if(scp->channel == 0) {
+                        // Not setting 802.15.4 channel
+                           goto SCPchannelFound;
+                        }
                     }
 #endif
                     for (uint8_t c = 0; c < sizeof(channelList); c++) {
@@ -459,6 +462,8 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     struct blockRequest   *blockReq = (struct blockRequest *) (buffer + sizeof(struct MacFrameNormal) + 1);
     if (!checkCRC(blockReq, sizeof(struct blockRequest))) return;
 
+    LOG("processBlockRequest called\n");
+
     // check if we're already talking to this mac
     if (memcmp(rxHeader->src, lastBlockMac, 8) == 0) {
         lastBlockRequest = getMillis();
@@ -470,7 +475,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
             lastBlockRequest = getMillis();
         } else {
             // we're talking to another mac, let this mac know we can't accomodate another request right now
-            pr("BUSY!\n");
+            LOG("BUSY!\n");
             sendCancelXfer(rxHeader->src);
             return;
         }
@@ -492,9 +497,9 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
         if (forceBlockDownload) {
             if ((getMillis() - nextBlockAttempt) > 380) {
                 requestDataDownload = true;
-                pr("FORCED\n");
+                LOG("FORCED\n");
             } else {
-                pr("IGNORED\n");
+                LOG("IGNORED\n");
             }
         }
     }
@@ -522,6 +527,8 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
         blockRequestAck->pleaseWaitMs = 30;
     }
     blockStartTimer = getMillis() + blockRequestAck->pleaseWaitMs;
+    LOG("Set blockStartTimer to %lu\n",blockStartTimer);
+
 
     memcpy(txHeader->src, mSelfMac, 8);
     memcpy(txHeader->dst, rxHeader->src, 8);
@@ -643,28 +650,33 @@ void sendPart(uint8_t partNo) {
 }
 void sendBlockData() {
     if (getBlockDataLength() == 0) {
-        pr("Invalid block request received, 0 parts..\n");
+        LOG("Invalid block request received, 0 parts..\n");
         requestedData.requestedParts[0] |= 0x01;
     }
 
-    pr("Sending parts:");
+    LOG("Sending parts:");
     for (uint8_t c = 0; (c < BLOCK_MAX_PARTS); c++) {
-        if (c % 10 == 0) pr(" ");
+        if (c % 10 == 0) LOG_RAW(" ");
         if (requestedData.requestedParts[c / 8] & (1 << (c % 8))) {
-            pr("X");
+            LOG_RAW("X");
         } else {
-            pr(".");
+            LOG_RAW(".");
         }
     }
-    pr("\n");
+    LOG_RAW("\n");
 
     uint8_t partNo = 0;
     while (partNo < BLOCK_MAX_PARTS) {
         for (uint8_t c = 0; (c < BLOCK_MAX_PARTS) && (partNo < BLOCK_MAX_PARTS); c++) {
             if (requestedData.requestedParts[c / 8] & (1 << (c % 8))) {
+                LOG("Sending part %d\n",c);
                 sendPart(c);
                 partNo++;
             }
+        }
+        if(dstPan == PROTO_PAN_ID_SUBGHZ) {
+        // Don't send a part multiple times for subgig
+           break;
         }
     }
 }
@@ -800,6 +812,7 @@ void app_main(void) {
             if (blockStartTimer) {
                 if (getMillis() > blockStartTimer) {
                     sendBlockData();
+                    LOG("Cleared blockStartTimer\n");
                     blockStartTimer = 0;
                 }
             }

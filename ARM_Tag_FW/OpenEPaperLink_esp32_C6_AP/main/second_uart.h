@@ -11,6 +11,12 @@ bool getRxCharSecond(uint8_t *newChar);
 void uart_printf(const char *format, ...);
 
 #define pr uart_printf
+#if 1
+#define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
+#define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
+#else
+#define LOG uart_printf
+#endif
 
 #if defined(CONFIG_OEPL_HARDWARE_PROFILE_DEFAULT)
   #define CONFIG_OEPL_HARDWARE_UART_TX 3
