@@ -94,6 +94,8 @@ void boardGetOwnMac(uint8_t __xdata *mac)
 {
    uint8_t a, b, c;
    
+// Set mac[1], mac[2], mac[3], mac[4], mac[5], mac[6], and maybe mac[7]
+// NB: mac[7] is ignored
    if(prvReadSetting(0x2a,mac + 1,7) < 0 && prvReadSetting(1,mac + 1,6) < 0) {
       return;
    }

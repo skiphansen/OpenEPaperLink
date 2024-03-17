@@ -13,7 +13,6 @@
 #include "cpu.h"
 #include "drawing.h"
 #include "eeprom.h"
-// #include "i2cdevices.h"
 #include "powermgt.h"
 #include "printf.h"
 #include "../oepl-definitions.h"
@@ -29,38 +28,41 @@
 // #include "flash.h"
 #include "logging.h"
 
-// download-stuff
-/* oepl-proto.h has:
-#define BLOCK_PART_DATA_SIZE 99
-#define BLOCK_MAX_PARTS 42
+/* 
+oepl-proto.h defines:
 #define BLOCK_DATA_SIZE 4096UL
 #define BLOCK_XFER_BUFFER_SIZE BLOCK_DATA_SIZE + sizeof(struct blockData)
-#define BLOCK_REQ_PARTS_BYTES 6
  
-which were picked from tags which have 8k of SRAM, we only have 4K so 
-this will not do! 
+These values were picked for tags which have 8k of SRAM, but CC1110 based 
+SubGhz tags only have 4K so this is not going to work for these tags.
+
+The standard OEPL block protocol defines a data block as 4K bytes of
+data which is written to flash when complete.  The data comes in as
+41 "parts" of 99 bytes each and one part of 37 bytes.
+
+For CC1110 tags the request is broken into smaller hunks of 4 "sub-blocks". 
+The first 3 subblocks have 11 99 byte parts for 3267 bytes total. 
+The last subblock has 8 99 byte parts and one 37 bytes part for a total of 
+829 bytes. This adds up to the OEPl standard of 4096 bytes.
 */ 
+#define BLOCK_MAX_PARTS_SUBGIG    11UL
+#define PARTS_LAST_SUBBLOCK       9UL
+#define BLOCK_DATA_SIZE_SUBGIG    (BLOCK_MAX_PARTS_SUBGIG * BLOCK_PART_DATA_SIZE)
 
-#undef BLOCK_DATA_SIZE
 #undef BLOCK_XFER_BUFFER_SIZE
-
-#define BLOCK_DATA_SIZE    (1UL*BLOCK_PART_DATA_SIZE)
-#define BLOCK_XFER_BUFFER_SIZE BLOCK_DATA_SIZE + sizeof(struct blockData)
-
+#define BLOCK_XFER_BUFFER_SIZE (sizeof(struct blockData) + BLOCK_DATA_SIZE_SUBGIG)
 
 uint8_t __xdata blockbuffer[BLOCK_XFER_BUFFER_SIZE];
 static struct blockRequest __xdata curBlock;  // used by the block-requester, contains the next request that we'll send
 static uint8_t __xdata curDispDataVer[8];
 static struct AvailDataInfo __xdata xferDataInfo;  // holds the AvailDataInfo during the transfer
-static bool __xdata requestPartialBlock;         // if we should ask the AP to get this block from the host or not
+static bool __xdata gNewBlock;         // if we should ask the AP to get this block from the host or not
 #define BLOCK_TRANSFER_ATTEMPTS 5
 
 static uint8_t xferImgSlot = 0xFF;          // holds current transfer slot in progress
 uint8_t __xdata curImgSlot = 0xFF;          // currently shown image
 static uint32_t __xdata curHighSlotId;  // current highest ID, will be incremented before getting written to a new slot
 static uint8_t __xdata nextImgSlot;     // next slot in sequence for writing
-static uint8_t __xdata imgSlots;
-static uint32_t __xdata eeSize;
 
 #define OTA_UPDATE_SIZE 0x8000   // 32k
 
@@ -77,6 +79,7 @@ static uint8_t __xdata outBuffer[128];
 
 // determines if the tagAssociated loop in main.c performs a rapid next checkin
 bool __xdata fastNextCheckin;
+uint8_t __xdata gSubBlockID;
 
 struct MacFrameBcast __xdata gBcastFrame;
 
@@ -89,16 +92,23 @@ extern void executeCommand(uint8_t cmd);  // this is defined in main.c
 
 static bool pktIsUnicast(void);
 static bool pktIsBcast(void);
+void DumpCurBlock(void);
 
 uint8_t __xdata getPacketType() 
 {
+   PROTO_LOG("pkt Type");
    if(pktIsBcast()) {
+      PROTO_LOG(" 0x%x\n",
+                ((uint8_t *)inBuffer)[sizeof(struct MacFrameBcast)]);
       return ((uint8_t *)inBuffer)[sizeof(struct MacFrameBcast)];
    }
    if(pktIsUnicast()) {
    // normal frame
+      PROTO_LOG(" 0x%x\n",
+                ((uint8_t *)inBuffer)[sizeof(struct MacFrameNormal)]);
       return ((uint8_t *)inBuffer)[sizeof(struct MacFrameNormal)];
    }
+   PROTO_LOG(" unknown\n");
    return 0;
 }
 
@@ -292,27 +302,52 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
 
 static bool processBlockPart(const struct blockPart *bp) 
 {
-   uint16_t __xdata start = bp->blockPart * BLOCK_PART_DATA_SIZE;
+   uint16_t __xdata start;
    uint16_t __xdata size = BLOCK_PART_DATA_SIZE;
-   // validate if it's okay to copy data
+
+   start = (bp->blockPart - gSubBlockID) * BLOCK_PART_DATA_SIZE;
+
+// validate if it's okay to copy data
    if(bp->blockId != curBlock.blockId) {
+      BLOCK_LOG("not expected blockId %d != %d\n",bp->blockId,curBlock.blockId);
       return false;
-   }
-   if(start >= (sizeof(blockbuffer) - 1)) return false;
-   if(bp->blockPart > BLOCK_MAX_PARTS) return false;
-   if((start + size) > sizeof(blockbuffer)) {
-      size = sizeof(blockbuffer) - start;
    }
 
-   if(checkCRC(bp, sizeof(struct blockPart) + BLOCK_PART_DATA_SIZE)) {
-      //  copy block data to buffer
-      xMemCopy((void *)(blockbuffer + start), (const void *)bp->data, size);
-      // we don't need this block anymore, set bit to 0 so we don't request it again
-      curBlock.requestedParts[bp->blockPart / 8] &= ~(1 << (bp->blockPart % 8));
-      return true;
-   } else {
+   if(bp->blockPart > BLOCK_MAX_PARTS) {
+      BLOCK_LOG("bad blockPart\n");
       return false;
    }
+
+   if(bp->blockPart < gSubBlockID) {
+      BLOCK_LOG("blockPart < gSubBlockID\n");
+      return false;
+   }
+
+   if(start + size > sizeof(blockbuffer)) {
+      BLOCK_LOG("bad start 0x%x gSubBlockID %d size %u\n",
+                start,gSubBlockID,size);
+      return false;
+   }
+
+#if 0
+   if((start + size) > sizeof(blockbuffer)) {
+   // ??? why wrap, does this happen ???
+      BLOCK_LOG("size %d -> ",size);
+      size = sizeof(blockbuffer) - start;
+      BLOCK_LOG("%d\n",size);
+   }
+#endif
+   BLOCK_LOG("Got blockId %d part %d\n",bp->blockId,bp->blockPart);
+
+   if(checkCRC(bp,sizeof(struct blockPart) + BLOCK_PART_DATA_SIZE)) {
+   //  copy block data to buffer
+      xMemCopy((void *)(blockbuffer + start), (const void *)bp->data, size);
+   // we don't need this block anymore, set bit to 0 so we don't request it again
+      curBlock.requestedParts[bp->blockPart / 8] &= ~(1 << (bp->blockPart % 8));
+      return true;
+   }
+   BLOCK_LOG("checkCRC failed\n");
+   return false;
 }
 
 static bool blockRxLoop(const uint32_t timeout) 
@@ -322,11 +357,14 @@ static bool blockRxLoop(const uint32_t timeout)
    radioRxEnable(true);
    t = timerGet() + (TIMER_TICKS_PER_MS * (timeout + 20));
    while(timerGet() < t) {
-      int8_t __xdata ret = radioRx();
-      if(ret > 1) {
+      if(radioRx() > 1) {
          if(getPacketType() == PKT_BLOCK_PART) {
-            struct blockPart *bp = (struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
-            success = processBlockPart(bp);
+         // sizeof(struct MacFrameNormal)  = 17
+         // packet type 1
+         // BLOCK_PART_DATA_SIZE = 99
+            #define BP (struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1)
+            success = processBlockPart(BP);
+            #undef bp
          }
       }
    }
@@ -337,9 +375,10 @@ static bool blockRxLoop(const uint32_t timeout)
 
 static struct blockRequestAck *__xdata continueToRX() 
 {
-   struct blockRequestAck *ack = (struct blockRequestAck *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
+   #define ack ((struct blockRequestAck *)(inBuffer + sizeof(struct MacFrameNormal) + 1))
    ack->pleaseWaitMs = 0;
    return ack;
+   #undef ack
 }
 
 static void sendBlockRequest() 
@@ -348,11 +387,11 @@ static void sendBlockRequest()
    struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    struct blockRequest *__xdata blockreq = (struct blockRequest *)(outBuffer + 2 + sizeof(struct MacFrameNormal));
    outBuffer[0] = sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2;
-   if(requestPartialBlock) {
-      ;
-      outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_BLOCK_PARTIAL_REQUEST;
-   } else {
+   if(gNewBlock) {
       outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_BLOCK_REQUEST;
+   }
+   else {
+      outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_BLOCK_PARTIAL_REQUEST;
    }
    xMemCopyShort((void *)(f->src), (void *) mSelfMac, 8);
    xMemCopyShort((void *)(f->dst), (void *)APmac, 8);
@@ -378,13 +417,14 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
    radioRxFlush();
    for(uint8_t c = 0; c < 30; c++) {
       sendBlockRequest();
-      t = timerGet() + (TIMER_TICKS_PER_MS * (7UL + c / 10));
+//      t = timerGet() + (TIMER_TICKS_PER_MS * (7UL + c / 10));
+      t = timerGet() + (TIMER_TICKS_PER_SECOND * 30UL);
+      BLOCK_LOG("wait until %lu\n",t);
       do {
-         static int8_t __xdata ret;
-         ret = radioRx();
-         if(ret > 1) {
+         if(radioRx() > 1) {
             switch(getPacketType()) {
                case PKT_BLOCK_REQUEST_ACK:
+                  BLOCK_LOG("blk req ack\n");
                   if(checkCRC((inBuffer + sizeof(struct MacFrameNormal) + 1), sizeof(struct blockRequestAck)))
                      return(struct blockRequestAck *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
                   break;
@@ -393,21 +433,23 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
                // block already started while we were waiting for a get block reply
                // pr("!");
                // processBlockPart((struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1));
+                  BLOCK_LOG("blk part\n");
                   return continueToRX();
-                  break;
 
                case PKT_CANCEL_XFER:
+                  BLOCK_LOG("cancel xferpart\n");
                   return NULL;
 
                default:
-                  PROTO_LOG("pkt type %02X\n", getPacketType());
+                  PROTO_LOG("ignored pkt type %02X\n", getPacketType());
+                  return NULL;
                   break;
             }
          }
       } while(timerGet() < t);
+      BLOCK_LOG("%lu done waiting\n",t);
    }
    return continueToRX();
-   // return NULL;
 }
 
 static void sendXferCompletePacket() 
@@ -416,8 +458,8 @@ static void sendXferCompletePacket()
    struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    outBuffer[0] = sizeof(struct MacFrameNormal) + 2 + 2;
    outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_XFER_COMPLETE;
-   xMemCopyShort((void *)(f->src), (void *) mSelfMac, 8);
-   xMemCopyShort((void *)(f->dst), (void *) APmac, 8);
+   xMemCopyShort((void *)(f->src), (void *) mSelfMac,8);
+   xMemCopyShort((void *)(f->dst), (void *) APmac,8);
    f->fcs.frameType = 1;
    f->fcs.secure = 0;
    f->fcs.framePending = 0;
@@ -440,8 +482,7 @@ static void sendXferComplete()
       sendXferCompletePacket();
       uint32_t __xdata start = timerGet();
       while((timerGet() - start) < (TIMER_TICKS_PER_MS * 6UL)) {
-         int8_t __xdata ret = radioRx();
-         if(ret > 1) {
+         if(radioRx() > 1) {
             if(getPacketType() == PKT_XFER_COMPLETE_ACK) {
                PROTO_LOG("ACK\n");
                return;
@@ -453,49 +494,19 @@ static void sendXferComplete()
    return;
 }
 
-bool validateBlockData() 
-{
-   struct blockData *bd = (struct blockData *)blockbuffer;
-   // pr("expected len = %04X, checksum=%04X\n", bd->size, bd->checksum);
-   uint16_t t = 0;
-   for(uint16_t c = 0; c < bd->size; c++) {
-      t += bd->data[c];
-   }
-   return bd->checksum == t;
-}
-
 // EEprom related stuff
 static uint32_t getAddressForSlot(const uint8_t s) 
 {
    return EEPROM_IMG_START + (EEPROM_IMG_EACH * s);
 }
 
-static void getNumSlots() 
-{
-   eeSize = eepromGetSize();
-   uint16_t nSlots = mathPrvDiv32x16(eeSize - EEPROM_IMG_START, EEPROM_IMG_EACH >> 8) >> 8;
-   if(eeSize < EEPROM_IMG_START || !nSlots) {
-      EEPROM_LOG("EEPROM: eeprom is too small\n");
-      while(1)
-         ;
-   }
-   else if(nSlots >> 8) {
-      EEPROM_LOG("EEPROM: eeprom is too big, some will be unused\n");
-      imgSlots = 254;
-   }
-   else {
-      imgSlots = nSlots;
-   }
-   PROTO_LOG("%d slots\n", imgSlots);
-}
-
 static uint8_t findSlotVer(const uint8_t *ver) 
 {
 #ifdef DEBUGBLOCKS
    return 0xFF;
-#endif
+#else
    // return 0xFF;  // remove me! This forces the tag to re-download each and every upload without checking if it's already in the eeprom somewhere
-   for(uint8_t c = 0; c < imgSlots; c++) {
+   for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
       struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -505,13 +516,14 @@ static uint8_t findSlotVer(const uint8_t *ver)
       }
    }
    return 0xFF;
+#endif
 }
 
 // making this reentrant saves one byte of idata...
 uint8_t __xdata findSlotDataTypeArg(uint8_t arg) __reentrant 
 {
    arg &= (0xF8);  // unmatch with the 'preload' bit and LUT bits
-   for(uint8_t c = 0; c < imgSlots; c++) {
+   for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
       struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -536,7 +548,9 @@ uint8_t __xdata findNextSlideshowImage(uint8_t start) __reentrant
    uint8_t c = start;
    while(1) {
       c++;
-      if(c > imgSlots) c = 0;
+      if(c > IMAGE_SLOTS) {
+         c = 0;
+      }
       if(c == start) return c;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -549,7 +563,7 @@ uint8_t __xdata findNextSlideshowImage(uint8_t start) __reentrant
 
 static void eraseUpdateBlock() 
 {
-   eepromErase(eeSize - OTA_UPDATE_SIZE, OTA_UPDATE_SIZE / EEPROM_ERZ_SECTOR_SZ);
+   eepromErase(EEPROM_SIZE - OTA_UPDATE_SIZE, OTA_UPDATE_SIZE / EEPROM_ERZ_SECTOR_SZ);
 }
 
 static void eraseImageBlock(const uint8_t c) 
@@ -559,20 +573,12 @@ static void eraseImageBlock(const uint8_t c)
 
 static void saveUpdateBlockData(uint8_t blockId) 
 {
-   eepromWrite(eeSize - OTA_UPDATE_SIZE + (blockId * BLOCK_DATA_SIZE), blockbuffer + sizeof(struct blockData), BLOCK_DATA_SIZE);
-}
-
-static void saveImgBlockData(const uint8_t imgSlot, const uint8_t blockId) 
-{
-   uint16_t length = EEPROM_IMG_EACH - (sizeof(struct EepromImageHeader) + (blockId * BLOCK_DATA_SIZE));
-   if(length > 4096) length = 4096;
-
-   eepromWrite(getAddressForSlot(imgSlot) + sizeof(struct EepromImageHeader) + (blockId * BLOCK_DATA_SIZE), blockbuffer + sizeof(struct blockData), length);
+   eepromWrite(EEPROM_SIZE - OTA_UPDATE_SIZE + (blockId * BLOCK_DATA_SIZE), blockbuffer + sizeof(struct blockData), BLOCK_DATA_SIZE);
 }
 
 void eraseImageBlocks() 
 {
-   for(uint8_t c = 0; c < imgSlots; c++) {
+   for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
       eraseImageBlock(c);
    }
 }
@@ -586,7 +592,7 @@ void drawImageFromEeprom(const uint8_t imgSlot, uint8_t lut)
 static uint32_t getHighSlotId() 
 {
    uint32_t temp = 0;
-   for(uint8_t __xdata c = 0; c < imgSlots; c++) {
+   for(uint8_t __xdata c = 0; c < IMAGE_SLOTS; c++) {
       struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -601,43 +607,62 @@ static uint32_t getHighSlotId()
 }
 
 // data transfer stuff
-static uint8_t __xdata partsThisBlock;
-static uint8_t __xdata blockAttempts;  // these CAN be local to the function, but for some reason, they won't survive sleep?
-                                           // they get overwritten with  7F 32 44 20 00 00 00 00 11, I don't know why.
 
+// Total number of active blocks in this block (NOT subblock),  this will 
+// alway be BLOCK_MAX_PARTS except for the last block of a transfer
+static uint8_t __xdata gPartsThisBlock;
+// offset into into the standard block buffer for the current subblock
+// We do not have room from the standard block so we are emulating one
+// to keep from needing to modify AP code.
+// 0->BLOCK_MAX_PARTS in BLOCK_MAX_PARTS_SUBGIG increment
+static uint16_t __xdata gBlockChecksum; 
+
+struct blockData gBlockData;
+
+// these COULD be local to the function, but for some reason, they won't survive sleep?
+// they get overwritten with  7F 32 44 20 00 00 00 00 11, I don't know why.
+static uint8_t __xdata blockAttempts;
+
+// blockSize: number of data bytes wanted, excluding overhead
+// Will alway be BLOCK_DATA_SIZE except for the last block for the transfer
+// which may be < BLOCK_DATA_SIZE
 static bool getDataBlock(const uint16_t blockSize) 
 {
-   blockAttempts = BLOCK_TRANSFER_ATTEMPTS;
-   if(blockSize == BLOCK_DATA_SIZE) {
-      partsThisBlock = BLOCK_MAX_PARTS;
-      xMemSet(curBlock.requestedParts,0xFF,BLOCK_REQ_PARTS_BYTES);
-   }
-   else {
-      partsThisBlock = (sizeof(struct blockData) + blockSize) / BLOCK_PART_DATA_SIZE;
-      if((sizeof(struct blockData) + blockSize) % BLOCK_PART_DATA_SIZE) partsThisBlock++;
-      xMemSet(curBlock.requestedParts,0x00,BLOCK_REQ_PARTS_BYTES);
-      for(uint8_t c = 0; c < partsThisBlock; c++) {
-         curBlock.requestedParts[c / 8] |= (1 << (c % 8));
-      }
-   }
+   uint8_t SubBlock;
+   uint16_t Len;
+   uint32_t Adr;
+   uint8_t *__xdata pData;
+   __bit NewSubBlock = true;
 
-   requestPartialBlock = false;  // this forces the AP to request the block data from the host
+   Adr = getAddressForSlot(xferImgSlot) + sizeof(struct EepromImageHeader) 
+         + (curBlock.blockId * BLOCK_DATA_SIZE);
+
+   blockAttempts = BLOCK_TRANSFER_ATTEMPTS;
+   gSubBlockID = 0;  // new block starting
+   gNewBlock = true;
+   gBlockData.size = blockSize;  // should match the header once it's received
+
+   xMemSet(curBlock.requestedParts,0x00,BLOCK_REQ_PARTS_BYTES);
 
    while(blockAttempts--) {
-#ifndef DEBUGBLOCKS
-      pr("REQ %d ", curBlock.blockId);
-#else
-      pr("REQ %d[", curBlock.blockId);
-      for(uint8_t c = 0; c < BLOCK_MAX_PARTS; c++) {
-         if((c != 0) && (c % 8 == 0)) pr("][");
-         if(curBlock.requestedParts[c / 8] & (1 << (c % 8))) {
-            pr("R");
-         } else {
-            pr("_");
+      if(NewSubBlock) {
+         NewSubBlock = false;
+         gPartsThisBlock = gBlockData.size / BLOCK_PART_DATA_SIZE;
+         if((gBlockData.size % BLOCK_PART_DATA_SIZE) != 0) {
+            gPartsThisBlock++;
+         }
+         if(gPartsThisBlock > BLOCK_MAX_PARTS_SUBGIG) {
+            gPartsThisBlock = BLOCK_MAX_PARTS_SUBGIG;
+         }
+         BLOCK_LOG("parts %d\n",gPartsThisBlock);
+         SubBlock = gSubBlockID;
+         for(uint8_t c = 0; c < gPartsThisBlock; c++) {
+            curBlock.requestedParts[SubBlock / 8] |= (1 << (SubBlock % 8));
+            SubBlock++;
          }
       }
-      pr("]\n");
-#endif
+      BLOCK_LOG("Tx ");
+      DumpCurBlock();
       powerUp(INIT_RADIO);
       struct blockRequestAck *__xdata ack = performBlockRequest();
 
@@ -645,62 +670,98 @@ static bool getDataBlock(const uint16_t blockSize)
          PROTO_LOG("Cancelled req\n");
          return false;
       }
-      if(ack->pleaseWaitMs) {  // SLEEP - until the AP is ready with the data
+      if(ack->pleaseWaitMs) {  
+      // SLEEP - until the AP is ready with the data
+         BLOCK_LOG("pleaseWaitMs %u\n",ack->pleaseWaitMs);
          if(ack->pleaseWaitMs < 35) {
             timerDelay(ack->pleaseWaitMs * TIMER_TICKS_PER_MS);
-         } else {
+         }
+         else {
             doSleep(ack->pleaseWaitMs - 10);
             powerUp(INIT_UART | INIT_RADIO);
             radioRxEnable(true);
          }
-      } else {
-         // immediately start with the reception of the block data
       }
       blockRxLoop(290);  // BLOCK RX LOOP - receive a block, until the timeout has passed
+//         blockRxLoop(5000);  // BLOCK RX LOOP - receive a block, until the timeout has passed
       powerDown(INIT_RADIO);
+      BLOCK_LOG("Rx ");
+      DumpCurBlock();
 
-#ifdef DEBUGBLOCKS
-      pr("RX  %d[", curBlock.blockId);
-      for(uint8_t c = 0; c < BLOCK_MAX_PARTS; c++) {
-         if((c != 0) && (c % 8 == 0)) pr("][");
-         if(curBlock.requestedParts[c / 8] & (1 << (c % 8))) {
-            pr(".");
-         } else {
-            pr("R");
-         }
-      }
-      pr("]\n");
-#endif
-      // check if we got all the parts we needed, e.g: has the block been completed?
+   // check if we got all the parts we needed, e.g: has the block been completed?
       bool blockComplete = true;
-      for(uint8_t c1 = 0; c1 < partsThisBlock; c1++) {
-         if(curBlock.requestedParts[c1 / 8] & (1 << (c1 % 8))) blockComplete = false;
+      SubBlock = gSubBlockID;
+      for(uint8_t i = 0; i < gPartsThisBlock; i++) {
+         if(curBlock.requestedParts[SubBlock / 8] & (1 << (SubBlock % 8))) {
+            blockComplete = false;
+            break;
+         }
+         SubBlock++;
       }
 
       if(blockComplete) {
-#ifndef DEBUGBLOCKS
-         pr("- COMPLETE\n");
-#endif
-         if(validateBlockData()) {
-            // block download complete, validated
-            return true;
-         } else {
-            for(uint8_t c = 0; c < partsThisBlock; c++) {
-               curBlock.requestedParts[c / 8] |= (1 << (c % 8));
-            }
-            requestPartialBlock = false;
+      // This subblock this complete
+         Len = gPartsThisBlock * BLOCK_PART_DATA_SIZE;
+         pData = blockbuffer;
+
+         if(gSubBlockID == 0) {
+         // First subblock, save the block size and checksum for later
+            #define bd ((struct blockData *)blockbuffer)
+            gBlockData.size = bd->size;
+            gBlockData.checksum = bd->checksum;
+            #undef bd
+            BLOCK_LOG("blk size %d chksum 0x%x\n",
+                      gBlockData.size,gBlockData.checksum);
+            gBlockChecksum = 0;
+         // Adjust data pointer and Len
+            Len -= sizeof(gBlockData);
+            pData += sizeof(gBlockData);
+         }
+
+         if(Len > gBlockData.size) {
+            Len = gBlockData.size;
+         }
+         gBlockData.size -= Len;
+
+      // Write this subblock to EEPROM
+         BLOCK_LOG("write %d @ 0x%lx\n",Len,Adr);
+         powerUp(INIT_EEPROM);
+         eepromWrite(Adr,(const void __xdata *) pData,Len);
+         powerDown(INIT_EEPROM);
+         Adr += Len;
+
+      // Update the checksum for this subblock
+         while(Len-- > 0) {
+            gBlockChecksum += *pData++;
+         }
+         gSubBlockID += gPartsThisBlock;
+         BLOCK_LOG("SubBlockID %d left %d chksum 0x%x\n",
+                   gSubBlockID,gBlockData.size,gBlockChecksum);
+
+      // Is the entire block complete?
+         if(gBlockData.size != 0) {
+         // More Subblocks to come
+            blockComplete = false;
+            NewSubBlock = true;
+         }
+      }
+      gNewBlock = false;
+      if(blockComplete) {
+         BLOCK_LOG("blk complete\n");
+         if(gBlockData.checksum != gBlockChecksum) {
             PROTO_LOG("blk failed validation!\n");
+            break;
+         }
+         else {
+         // block download complete, validated
+            return true;
          }
       }
       else {
-#ifndef DEBUGBLOCKS
-         pr("- INCOMPLETE\n");
-#endif
-         // block incomplete, re-request a partial block
-         requestPartialBlock = true;
+      // block incomplete, re-request a partial block
+         BLOCK_LOG("blk incomplete\n");
       }
    }
-   PROTO_LOG("failed getting block\n");
    return false;
 }
 
@@ -750,7 +811,7 @@ static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail)
    }
    wdt60s();
    powerUp(INIT_EEPROM);
-   if(!validateMD5(eeSize - OTA_UPDATE_SIZE, otaSize)) {
+   if(!validateMD5(EEPROM_SIZE - OTA_UPDATE_SIZE, otaSize)) {
 #if defined(DEBUGOTA)
       pr("OTA: MD5 verification failed!\n");
 #endif
@@ -793,7 +854,9 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
 
       while(1) {
          nextImgSlot++;
-         if(nextImgSlot >= imgSlots) nextImgSlot = 0;
+         if(nextImgSlot >= IMAGE_SLOTS) {
+            nextImgSlot = 0;
+         }
          if(nextImgSlot == startingSlot) {
             powerDown(INIT_EEPROM);
             PROTO_LOG("No slots\n");
@@ -835,7 +898,7 @@ eraseSuccess:
    // start, or restart the transfer. Copy data from the AvailDataInfo struct, 
    // theand the struct intself. This forces a new transfer
       curBlock.blockId = 0;
-      xMemCopy8(&(curBlock.ver), &(avail->dataVer));
+      xMemCopy8(&curBlock.ver,&avail->dataVer);
       curBlock.type = avail->dataType;
       xMemCopyShort(&xferDataInfo, (void *)avail, sizeof(struct AvailDataInfo));
       imageSize = xferDataInfo.dataSize;
@@ -853,14 +916,6 @@ eraseSuccess:
       }
       if(getDataBlock(dataRequestSize)) {
       // succesfully downloaded datablock, save to eeprom
-         powerUp(INIT_EEPROM);
-         timerDelay(TIMER_TICKS_PER_MS * 100);
-#ifdef DEBUGBLOCKS
-         pr("BLOCKS: Saving block %d to slot %d\n", curBlock.blockId, xferImgSlot);
-#endif
-         saveImgBlockData(xferImgSlot, curBlock.blockId);
-         timerDelay(TIMER_TICKS_PER_MS * 100);
-         powerDown(INIT_EEPROM);
          curBlock.blockId++;
          xferDataInfo.dataSize -= dataRequestSize;
       }
@@ -869,9 +924,8 @@ eraseSuccess:
          return false;
       }
    }
-   // no more data, download complete
+// no more data, download complete
 
-   // validate MD5
    powerUp(INIT_EEPROM);
 // borrow the blockbuffer temporarily
    struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
@@ -882,10 +936,9 @@ eraseSuccess:
    eih->dataType = xferDataInfo.dataType;
    eih->argument = xferDataInfo.dataTypeArgument;
 
-#ifdef DEBUGBLOCKS
-   pr("BLOCKS: Now writing datatype 0x%02X to slot %d\n", xferDataInfo.dataType, xferImgSlot);
-#endif
-   eepromWrite(getAddressForSlot(xferImgSlot), eih, sizeof(struct EepromImageHeader));
+   BLOCK_LOG("BLOCKS: Now writing datatype 0x%02X to slot %d\n",
+             xferDataInfo.dataType,xferImgSlot);
+   eepromWrite(getAddressForSlot(xferImgSlot),eih,sizeof(struct EepromImageHeader));
    powerDown(INIT_EEPROM);
 
    return true;
@@ -924,7 +977,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
       powerDown(INIT_EEPROM);
       PROTO_LOG("dl preload img\n");
       if(downloadImageDataToEEPROM(avail)) {
-         // sets xferImgSlot to the right slot
+      // sets xferImgSlot to the right slot
          PROTO_LOG("preload done\n");
          powerUp(INIT_RADIO);
          sendXferComplete();
@@ -1017,7 +1070,7 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
             return true;
          }
          curBlock.blockId = 0;
-         xMemCopy8(&(curBlock.ver), &(avail->dataVer));
+         xMemCopy8(&curBlock.ver,&avail->dataVer);
          curBlock.type = avail->dataType;
          xMemCopyShort(&xferDataInfo, (void *)avail, sizeof(struct AvailDataInfo));
          wdt10s();
@@ -1032,7 +1085,6 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
             return true;
          }
          return false;
-         break;
 
       case DATATYPE_COMMAND_DATA:
          PROTO_LOG("CMD rx\n");
@@ -1053,7 +1105,7 @@ bool validateFWMagic()
 {
 #if 0
    flashRead(0x8b, (void *)(blockbuffer + 1024), 256);
-   eepromRead(eeSize - OTA_UPDATE_SIZE, blockbuffer, 256);
+   eepromRead(EEPROM_SIZE - OTA_UPDATE_SIZE, blockbuffer, 256);
    if(xMemEqual((const void *__xdata)(blockbuffer + 1024), (const void *__xdata)(blockbuffer + 0x8b), 8)) {
 #ifdef DEBUGOTA
       pr("OTA: magic number matches! good fw\n");
@@ -1072,7 +1124,6 @@ bool validateFWMagic()
 
 void initializeProto() 
 {
-   getNumSlots();
    curHighSlotId = getHighSlotId();
 }
 
@@ -1094,3 +1145,25 @@ void UpdateBcastFrame()
    xMemCopyShort(TX_FRAME_PTR,(void *)&gBcastFrame,sizeof(struct MacFrameBcast));
    TX_FRAME_PTR->seq = seq++;
 }
+
+void DumpCurBlock()
+{
+#ifdef DEBUGBLOCKS
+      LOG("REQ %d [",curBlock.blockId);
+      for(uint8_t c = 0; c < BLOCK_MAX_PARTS; c++) {
+         if((c != 0) && (c % 8 == 0)) {
+            pr("][");
+         }
+         if(curBlock.requestedParts[c / 8] & (1 << (c % 8))) {
+            pr("R");
+         }
+         else {
+            pr("_");
+         }
+      }
+      pr("]\n");
+#else
+      LOG("REQ %d\n",curBlock.blockId);
+#endif
+}
+

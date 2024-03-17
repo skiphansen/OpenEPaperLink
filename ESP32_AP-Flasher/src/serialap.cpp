@@ -300,9 +300,7 @@ bool sendChannelPower(struct espSetChannelPower* scp) {
         }
         if (waitCmdReply()) {
             txEnd();
-            if(scp->channel != 0) {
-               apInfo.channel = scp->channel;
-            }
+            apInfo.channel = scp->channel;
             apInfo.power = scp->power;
             return true;
         }
@@ -461,11 +459,13 @@ void rxSerialTask(void* parameter) {
                         charindex = 0;
                         memset(cmdbuffer, 0x00, 4);
                     }
+#ifdef HAS_SUBGHZ
                     if ((strncmp(cmdbuffer, "SCH>", 4) == 0)) {
                         RXState = ZBS_RX_WAIT_SUBCHANNEL;
                         charindex = 0;
                         memset(cmdbuffer, 0x00, 4);
                     }
+#endif
                     if ((strncmp(cmdbuffer, "ZPW>", 4) == 0)) {
                         RXState = ZBS_RX_WAIT_POWER;
                         charindex = 0;

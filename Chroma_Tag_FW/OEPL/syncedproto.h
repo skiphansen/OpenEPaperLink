@@ -16,7 +16,6 @@ extern bool __xdata fastNextCheckin;
 
 
 extern bool checkCRC(const void *p, const uint8_t len);
-extern bool validateBlockData();
 
 extern uint8_t __xdata findSlotDataTypeArg(uint8_t arg) __reentrant;
 extern uint8_t __xdata findNextSlideshowImage(uint8_t start) __reentrant;

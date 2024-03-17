@@ -18,7 +18,7 @@
 
 void DumpHex(void *AdrIn,int Len);
 
-#if 0
+#if 1
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
 #define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
 #define LOG_HEX(x,y) DumpHex(x,y)

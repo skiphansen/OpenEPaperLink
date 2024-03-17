@@ -11,12 +11,13 @@ __main() {
         return 1
     fi
 
-    if [ $# -ne 1 ]; then
-       echo "com port ? (hint: ttyUSB0)"
-       return 1
-    fi
-
-    export COMPORT=$1
+#    if [ $# -ne 1 ]; then
+#       echo "com port ? (hint: ttyUSB0)"
+#       return 1
+#    fi
+#
+#    export COMPORT=$1
+    export COMPORT=ttyACM0
     export ESPPORT=/dev/$COMPORT
     export ADF_PATH=~/esp/esp-adf
     . ~/esp/esp-idf/export.sh

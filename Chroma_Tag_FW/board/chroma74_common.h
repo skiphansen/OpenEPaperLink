@@ -29,15 +29,17 @@
 #define dbgUartByte           u1byte
 
 //eeprom map
-#define EEPROM_SETTINGS_AREA_START     (0x08000UL)
+#define EEPROM_SETTINGS_AREA_START  (0x08000UL)
 #define EEPROM_SETTINGS_AREA_LEN    (0x04000UL)
 //some free space here
 #define EEPROM_UPDATA_AREA_START    (0x10000UL)
-#define EEPROM_UPDATE_AREA_LEN         (0x09000UL)
+#define EEPROM_UPDATE_AREA_LEN      (0x09000UL)
 #define EEPROM_IMG_START            (0x19000UL)
 #define EEPROM_IMG_EACH             (0x17000UL)
 //till end of eeprom really. do not put anything after - it will be erased at pairing time!!!
 #define EEPROM_PROGRESS_BYTES       (192)
+
+#define IMAGE_SLOTS                 ((EEPROM_SIZE - EEPROM_IMG_START)/EEPROM_IMG_EACH)
 
 //hw types
 #define HW_TYPE_NORMAL              HW_TYPE_74_INCH_DISPDATA_Y

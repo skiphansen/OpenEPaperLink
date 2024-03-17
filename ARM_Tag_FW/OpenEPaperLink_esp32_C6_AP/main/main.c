@@ -99,15 +99,22 @@ bool checkCRC(void *p, uint8_t len) {
 
 uint8_t getPacketType(void *buffer) {
     struct MacFcs *fcs = buffer;
+    printf("frameType %d destAddrType %d srcAddrType %d panIdCompressed %d\n",
+           fcs->frameType,fcs->destAddrType,fcs->srcAddrType,fcs->panIdCompressed);
+
     if ((fcs->frameType == 1) && (fcs->destAddrType == 2) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 0)) {
         // broadcast frame
         uint8_t type = ((uint8_t *) buffer)[sizeof(struct MacFrameBcast)];
+        printf("%s#%d: 0x%x\n",__FUNCTION__,__LINE__,type);
         return type;
     } else if ((fcs->frameType == 1) && (fcs->destAddrType == 3) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 1)) {
         // normal frame
         uint8_t type = ((uint8_t *) buffer)[sizeof(struct MacFrameNormal)];
+        printf("%s#%d:\n",__FUNCTION__,__LINE__);
+        printf("%s#%d: 0x%x\n",__FUNCTION__,__LINE__,type);
         return type;
     }
+    printf("%s#%d:\n",__FUNCTION__,__LINE__);
     return 0;
 }
 uint8_t getBlockDataLength() {
@@ -466,16 +473,20 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
 
     // check if we're already talking to this mac
     if (memcmp(rxHeader->src, lastBlockMac, 8) == 0) {
+       printf("%s#%d:\n",__FUNCTION__,__LINE__);
         lastBlockRequest = getMillis();
     } else {
+       printf("%s#%d:\n",__FUNCTION__,__LINE__);
         // we weren't talking to this mac, see if there was a transfer in progress from another mac, recently
         if ((getMillis() - lastBlockRequest) > CONCURRENT_REQUEST_DELAY) {
             // mark this mac as the new current mac we're talking to
             memcpy((void *) lastBlockMac, (void *) rxHeader->src, 8);
             lastBlockRequest = getMillis();
+            printf("%s#%d:\n",__FUNCTION__,__LINE__);
         } else {
             // we're talking to another mac, let this mac know we can't accomodate another request right now
             LOG("BUSY!\n");
+            printf("%s#%d:\n",__FUNCTION__,__LINE__);
             sendCancelXfer(rxHeader->src);
             return;
         }
@@ -484,6 +495,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     // check if we have data for this mac
     if (findSlotForMac(rxHeader->src) == -1) {
         // no data for this mac, politely tell it to fuck off
+       printf("%s#%d:\n",__FUNCTION__,__LINE__);
         sendCancelXfer(rxHeader->src);
         return;
     }
@@ -491,6 +503,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     bool requestDataDownload = false;
     if ((blockReq->blockId != requestedData.blockId) || (blockReq->ver != requestedData.ver)) {
         // requested block isn't already in the buffer
+       printf("%s#%d:\n",__FUNCTION__,__LINE__);
         requestDataDownload = true;
     } else {
         // requested block is already in the buffer
@@ -503,6 +516,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
             }
         }
     }
+    printf("%s#%d:\n",__FUNCTION__,__LINE__);
 
     // copy blockrequest into requested data
     memcpy(&requestedData, blockReq, sizeof(struct blockRequest));
@@ -541,6 +555,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     txHeader->seq                 = seq++;
 
     addCRC((void *) blockRequestAck, sizeof(struct blockRequestAck));
+    printf("%s#%d:\n",__FUNCTION__,__LINE__);
 
     radioTx(radiotxbuffer);
 
@@ -550,9 +565,11 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
 
     if (requestDataDownload) {
         blockPosition = 0;
+        printf("%s#%d:\n",__FUNCTION__,__LINE__);
         espBlockRequest(&requestedData, rxHeader->src);
         nextBlockAttempt = getMillis();
     }
+    printf("%s#%d:\n",__FUNCTION__,__LINE__);
 }
 
 void processAvailDataReq(uint8_t *buffer) {
@@ -747,6 +764,10 @@ void app_main(void) {
     if(!SubGig_radio_init(curSubGhzChannel)) {
     // Ether we don't have a cc1101 or it's not working
        curSubGhzChannel = NO_SUBGHZ_CHANNEL; 
+       ESP_LOGI(TAG,"CC1101 NOT detected.");
+    }
+    else {
+       ESP_LOGI(TAG,"CC1101 detected.");
     }
 #endif
     radioSetTxPower(10);
@@ -761,6 +782,7 @@ void app_main(void) {
             int8_t ret = commsRxUnencrypted(radiorxbuffer);
             if (ret > 1) {
                 led_flash(0);
+                printf("%s#%d:\n",__FUNCTION__,__LINE__);
                 // received a packet, lets see what it is
                 switch (getPacketType(radiorxbuffer)) {
                     case PKT_AVAIL_DATA_REQ:
