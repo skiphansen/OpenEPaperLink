@@ -5,10 +5,10 @@
 
 #define FW_VERSION 0x0001        // version number
 #define FW_VERSION_SUFFIX ""     // suffix, like -RC1 or whatever.
-#define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
+// #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 #define DEBUGPROTO               // debug protocol
 // #define DEBUGOTA                 // debug OTA FW updates
-// #define DEBUGDRAWING             // debug the drawing part
+#define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
 // #define DEBUGNFC                 // debug NFC functions

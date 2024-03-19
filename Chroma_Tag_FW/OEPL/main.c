@@ -19,11 +19,7 @@
 #include "userinterface.h"
 #include "wdt.h"
 #include "logging.h"
-
-// #include "flash.h"
-
-// #include "uart.h"
-
+#include "drawing.h"
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
 
@@ -387,6 +383,13 @@ void main()
 
 // get the highest slot number, number of slots
    initializeProto();
+
+   powerUp(INIT_EPD|INIT_EEPROM);
+   MAIN_LOG("drawing image\n");
+   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
+   MAIN_LOG("image drawn\n");
+
+   while(true);
    powerDown(INIT_EEPROM);
    if(tagSettings.enableFastBoot) {
    // Fastboot

@@ -73,6 +73,13 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
    #define AP_SEARCH_LOG(format, ... )
 #endif
 
+#ifdef DEBUGDRAWING
+   #define DRAW_LOG(format, ... ) pr(format,## __VA_ARGS__)
+#else
+   #define DRAW_LOG(format, ... )
+#endif
+
+
 
 
 #endif   // _LOGGING_H_

@@ -8,10 +8,6 @@
 #pragma callee_saves drawImageAtAddress
 void drawImageAtAddress(uint32_t addr);
 
-#pragma callee_saves drawImageAtAddress
-void drawFullscreenMsg(const char *str);
-
-
 
 //expected external funcs
 #pragma callee_saves fwVerString

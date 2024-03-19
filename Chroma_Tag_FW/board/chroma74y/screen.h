@@ -38,7 +38,7 @@ void screenShutdown(void);
 
 void screenTest(void);
 
-__bit screenTxStart(__bit forPartial);
+void screenTxStart(__bit forPartial);
 
 #pragma callee_saves screenByteTx
 void screenByteTx(uint8_t byte);

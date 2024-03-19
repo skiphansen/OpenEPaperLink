@@ -654,7 +654,6 @@ static bool getDataBlock(const uint16_t blockSize)
          if(gPartsThisBlock > BLOCK_MAX_PARTS_SUBGIG) {
             gPartsThisBlock = BLOCK_MAX_PARTS_SUBGIG;
          }
-         BLOCK_LOG("parts %d\n",gPartsThisBlock);
          SubBlock = gSubBlockID;
          for(uint8_t c = 0; c < gPartsThisBlock; c++) {
             curBlock.requestedParts[SubBlock / 8] |= (1 << (SubBlock % 8));
@@ -944,7 +943,8 @@ eraseSuccess:
    return true;
 }
 
-struct imageDataTypeArgStruct __xdata arg;  // this is related to the function below, but if declared -inside- the function, it gets cleared during sleep...
+// this is related to the function below, but if declared -inside- the function, it gets cleared during sleep...
+struct imageDataTypeArgStruct __xdata arg;  
 inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail) 
 {
    *((uint8_t *)arg) = avail->dataTypeArgument;

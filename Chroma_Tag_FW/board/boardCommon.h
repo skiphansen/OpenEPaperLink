@@ -15,7 +15,7 @@
 // P0 bits
 #define P0_EPD_BS1         0x01  // P0.0
 #define P0_TP6             0x02
-#define P0_EPD_nCS1        0x04  // some boards needing two EPC cs
+#define P0_EPD_nCS1        0x04  // some boards needing two EPD cs
 #define P0_EEPROM_CLK      0x08
 #define P0_EEPROM_MOSI     0x10
 #define P0_EEPROM_MISO     0x20
