@@ -1,6 +1,5 @@
 #define __packed
 
-#include "syncedproto.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -17,6 +16,7 @@
 #include "printf.h"
 #include "../oepl-definitions.h"
 #include "../oepl-proto.h"
+#include "syncedproto.h"
 #include "radio.h"
 #include "screen.h"
 #include "settings.h"
@@ -27,30 +27,6 @@
 // #include "uart.h"
 // #include "flash.h"
 #include "logging.h"
-
-/* 
-oepl-proto.h defines:
-#define BLOCK_DATA_SIZE 4096UL
-#define BLOCK_XFER_BUFFER_SIZE BLOCK_DATA_SIZE + sizeof(struct blockData)
- 
-These values were picked for tags which have 8k of SRAM, but CC1110 based 
-SubGhz tags only have 4K so this is not going to work for these tags.
-
-The standard OEPL block protocol defines a data block as 4K bytes of
-data which is written to flash when complete.  The data comes in as
-41 "parts" of 99 bytes each and one part of 37 bytes.
-
-For CC1110 tags the request is broken into smaller hunks of 4 "sub-blocks". 
-The first 3 subblocks have 11 99 byte parts for 3267 bytes total. 
-The last subblock has 8 99 byte parts and one 37 bytes part for a total of 
-829 bytes. This adds up to the OEPl standard of 4096 bytes.
-*/ 
-#define BLOCK_MAX_PARTS_SUBGIG    11UL
-#define PARTS_LAST_SUBBLOCK       9UL
-#define BLOCK_DATA_SIZE_SUBGIG    (BLOCK_MAX_PARTS_SUBGIG * BLOCK_PART_DATA_SIZE)
-
-#undef BLOCK_XFER_BUFFER_SIZE
-#define BLOCK_XFER_BUFFER_SIZE (sizeof(struct blockData) + BLOCK_DATA_SIZE_SUBGIG)
 
 uint8_t __xdata blockbuffer[BLOCK_XFER_BUFFER_SIZE];
 static struct blockRequest __xdata curBlock;  // used by the block-requester, contains the next request that we'll send
@@ -139,7 +115,7 @@ static bool pktIsBcast()
 
 void DumpHex(const uint8_t *__xdata Data, const uint16_t __xdata Len)
 {
-   uint8_t i;
+   uint16_t i;
    for(i = 0; i < Len; i++) {
       if(i != 0 && (i & 0xf) == 0) {
          LOG("\n");

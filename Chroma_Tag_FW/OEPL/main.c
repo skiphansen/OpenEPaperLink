@@ -14,7 +14,6 @@
 #include "radio.h"
 #include "screen.h"
 #include "settings.h"
-#include "syncedproto.h"
 #include "timer.h"
 #include "userinterface.h"
 #include "wdt.h"
@@ -22,6 +21,7 @@
 #include "drawing.h"
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
+#include "syncedproto.h"
 
 // #define DEBUG_MODE
 
@@ -36,7 +36,6 @@ uint8_t __xdata slideShowCurrentImg;
 uint8_t __xdata slideShowRefreshCount = 1;
 
 extern uint8_t *__idata blockp;
-extern uint8_t __xdata blockbuffer[];
 
 static bool __xdata secondLongCheckIn;  // send another full request if the previous was a special reason
 
@@ -350,9 +349,12 @@ void executeCommand(uint8_t cmd)
    }
 }
 
+void YetAnotherSdccBug();
+
 void main() 
 {
    powerUp(INIT_BASE);
+
    LOG("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
    boardInitStage2();
 

@@ -75,8 +75,10 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
 
 #ifdef DEBUGDRAWING
    #define DRAW_LOG(format, ... ) pr(format,## __VA_ARGS__)
+   #define DRAW_LOG_HEX(x,y) DumpHex(x,y)
 #else
    #define DRAW_LOG(format, ... )
+   #define DRAW_LOG_HEX(x,y)
 #endif
 
 

@@ -12,10 +12,10 @@
 #include "asmUtil.h"
 #include "powermgt.h"
 #include "printf.h"
-#include "syncedproto.h"
 #include "eeprom.h"
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
+#include "syncedproto.h"
 #include "logging.h"
 
 #define SETTINGS_MAGIC 0xABBA5AA5
@@ -27,7 +27,6 @@ typedef struct {
 } SubGhzSettings;
 
 struct tagsettings __xdata tagSettings;
-extern uint8_t __xdata blockbuffer[];
 
 void loadDefaultSettings() 
 {

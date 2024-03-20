@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include "../oepl-definitions.h"
 #include "barcode.h"
 #include "asmUtil.h"
 #include "drawing.h"
@@ -13,71 +14,99 @@
 #include "logging.h"
 
 
-#if 0
-void drawImageAtAddress(uint32_t addr)
-{
-   uint32_t __xdata clutAddr;
-   uint8_t __xdata iter;
-   
-   clutAddr = drawPrvParseHeader(addr);
-   if (!clutAddr)
-      return;
-   drawPrvLoadAndMapClut(clutAddr);
-   
-   screenTxStart(false);
-   for (iter = 0; iter < SCREEN_DATA_PASSES; iter++) {
-      
-      drawPrvDecodeImageOnce();
-      screenEndPass();
-   }
-   
-   screenTxEnd();
-   screenShutdown();
-}
-
-
+#if 1
 extern uint8_t __xdata blockbuffer[];
-#define drawBuffer   blockbuffer
 
-#define IMAGE_BYTES_2BPP   ((SCREEN_HEIGHT * SCREEN_WIDTH) / 4)
+
+// Screen is 640 x 384 with 2 bits per pixel we need 61,440 (60K) bytes
+// which of course we don't have.
+// Read data was 60 chunks for 1024 bytes
+//
+#define BYTES_PER_PLANE    ((SCREEN_HEIGHT * SCREEN_WIDTH) / 8)
+#define IMAGE_BYTES_2BPP   (BYTES_PER_PLANE * 2)
+
+#define eih ((struct EepromImageHeader *__xdata) blockbuffer)
 void drawImageAtAddress(uint32_t addr) __reentrant 
 {
-   static struct EepromImageHeader* __xdata eih;
-   eih = (struct EepromImageHeader*)drawBuffer;
    uint32_t Adr = addr;
-   eepromRead(Adr,drawBuffer,sizeof(struct EepromImageHeader));
+   uint8_t Part;
+   uint16_t i;
+   uint16_t j;
+   uint8_t Mask = 0x80;
+   uint8_t Value;
+   uint8_t Pixel;
+
+   DRAW_LOG("Reading header @ 0x%lx\n",Adr);
+   eepromRead(Adr,blockbuffer,sizeof(struct EepromImageHeader));
+   DRAW_LOG_HEX(blockbuffer,sizeof(struct EepromImageHeader));
    Adr += sizeof(struct EepromImageHeader);
 
-   if(eih->dataType == DATATYPE_IMG_RAW_2BPP) {
-      beginFullscreenImage();
-      beginWriteFramebuffer(EPD_COLOR_BLACK);
-      epdSelect();
-      for(uint16_t c = 0; c < IMAGE_BYTES_2BPP; c++) {
-         if(c % 512 == 0) {
-            epdDeselect();
-            eepromRead(Adr,drawBuffer,512);
-            Adr += 512;
-            epdSelect();
+   if(eih->dataType != DATATYPE_IMG_RAW_2BPP) {
+      LOG("dataType 0x%x not supported\n",eih->dataType);
+      return;
+   }
+   screenTxStart(false);
+   for(Part = 0; Part < 60; Part++) {
+   // Read 4096 (512 bytes) worth of b/w pixels
+      DRAW_LOG("Reading @ 0x%lx 0x%lx\n",Adr,Adr+BYTES_PER_PLANE);
+      eepromRead(Adr,blockbuffer,512);
+      DRAW_LOG_HEX(blockbuffer,512);
+   // Read 512 red/yellow pixels
+      eepromRead(Adr+BYTES_PER_PLANE,&blockbuffer[512],512);
+      DRAW_LOG("red/yellow:\n");
+      DRAW_LOG_HEX(&blockbuffer[512],512);
+      Adr += 512;
+      j = 512;
+      for(i = 0; i < 512; i++) {
+#if 0
+         DRAW_LOG("i 0x%x BYTES_PER_PLANE + i 0x%x bw 0x%x red 0x%x\n",
+                  i,
+                  BYTES_PER_PLANE + i,
+                  blockbuffer[i],
+                  blockbuffer[BYTES_PER_PLANE + i]);
+#endif
+         while(Mask != 0) {
+         // B/W bit
+            DRAW_LOG("mask 0x%x\n",Mask);
+            if(blockbuffer[i] & Mask) {
+               Pixel = PIXEL_BLACK;
+            }
+            else {
+               Pixel = PIXEL_WHITE;
+            }
+
+         // red/yellow W bit
+#if 1
+            if(blockbuffer[j] & Mask) {
+               Pixel = PIXEL_RED_YELLOW;
+            }
+#endif
+            Value <<= 4;
+            Value |= Pixel;
+            if(Mask & 0b10101010) {
+            // Value ready, send it
+//             DRAW_LOG("send 0x%x\n",Value);
+               screenByteTx(Value);
+#if 0
+               if(Value != 0) {
+                  DRAW_LOG("b/w:\n");
+                  DRAW_LOG_HEX(blockbuffer,512);
+                  DRAW_LOG("red/yellow:\n");
+                  DRAW_LOG_HEX(&blockbuffer[512],512);
+                  break;
+               }
+#endif
+            }
+            Mask >>= 1; // next bit
          }
-         epdSend(drawBuffer[c & 0x1ff]);
-         if(c == IMAGE_BYTES_2BPP / 2) {
-         // time to switch to red pixels
-            epdDeselect();
-            endWriteFramebuffer();
-            epdSelect();
-            beginWriteFramebuffer(EPD_COLOR_RED);
-            epdDeselect();
-            epdSelect();
-         }
+         Mask = 0x80;
+         j++;
       }
-      epdDeselect();
-      endWriteFramebuffer();
    }
-   else {
-      pr("DRAW: Image with type 0x%02X was requested, but we don't know what to do with that currently...\n", eih->dataType);
-   }
+   screenTxEnd();
    addOverlay();
-   drawWithSleep();
+//    drawWithSleep();
+   #undef eih
 }
 #else
 // color bar test
@@ -133,6 +162,3 @@ static uint16_t myStrlen(const char *str)
    
    return strP - str;
 }
-
-
-
