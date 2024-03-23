@@ -19,9 +19,9 @@
 #include "settings.h"
 #include "bitmaps.h"
 #include "sleep.h"
-// #include "spi.h"
 #include "syncedproto.h"  // for APmac / Channel
 #include "timer.h"
+#include "drawing.h"
 
 const uint16_t __code fwVersion = FW_VERSION;
 const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
@@ -31,50 +31,30 @@ bool __xdata noAPShown;
 
 void addOverlay() 
 {
-#if 0
+#if 1
+   // loadRawBitmap(ant,0,0,0);
+   loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, 1);
+//   loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, 1);
+#else
     if ((currentChannel == 0) && (tagSettings.enableNoRFSymbol)) {
-#if (SCREEN_WIDTH == 152) || (SCREEN_WIDTH == 176) || (SCREEN_WIDTH == 200)
-        loadRawBitmap(ant, SCREEN_WIDTH - 16, 0, EPD_COLOR_BLACK);
-        loadRawBitmap(cross, SCREEN_WIDTH - 8, 7, EPD_COLOR_RED);
-#elif (SCREEN_WIDTH == 128)
-        loadRawBitmap(ant, 0, 0, EPD_COLOR_BLACK);
-        loadRawBitmap(cross, 8, 0, EPD_COLOR_RED);
-#elif (SCREEN_WIDTH == 400)
         loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, EPD_COLOR_BLACK);
         loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, EPD_COLOR_RED);
-#endif
         noAPShown = true;
     } else {
         noAPShown = false;
     }
 
     if ((batteryVoltage < tagSettings.batLowVoltage) && (tagSettings.enableLowBatSymbol)) {
-#if (SCREEN_WIDTH == 152) || (SCREEN_WIDTH == 176) || (SCREEN_WIDTH == 200)
-        loadRawBitmap(battery, SCREEN_WIDTH - 16, SCREEN_HEIGHT - 10, EPD_COLOR_BLACK);
-#elif (SCREEN_WIDTH == 400)
         loadRawBitmap(battery, SCREEN_WIDTH - 24, SCREEN_HEIGHT - 16, EPD_COLOR_BLACK);
-#elif (SCREEN_WIDTH == 128)
-        loadRawBitmap(battery, 112, 0, EPD_COLOR_BLACK);
-#endif
         lowBatteryShown = true;
     } else {
         lowBatteryShown = false;
     }
 
 #ifdef ISDEBUGBUILD
-#if (SCREEN_WIDTH == 152) || (SCREEN_WIDTH == 176) || (SCREEN_WIDTH == 200)
-    epdPrintBegin(139, 151, EPD_DIRECTION_Y, EPD_SIZE_SINGLE, EPD_COLOR_RED);
-    epdpr("DEBUG");
-    epdPrintEnd();
-#elif (SCREEN_WIDTH == 400)
     epdPrintBegin(87, 0, EPD_DIRECTION_Y, EPD_SIZE_SINGLE, EPD_COLOR_RED);
     epdpr("DEBUG");
     epdPrintEnd();
-#elif (SCREEN_WIDTH == 128)
-    loadRawBitmap(debugbuild, 100, 2, EPD_COLOR_RED);
-#elif (SCREEN_WIDTH == 176)
-    loadRawBitmap(debugbuild, 144, 2, EPD_COLOR_RED);
-#endif
 #endif
 #endif
 }
@@ -756,21 +736,12 @@ void showNoMAC()
 
 bool displayCustomImage(uint8_t imagetype) 
 {
-#if 0
-    powerUp(INIT_EEPROM);
     uint8_t slot = findSlotDataTypeArg(imagetype << 3);
-    if (slot != 0xFF) {
-        // found a slot for a custom image type
-        uint8_t lut = getEepromImageDataArgument(slot);
-        lut &= 0x03;
-        powerUp(INIT_EPD);
-        drawImageFromEeprom(slot, lut);
-        powerDown(INIT_EPD | INIT_EEPROM);
+    if(slot != 0xFF) {
+    // found a slot for a custom image type
+        drawImageFromEeprom(slot,0);
         return true;
-    } else {
-        powerDown(INIT_EEPROM);
-    }
+    } 
     return false;
-#endif
 }
 

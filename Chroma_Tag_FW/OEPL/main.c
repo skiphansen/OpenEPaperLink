@@ -162,22 +162,16 @@ void TagAssociated()
       {
          // Check if we were already displaying an image
          if(curImgSlot != 0xFF) {
-            powerUp(INIT_EEPROM | INIT_EPD);
             wdt60s();
-            uint8_t lut = getEepromImageDataArgument(curImgSlot) & 0x03;
-            drawImageFromEeprom(curImgSlot, lut);
-            powerDown(INIT_EEPROM | INIT_EPD);
+            drawImageFromEeprom(curImgSlot,0);
          }
          else {
-            powerUp(INIT_EPD);
             showAPFound();
-            powerDown(INIT_EPD);
          }
       }
 
       powerUp(INIT_RADIO);
       avail = getAvailDataInfo();
-      pr("avail %x\n",avail);
       powerDown(INIT_RADIO);
 
       if(avail != NULL) {
@@ -281,14 +275,10 @@ void TagChanSearch()
       || (lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) 
       || (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) 
    {
-      powerUp(INIT_EPD);
       wdt60s();
       if(curImgSlot != 0xFF) {
          if(!displayCustomImage(CUSTOM_IMAGE_LOST_CONNECTION)) {
-            powerUp(INIT_EEPROM);
-            uint8_t lut = getEepromImageDataArgument(curImgSlot) & 0x03;
-            drawImageFromEeprom(curImgSlot, lut);
-            powerDown(INIT_EEPROM);
+            drawImageFromEeprom(curImgSlot,0);
          }
       }
       else if(scanAttempts >= (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1)) {
@@ -297,7 +287,6 @@ void TagChanSearch()
       else {
          showNoAP();
       }
-      powerDown(INIT_EPD);
    }
 
 // did we find a working channel?
@@ -333,9 +322,8 @@ void executeCommand(uint8_t cmd)
          break;
 
       case CMD_DO_DEEPSLEEP:
-         powerUp(INIT_EPD);
          afterFlashScreenSaver();
-         powerDown(INIT_EPD | INIT_UART);
+         powerDown(INIT_UART);
          while(1) {
             doSleep(-1);
          }
@@ -386,13 +374,11 @@ void main()
 // get the highest slot number, number of slots
    initializeProto();
 
-   powerUp(INIT_EPD|INIT_EEPROM);
    MAIN_LOG("drawing image\n");
    drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
    MAIN_LOG("image drawn\n");
 
    while(true);
-   powerDown(INIT_EEPROM);
    if(tagSettings.enableFastBoot) {
    // Fastboot
       MAIN_LOG("Doing fast boot\n");

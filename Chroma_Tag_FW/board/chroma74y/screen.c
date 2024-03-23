@@ -18,14 +18,10 @@
 #define CMD_POWER_ON_MEASURE 0x05
 #define CMD_BOOSTER_SOFT_START 0x06
 #define CMD_DEEP_SLEEP 0x07
-#ifndef BW_SCREEN
 #define CMD_DISPLAY_START_TRANSMISSION_DTM1 0x10
-#else
-#define CMD_DISPLAY_START_TRANSMISSION_DTM1 0x13
-#endif
 #define CMD_DATA_STOP 0x11
 #define CMD_DISPLAY_REFRESH 0x12
-#define CMD_DISPLAY_START_TRANSMISSION_DTM2 0x13
+#define CMD_IPC 0x13
 #define CMD_PLL_CONTROL 0x30
 #define CMD_TEMPERATURE_CALIB 0x40
 #define CMD_TEMPERATURE_SELECT 0x41
@@ -628,7 +624,7 @@ static void screenPrvSleepTillDone(void)
    uint8_t ien0, ien1, ien2;
 
    PICTL &= (uint8_t)~(1 << 1);  //port 1 interupts on rising edge
-   P1IEN |= 1 << 0;           //port 1 pin 0 interrupts
+   P1IEN |= P1_EPD_BUSY;         // port 1 pin 0 interrupts
    
    (void)P1;                  //read port;
    P1IFG &= (uint8_t)~(1 << 0);  //clear int flag in port
@@ -640,8 +636,8 @@ static void screenPrvSleepTillDone(void)
    ien1 = IEN1;
    IEN1 = 0;
    ien2 = IEN2;
-   IEN2 = (uint8_t)(1 << 4);              //p1 int only
-   IEN0 = (uint8_t)(1 << 7);              //ints in general are on
+   IEN2 = IEN2_P1IE;       // p1 int only
+   EA   = 1;               // ints in general are on
    
    SLEEP = (SLEEP & (uint8_t)~(3 << 0)) | (0 << 0);   //sleep in pm0
    

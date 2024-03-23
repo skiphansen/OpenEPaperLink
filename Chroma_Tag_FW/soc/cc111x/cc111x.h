@@ -82,7 +82,18 @@ __sfr __at (0x93) XPAGE;      //really called MPAGE
 __sfr __at (0x93) _XPAGE;     //really called MPAGE
 __sfr __at (0x95) ENDIAN;
 __sfr __at (0x98) S0CON;
+
+// IEN2 (0x9A) - Interrupt Enable 2 Register
 __sfr __at (0x9A) IEN2;
+#define IEN2_WDTIE                        0x20
+#define IEN2_P1IE                         0x10
+#define IEN2_UTX1IE                       0x08
+#define IEN2_I2STXIE                      0x08
+#define IEN2_UTX0IE                       0x04
+#define IEN2_P2IE                         0x02
+#define IEN2_USBIE                        0x02
+#define IEN2_RFIE                         0x01
+
 
 // S1CON (0x9B) - CPU Interrupt Flag 3
 __sfr __at (0x9B) S1CON;

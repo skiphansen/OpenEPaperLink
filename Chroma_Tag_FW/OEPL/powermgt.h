@@ -85,6 +85,7 @@ extern uint16_t getNextSleep();
 
 extern uint32_t getNextScanSleep(const bool increment);
 extern void initPowerSaving(const uint16_t initialValue);
+void clearScreen(void);
 
 extern uint8_t __xdata wakeUpReason;
 

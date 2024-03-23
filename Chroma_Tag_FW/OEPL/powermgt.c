@@ -150,11 +150,6 @@ void powerDown(const uint8_t parts)
       LOG("Powered down EEPROM\n");
    }
 #if 0
-   if(parts & INIT_EPD) {
-      epdConfigGPIO(true);
-      epdEnterSleep();
-      epdConfigGPIO(false);
-   }
    if(!gEepromActive && !epdGPIOActive) {
       configSPI(false);
    }

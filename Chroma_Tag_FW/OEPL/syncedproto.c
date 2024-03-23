@@ -28,6 +28,9 @@
 // #include "flash.h"
 #include "logging.h"
 
+// Kludge to save a few bytes of xcata and code
+#define eih ((struct EepromImageHeader *__xdata) blockbuffer)
+
 uint8_t __xdata blockbuffer[BLOCK_XFER_BUFFER_SIZE];
 static struct blockRequest __xdata curBlock;  // used by the block-requester, contains the next request that we'll send
 static uint8_t __xdata curDispDataVer[8];
@@ -483,7 +486,6 @@ static uint8_t findSlotVer(const uint8_t *ver)
 #else
    // return 0xFF;  // remove me! This forces the tag to re-download each and every upload without checking if it's already in the eeprom somewhere
    for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
-      struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
          if(xMemEqual(&eih->version, (void *)ver, 8)) {
@@ -500,7 +502,6 @@ uint8_t __xdata findSlotDataTypeArg(uint8_t arg) __reentrant
 {
    arg &= (0xF8);  // unmatch with the 'preload' bit and LUT bits
    for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
-      struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
          if((eih->argument & 0xF8) == arg) {
@@ -513,14 +514,12 @@ uint8_t __xdata findSlotDataTypeArg(uint8_t arg) __reentrant
 
 uint8_t getEepromImageDataArgument(const uint8_t slot) 
 {
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
    eepromRead(getAddressForSlot(slot), eih, sizeof(struct EepromImageHeader));
    return eih->argument;
 }
 
 uint8_t __xdata findNextSlideshowImage(uint8_t start) __reentrant 
 {
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
    uint8_t c = start;
    while(1) {
       c++;
@@ -569,7 +568,6 @@ static uint32_t getHighSlotId()
 {
    uint32_t temp = 0;
    for(uint8_t __xdata c = 0; c < IMAGE_SLOTS; c++) {
-      struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
          if(temp < eih->id) {
@@ -837,7 +835,6 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
             PROTO_LOG("No slots\n");
             return true;
          }
-         struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
          eepromRead(getAddressForSlot(nextImgSlot), eih, sizeof(struct EepromImageHeader));
          // check if the marker is indeed valid
          if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -862,9 +859,8 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
          }
       }
       powerDown(INIT_RADIO);
-      powerUp(INIT_EPD);
       showNoEEPROM();
-      powerDown(INIT_EEPROM | INIT_EPD);
+      powerDown(INIT_EEPROM);
       doSleep(-1);
       wdtDeviceReset();
 eraseSuccess:
@@ -902,8 +898,6 @@ eraseSuccess:
 // no more data, download complete
 
    powerUp(INIT_EEPROM);
-// borrow the blockbuffer temporarily
-   struct EepromImageHeader __xdata *eih = (struct EepromImageHeader __xdata *)blockbuffer;
    xMemCopy8(&eih->version, &xferDataInfo.dataVer);
    eih->validMarker = EEPROM_IMG_VALID;
    eih->id = ++curHighSlotId;
@@ -995,9 +989,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
 
             wdt60s();
             curImgSlot = findImgSlot;
-            powerUp(INIT_EPD | INIT_EEPROM);
             drawImageFromEeprom(findImgSlot, arg.lut);
-            powerDown(INIT_EPD | INIT_EEPROM);
          }
          else {
 // not found in cache, prepare to download
@@ -1012,9 +1004,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
                // not preload, draw now
                wdt60s();
                curImgSlot = xferImgSlot;
-               powerUp(INIT_EPD | INIT_EEPROM);
                drawImageFromEeprom(xferImgSlot, arg.lut);
-               powerDown(INIT_EPD | INIT_EEPROM);
             }
             else {
                return false;
