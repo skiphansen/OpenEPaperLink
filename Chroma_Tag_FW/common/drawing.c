@@ -32,6 +32,7 @@ __xdata int16_t gWinEndX;
 __xdata int16_t gWinY;
 __xdata int16_t gWinEndY;
 
+__xdata int16_t gPartY;
 __xdata int16_t gWinDrawX;
 __xdata int16_t gWinDrawY;
 
@@ -39,13 +40,12 @@ __idata uint16_t gWinBufNdx;
 __bit gWinColor;
 
 // NB: 8051 data / code space saving KLUDGE!
-// Use the locally in a routine but DO NOT call anything while you care
+// Use the locally in a routine but DO NOT call anything if you care
 // about the value !!
 __idata uint16_t TempU16;
 
 bool setWindowX(uint16_t start,uint16_t width);
 bool setWindowY(uint16_t start,uint16_t height);
-bool SetWindowPixels(uint8_t Pixels);
 void SetWinDrawNdx(void);
 
 #if 1
@@ -84,6 +84,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
       return;
    }
    screenTxStart(false);
+   gPartY = 0;
    gDrawY = 0;
    for(Part = 0; Part < TOTAL_PART; Part++) {
 #if 1
@@ -96,7 +97,10 @@ void drawImageAtAddress(uint32_t addr) __reentrant
       xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
 #endif
 
-      addOverlay();
+      for(i = 0; i < LINES_PER_PART; i++) {
+         addOverlay();
+         gDrawY++;
+      }
       j = BYTES_PER_PART;
       for(i = 0; i < BYTES_PER_PART; i++) {
          while(Mask != 0) {
@@ -123,7 +127,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
          Mask = 0x80;
          j++;
       }
-      gDrawY += LINES_PER_PART;
+      gPartY += LINES_PER_PART;
    }
 // Finished with SPI flash
    powerDown(INIT_EEPROM);
@@ -232,30 +236,26 @@ bool setWindowY(uint16_t start, uint16_t end)
 // bmp[2...] = pixel data 1BBP
 void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color) 
 {
-   uint16_t size;
+   uint8_t Width = bmp[0];
 
    LOGV("gDrawY %d\n",gDrawY);
-   LOGV("ld bmp x %d, y %d, color %d",x,y,color);
-   LOGV(" 0x%x\n",bmp);
+   LOGV("ld bmp x %d, y %d, color %d\n",x,y,color);
 
    if(setWindowY(y,bmp[1])) {
    // Nothing to do Y limit are outside of what we're drawing at the moment
       return;
    }
    gWinColor = color;
-   setWindowX(x,bmp[0]);
-   size = bmp[0] * bmp[1];
+   setWindowX(x,Width);
 
    TempU16 = gWinDrawY - gWinY;
-   TempU16 = TempU16 * bmp[0];
+   TempU16 = TempU16 * Width;
    TempU16 = TempU16 >> 3;
    bmp += (TempU16 + 2);
 
-   while(size--) {
-      if(SetWindowPixels(*bmp++)) {
-      // We're done
-         break;
-      }
+   while(Width) {
+      blockbuffer[gWinBufNdx++] |= *bmp++;
+      Width = Width - 8;
    }
 }
 
@@ -265,30 +265,12 @@ void SetWinDrawNdx()
         gWinDrawY,gWinY,gDrawY);
    gWinBufNdx = gWinDrawX >> 3;
    LOGV("1 %d\n",gWinBufNdx);
-   gWinBufNdx += (gWinDrawY - gDrawY) * BYTES_PER_LINE;
+   gWinBufNdx += (gWinDrawY - gPartY) * BYTES_PER_LINE;
    LOGV("2 %d\n",gWinBufNdx);
    if(gWinColor) {
       gWinBufNdx += BYTES_PER_PART;
       LOGV("3 %d\n",gWinBufNdx);
    }
-}
-
-bool SetWindowPixels(uint8_t Pixels)
-{
-   blockbuffer[gWinBufNdx++] |= Pixels;
-   gWinDrawX += 8;
-   if(gWinDrawX >= gWinEndX) {
-   // Next line
-      gWinDrawX = gWinX;
-      gWinDrawY++;
-      if(gWinDrawY >= gWinEndY || (gWinDrawY - gDrawY) >= LINES_PER_PART) {
-      // Stop, outside of window
-         LOGV("SetWindowPixels stop gWinDrawY %d gDrawY %d\n",gWinDrawY,gDrawY);
-         return true;
-      }
-      SetWinDrawNdx();
-   }
-   return false;
 }
 
 // Set window X position and width in pixels
@@ -314,7 +296,7 @@ bool setWindowX(uint16_t start,uint16_t width)
 // return true if the window is outside of range we're drawing at the moment
 bool setWindowY(uint16_t start,uint16_t height) 
 {
-   gWinEndY = gWinY + height;
+   gWinEndY = start + height;
    if(gDrawY >= start && gDrawY < gWinEndY) {
       gWinY = start;
       gWinDrawY = gDrawY;

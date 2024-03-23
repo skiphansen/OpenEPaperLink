@@ -32,9 +32,9 @@ bool __xdata noAPShown;
 void addOverlay() 
 {
 #if 1
-   // loadRawBitmap(ant,0,0,0);
-   loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, 1);
-//   loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, 1);
+   loadRawBitmap(ant,0,0,0);
+   loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, 0);
+   loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, 1);
 #else
     if ((currentChannel == 0) && (tagSettings.enableNoRFSymbol)) {
         loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, EPD_COLOR_BLACK);
