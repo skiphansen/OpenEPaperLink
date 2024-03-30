@@ -39,9 +39,23 @@ void addOverlay()
 #endif
 
 #if 1
-   if(epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_Y,EPD_SIZE_SINGLE,EPD_COLOR_BLACK)) {
-      epdpr("LW");
+// epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   {
+      uint8_t c = ' ';
+      uint8_t i;
+      uint8_t j = 166;
+      uint8_t Temp[33];
+      while(c < 0x80) {
+         epdPrintBegin(144,j,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+         for(i = 0; i < 32; i++) {
+            Temp[i] = c++;
+         }
+         Temp[i] = 0;
+         epdpr("%s",Temp);
+         j += 20;
+      }
    }
+
 #else
    if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {
       loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
