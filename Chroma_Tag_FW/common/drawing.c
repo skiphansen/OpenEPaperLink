@@ -148,7 +148,6 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    }
 // Finished with SPI flash
    powerDown(INIT_EEPROM);
-
    screenTxEnd();
 //    drawWithSleep();
    #undef eih
@@ -301,14 +300,26 @@ void writeCharEPD(uint8_t c)
    LOGV("gCharY %d gCharX %d OutMask 0x%x\n",gCharY,gCharX,OutMask);
    LOGV("gPartY %d gDrawX %d writeCharEPD c 0x%x\n",gDrawY,gDrawX,c);
    if(!gDirectionY) {
-      InMask = 0x8000 >> (gDrawY - gWinY);
+      if(gLargeFont) {
+         InMask = 0x8000 >> ((gDrawY - gWinY) / 2);
+      }
+      else {
+         InMask = 0x8000 >> (gDrawY - gWinY);
+      }
       TempU16 = (gCharY - gWinY) * 2;
 
       LOGV("  InMask 0x%x blockbuffer 0x%x\n",InMask,blockbuffer[gWinBufNdx]);
-      for(TempU8 = 0; TempU8 < FONT_WIDTH; TempU8++) {
+      for(TempU8 = 0; TempU8 < gFontWidth; TempU8++) {
          FontBits = (font[c][TempU16 + 1] << 8) | font[c][TempU16];
          LOGV("  FontBits 0x%x\n",FontBits);
-         TempU16 += 2;
+         if(gLargeFont) {
+            if(TempU8 & 1) {
+               TempU16 += 2;
+            }
+         }
+         else {
+            TempU16 += 2;
+         }
          if(FontBits & InMask) {
             blockbuffer[gWinBufNdx] |= OutMask;
          }

@@ -43,7 +43,7 @@ void addOverlay()
    {
       uint8_t c = ' ';
       uint8_t i;
-      uint8_t j = 166;
+      uint8_t j = 141;
       uint8_t Temp[33];
       while(c < 0x80) {
          epdPrintBegin(144,j,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
@@ -54,8 +54,15 @@ void addOverlay()
          epdpr("%s",Temp);
          j += 20;
       }
-   }
 
+      c = 'a';
+      epdPrintBegin(0,j,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+      for(i = 0; i < 20; i++) {
+         Temp[i] = c++;
+      }
+      Temp[i] = 0;
+      epdpr("%s",Temp);
+   }
 #else
    if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {
       loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
