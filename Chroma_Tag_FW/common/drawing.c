@@ -1,4 +1,7 @@
+#include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
+typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 #include "../oepl-definitions.h"
 #include "barcode.h"
 #include "asmUtil.h"
@@ -14,6 +17,10 @@
 #include "userinterface.h"
 #include "settings.h"
 #include "logging.h"
+#include "font.h"
+
+#pragma callee_saves prvPrintFormat
+void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __code *fmt, va_list vl) __reentrant __naked;
 
 #define VERBOSE_DEBUGDRAWING
 #ifdef VERBOSE_DEBUGDRAWING
@@ -24,7 +31,11 @@
    #define LOG_HEXV(x,y)
 #endif
 
+#define FONT_HEIGHT  16
+#define FONT_WIDTH   10
+
 // Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
+__xdata int16_t gDrawX;
 __xdata int16_t gDrawY;
 
 __xdata int16_t gWinX;
@@ -32,24 +43,26 @@ __xdata int16_t gWinEndX;
 __xdata int16_t gWinY;
 __xdata int16_t gWinEndY;
 
-__xdata int16_t gPartY;
+__xdata int16_t gPartY;       // y coord of first line in part
 __xdata int16_t gWinDrawX;
 __xdata int16_t gWinDrawY;
 
-__idata uint16_t gWinBufNdx;
+__xdata uint16_t gWinBufNdx;
 __bit gWinColor;
+__bit gLargeFont;
+__bit gDirectionY;
 
 // NB: 8051 data / code space saving KLUDGE!
 // Use the locally in a routine but DO NOT call anything if you care
 // about the value !!
-__idata uint16_t TempU16;
+__xdata uint16_t TempU16;
+__xdata uint16_t TempU8;
 
 bool setWindowX(uint16_t start,uint16_t width);
 bool setWindowY(uint16_t start,uint16_t height);
 void SetWinDrawNdx(void);
 
 #if 1
-
 // Screen is 640 x 384 with 2 bits per pixel we need 61,440 (60K) bytes
 // which of course we don't have.
 // Read data as 64 chunks of 960 bytes (480 bytes of b/w, 480 bytes of r/y),
@@ -87,7 +100,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    gPartY = 0;
    gDrawY = 0;
    for(Part = 0; Part < TOTAL_PART; Part++) {
-#if 1
+#if 0
    // Read 6 lines of b/w pixels
       eepromRead(Adr,blockbuffer,BYTES_PER_PART);
    // Read 6 lines of red/yellow pixels
@@ -246,6 +259,14 @@ void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color)
       return;
    }
    gWinColor = color;
+#ifdef DEBUGDRAWING
+   if((x & 0x7) != 0) {
+      LOG("loadRawBitmap invaild x %x\n",x);
+   }
+   if((Width & 0x7) != 0) {
+      LOG("loadRawBitmap invaild Width %x\n",Width);
+   }
+#endif
    setWindowX(x,Width);
 
    TempU16 = gWinDrawY - gWinY;
@@ -276,14 +297,6 @@ void SetWinDrawNdx()
 // Set window X position and width in pixels
 bool setWindowX(uint16_t start,uint16_t width) 
 {
-#ifdef DEBUGDRAWING
-   if((start & 0x7) != 0) {
-      LOG("Invalid start 0x%x\n",start);
-   }
-   if((width & 0x7) != 0) {
-      LOG("Invalid start 0x%x\n",width);
-   }
-#endif
    gWinX = start;
    gWinDrawX = start;
    gWinEndX = start + width;
@@ -306,5 +319,148 @@ bool setWindowY(uint16_t start,uint16_t height)
         gDrawY,start,gWinEndY);
    return true;
 }
+
+#if 1
+
+
+// https://raw.githubusercontent.com/basti79/LCD-fonts/master/10x16_vertikal_MSB_1.h
+
+// Writes a single character to the framebuffer
+// Routine is specific to a 10w x 16h font, uc8159 controller
+// 
+// Note: 
+//  The first bit on the left is the MSB of the second byte.  
+//  The last bit on the rigth is the LSB of the first byte.  
+// 
+// For example: "L"
+// static const uint8_t __code font[96][20]={ // https://raw.githubusercontent.com/basti79/LCD-fonts/master/10x16_vertikal_MSB_1.h
+//{0x00,0x00,0xF8,0x1F,0x08,0x00,0x08,0x00,0x08,0x00,0x08,0x00,0x08,0x00,0x08,0x00,0x00,0x00,0x00,0x00}, // 0x4C
+//                  0x00,0x00 <- left
+//   **********     0xF8,0x1F
+//            *     0x08,0x00
+//            *     0x08,0x00
+//            *     0x08,0x00
+//            *     0x08,0x00
+//            *     0x08,0x00
+//            *     0x08,0x00
+//                  0x00,0x00
+//                  0x00,0x00 <- right
+// ^              ^
+// |              |
+// |              +--- Bottom
+// +-- Top 
+// So 16 bits [byte1]:[Byte 0}
+// Offset for x = x *  2
+// 
+// {0xC0,0x03,0x30,0x0C,0x10,0x08,0x08,0x10,0x08,0x10,0x08,0x10,0x08,0x10,0x08,0x18,0x00,0x00,0x00,0x00},   // 0x43
+//       ****       0xC0,0x03
+//     **    **     0x30,0x0C
+//     *      *     0x10,0x08
+//    *        *    0x08,0x10
+//    *        *    0x08,0x10
+//    *        *    0x08,0x10
+//    *        *    0x08,0x10
+//    **       *    0x08,0x18
+//                  0x00,0x00
+//                  0x00,0x00
+// 
+
+// {0x00,0x18,0xC0,0x07,0x38,0x00,0xF0,0x00,0x00,0x07,0x80,0x03,0x70,0x00,0x38,0x00,0xC0,0x07,0x00,0x18},   // 0x57
+//    **            0x00,0x18
+//      *****       0xC0,0x07
+//           ***    0x38,0x00
+//         ****     0xF0,0x00
+//      ***         0x00,0x07
+//       ***        0x80,0x03
+//          ***     0x70,0x00
+//           ***    0x38,0x00
+//      *****       0xC0,0x07
+//    **            0x00,0x18
+
+
+void writeCharEPD(uint8_t c) 
+{
+   uint8_t InMask = 0x80;
+   uint8_t OutMask;
+   uint8_t FontBits;
+   uint8_t FontByteOffset = ((gDrawY - gWinY) * 2) + 1;
+   uint8_t bFirst = 1;
+
+   OutMask = (0x80 >> (gDrawX & 0x7));
+   c -= 0x20;
+   FontBits = font[c][FontByteOffset];
+
+   LOGV("gPartY %d gDrawX %d writeCharEPD c 0x%x FontByteOffset 0x%x\n",
+        gDrawY,gDrawX,c,FontByteOffset);
+   LOGV("blockbuffer 0x%x FontBits 0x%x\n",blockbuffer[gWinBufNdx],FontBits);
+   while(InMask != 0) {
+      LOGV("  OutMask 0x%x InMask 0x%x gWinBufNdx 0x%x\n",OutMask,InMask,gWinBufNdx);
+      if(FontBits & InMask) {
+         blockbuffer[gWinBufNdx] |= OutMask;
+      }
+      InMask = InMask >> 1;
+      if(InMask == 0 && bFirst) {
+      // Next byte
+         bFirst = 0;
+         InMask = 0x80;
+         FontBits = font[c][FontByteOffset - 1];
+         LOGV("  Next in byte FontBits 0x%x\n",FontBits);
+      }
+      OutMask = OutMask >> 1;
+      if(OutMask == 0) {
+         LOGV("  Next out byte blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
+         gWinBufNdx++;
+         OutMask = 0x80;
+      }
+   }
+   LOGV("blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
+}
+
+// return true if the window is inside of range we're drawing at the moment
+// for now only EPD_DIRECTION_X is supported
+bool epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color) 
+{
+   gLargeFont = fontsize;
+   gDirectionY = direction;
+   gWinColor = color;
+
+   if(gDirectionY) {
+      TempU16 = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
+   }
+   else {
+      TempU16 = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
+   }
+
+   if(setWindowY(y,TempU16)) {
+      return false;
+   }
+
+   if(gDirectionY) {
+      TempU16 = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
+   }
+   else {
+      TempU16 = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
+   }
+   setWindowX(x,TempU16);
+   return true;
+}
+
+#pragma callee_saves epdPutchar
+static void epdPutchar(uint32_t data) __reentrant 
+{
+   writeCharEPD(data >> 24);
+}
+
+void epdpr(const char __code *fmt, ...) __reentrant 
+{
+    va_list vl;
+    va_start(vl, fmt);
+    LOGV("epdpr '%s'\n",fmt);
+    prvPrintFormat(epdPutchar, 0, fmt, vl);
+    va_end(vl);
+    LOGV("epdpr returning\n");
+}
+
+#endif
 
 

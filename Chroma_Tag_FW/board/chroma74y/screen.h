@@ -32,6 +32,15 @@ extern int8_t __xdata mCurTemperature;
 #define PIXEL_WHITE              6
 #define PIXEL_RED_YELLOW         7
 
+#define EPD_COLOR_BLACK          0
+#define EPD_COLOR_RED            1
+
+#define EPD_DIRECTION_X          0
+#define EPD_DIRECTION_Y          1
+
+#define EPD_SIZE_SINGLE          0
+#define EPD_SIZE_DOUBLE          1
+
 #define SCREEN_TYPE              TagScreenEink_BWY_3bpp
 
 

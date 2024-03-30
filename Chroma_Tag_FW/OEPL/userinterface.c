@@ -1,15 +1,15 @@
 
-#include "userinterface.h"
-
 #include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
 
+#include "userinterface.h"
 #include "asmUtil.h"
 
 #include "board.h"
 #include "comms.h"
 #include "cpu.h"
-#include "font.h"
+// #include "font.h"
 #include "lut.h"
 #include "powermgt.h"
 #include "printf.h"
@@ -29,32 +29,43 @@ const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
 bool __xdata lowBatteryShown;
 bool __xdata noAPShown;
 
+
 void addOverlay() 
 {
+#if 0
+   loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
+   loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
+   loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
+#endif
+
 #if 1
-   loadRawBitmap(ant,0,0,0);
-   loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, 0);
-   loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, 1);
+   if(epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_Y,EPD_SIZE_SINGLE,EPD_COLOR_BLACK)) {
+      epdpr("L");
+   }
 #else
-    if ((currentChannel == 0) && (tagSettings.enableNoRFSymbol)) {
-        loadRawBitmap(ant, SCREEN_WIDTH - 24, 6, EPD_COLOR_BLACK);
-        loadRawBitmap(cross, SCREEN_WIDTH - 16, 13, EPD_COLOR_RED);
-        noAPShown = true;
-    } else {
-        noAPShown = false;
-    }
-
-    if ((batteryVoltage < tagSettings.batLowVoltage) && (tagSettings.enableLowBatSymbol)) {
-        loadRawBitmap(battery, SCREEN_WIDTH - 24, SCREEN_HEIGHT - 16, EPD_COLOR_BLACK);
-        lowBatteryShown = true;
-    } else {
-        lowBatteryShown = false;
-    }
-
+   if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {
+      loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
+      loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
+      noAPShown = true;
+   }
+   else {
+      noAPShown = false;
+   }
+   if(batteryVoltage < tagSettings.batLowVoltage 
+      && tagSettings.enableLowBatSymbol)
+   {
+      loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
+      lowBatteryShown = true;
+   }
+   else {
+      lowBatteryShown = false;
+   }
+#endif
 #ifdef ISDEBUGBUILD
-    epdPrintBegin(87, 0, EPD_DIRECTION_Y, EPD_SIZE_SINGLE, EPD_COLOR_RED);
-    epdpr("DEBUG");
-    epdPrintEnd();
+#if 0
+   epdPrintBegin(87, 0, EPD_DIRECTION_Y, EPD_SIZE_SINGLE, EPD_COLOR_RED);
+   epdpr("DEBUG");
+   epdPrintEnd();
 #endif
 #endif
 }
