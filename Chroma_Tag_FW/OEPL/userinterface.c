@@ -40,7 +40,7 @@ void addOverlay()
 
 #if 1
    if(epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_Y,EPD_SIZE_SINGLE,EPD_COLOR_BLACK)) {
-      epdpr("L");
+      epdpr("LW");
    }
 #else
    if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {

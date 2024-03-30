@@ -11,7 +11,7 @@ void drawImageAtAddress(uint32_t addr);
 #pragma callee_saves loadRawBitmap
 void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color);
 #pragma callee_saves epdPrintBegin
-bool epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color); 
+void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color); 
 
 //expected external funcs
 #pragma callee_saves fwVerString
