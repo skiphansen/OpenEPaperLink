@@ -31,9 +31,6 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
    #define LOG_HEXV(x,y)
 #endif
 
-#define FONT_HEIGHT  16
-#define FONT_WIDTH   10
-
 // Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
 __xdata int16_t gDrawX;
 __xdata int16_t gDrawY;
@@ -104,7 +101,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    gPartY = 0;
    gDrawY = 0;
    for(Part = 0; Part < TOTAL_PART; Part++) {
-#if 0
+#if 1
    // Read 6 lines of b/w pixels
       eepromRead(Adr,blockbuffer,BYTES_PER_PART);
    // Read 6 lines of red/yellow pixels

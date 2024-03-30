@@ -32,38 +32,12 @@ bool __xdata noAPShown;
 
 void addOverlay() 
 {
-#if 0
-   loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
-   loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
-   loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
+#if 1
+// force icons to be display for testing
+   batteryVoltage = 0;
+   currentChannel = 0;
 #endif
 
-#if 1
-// epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   {
-      uint8_t c = ' ';
-      uint8_t i;
-      uint8_t j = 141;
-      uint8_t Temp[33];
-      while(c < 0x80) {
-         epdPrintBegin(144,j,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-         for(i = 0; i < 32; i++) {
-            Temp[i] = c++;
-         }
-         Temp[i] = 0;
-         epdpr("%s",Temp);
-         j += 20;
-      }
-
-      c = 'a';
-      epdPrintBegin(0,j,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-      for(i = 0; i < 20; i++) {
-         Temp[i] = c++;
-      }
-      Temp[i] = 0;
-      epdpr("%s",Temp);
-   }
-#else
    if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {
       loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
       loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
@@ -81,13 +55,10 @@ void addOverlay()
    else {
       lowBatteryShown = false;
    }
-#endif
 #ifdef ISDEBUGBUILD
-#if 0
-   epdPrintBegin(87, 0, EPD_DIRECTION_Y, EPD_SIZE_SINGLE, EPD_COLOR_RED);
+   epdPrintBegin(0,SCREEN_HEIGHT - FONT_HEIGHT - 2,EPD_DIRECTION_X,
+                 EPD_SIZE_SINGLE,EPD_COLOR_RED);
    epdpr("DEBUG");
-   epdPrintEnd();
-#endif
 #endif
 }
 

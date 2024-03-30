@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #define DRAWING_MIN_BITMAP_SIZE     (128)    //minimum size we'll consider
+#define FONT_HEIGHT  16
+#define FONT_WIDTH   10
 
 #pragma callee_saves drawImageAtAddress
 void drawImageAtAddress(uint32_t addr);
