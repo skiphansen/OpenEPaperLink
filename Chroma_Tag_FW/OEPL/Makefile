@@ -1,4 +1,23 @@
-BUILD		?= chroma74y
+BUILD ?= chroma74y
+LUT ?= atc1441
+FLAGS += -DBUILD=$(BUILD)
+
+ifeq ($(BUILD),chroma74y)
+BOARD=chroma74
+else ifeq ($(BUILD),chroma74r)
+BOARD=chroma74
+FLAGS += -DPROXY_BUILD
+else
+BOARD=$(BUILD)
+endif
+
+ifeq ($(BOARD),chroma74)
+ifeq ($(LUT),atc1441)
+FLAGS += -DATC1441_LUT
+else ifeq ($(LUT),dmitry)
+FLAGS += -DDMITRY_LUT
+endif
+endif
 
 FW_VER := $(shell grep "\#define FW_VERSION" ../common/settings.h | grep -v "suffix" | awk '{print $$3}' | cut -c 3-)
 
@@ -17,15 +36,12 @@ else
 SOURCES += screen.c
 endif
 
+
 EEPROMDRV ?= eeprom.c
 SOURCES += $(EEPROMDRV)
 FLAGS += -DPROXY_BUILD
 FLAGS += -I. -MD
 FLAGS += -DLEAN_VERSION
-# Generic EEPROM routines that use SFDP for configuration are GREAT
-# **IF** you can spare the code space, but we can't !!!
-# Disable SFDP to save 1538 bytes.
-FLAGS += -DSFDP_DISABLED
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
 IMAGE_NAME?=$(BUILD)_${FW_VER}

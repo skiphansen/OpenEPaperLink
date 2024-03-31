@@ -1,34 +1,31 @@
-#ifndef _CHROMA74_COMMON_H_
-#define _CHROMA74_COMMON_H_
+#ifndef _BOARD_H_
+#define _BOARD_H_
 
 #include "u1.h"
 
-//colors for ui messages
-#define UI_MSG_MAGNIFY1       3
-#define UI_MSG_MAGNIFY2       2
-#define UI_MSG_MAGNIFY3       1
-#define UI_MSG_BACK_COLOR     6
-#define UI_MSG_FORE_COLOR_1      0
-#define UI_MSG_FORE_COLOR_2      2
-#define UI_MSG_FORE_COLOR_3      3
-#define UI_MSG_MAIN_TEXT_V_CENTERED
-#define UI_BARCODE_HORIZ
+#define CHROMA74
+#define HW_TYPE                     0x80
 
 //eeprom spi
 #define EEPROM_SIZE              0x00100000L
 #define EEPROM_4K_ERASE_OPCODE   0x20
 #define EEPROM_32K_ERASE_OPCODE  0
 #define EEPROM_64K_ERASE_OPCODE  0xD8
-#define eepromByte            u1byte
+#define eepromByte               u1byte
 #define eepromPrvSelect()     do { __asm__("nop"); P2_0 = 0; __asm__("nop"); } while(0)
 #define eepromPrvDeselect()      do { __asm__("nop"); P2_0 = 1; __asm__("nop"); } while(0)
 
 //debug uart (enable only when needed, on some boards it inhibits eeprom access)
-#define dbgUartOn()           u1setUartMode()
-#define dbgUartOff()       u1setEepromMode()
-#define dbgUartByte           u1byte
+#define dbgUartOn()                 u1setUartMode()
+#define dbgUartOff()                u1setEepromMode()
+#define dbgUartByte                 u1byte
 
-//eeprom map
+// Generic EEPROM routines that use SFDP for configuration are GREAT **IF** 
+// you can spare the code space, but we can't !!!
+// Disable SFDP to save 1538 bytes.
+#define SFDP_DISABLED
+
+// eeprom map
 #define EEPROM_SETTINGS_AREA_START  (0x08000UL)
 #define EEPROM_SETTINGS_AREA_LEN    (0x04000UL)
 //some free space here
@@ -41,8 +38,6 @@
 
 #define IMAGE_SLOTS                 ((EEPROM_SIZE - EEPROM_IMG_START)/EEPROM_IMG_EACH)
 
-//hw types
-#define HW_TYPE_NORMAL              HW_TYPE_74_INCH_DISPDATA_Y
-#define HW_TYPE_CYCLING             HW_TYPE_74_INCH_DISPDATA_Y_FRAME_MODE
+#include "../boardCommon.h"
 
-#endif   // _CHROMA74_COMMON_H_
+#endif

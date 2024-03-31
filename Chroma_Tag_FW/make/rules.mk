@@ -51,10 +51,13 @@ debug:
 	@echo "FIRMWARE_ROOT=$(FIRMWARE_ROOT)"
 	@echo "SOC_DIR=$(SOC_DIR)"
 	@echo "CPU_DIR=$(CPU_DIR)"
+	@echo "BOARD=$(BOARD)"
 	@echo "BUILD=$(BUILD)"
 	@echo "BUILD_DIR=$(BUILD_DIR)"
 	@echo "SOURCES=$(SOURCES)"
 	@echo "TARGETS=$(TARGETS)"
 	@echo "FW_VER=$(FW_VER)"
+	@echo "LUT=$(LUT)"
+	@echo "FLAGS=$(FLAGS)"
 
 
