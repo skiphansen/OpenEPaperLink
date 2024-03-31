@@ -55,7 +55,7 @@ void screenTxStart(__bit forPartial);
 
 #pragma callee_saves screenByteTx
 void screenByteTx(uint8_t byte);
-void screenTxEnd(void);
+void drawWithSleep(void);
 
 void P1INT_ISR(void) __interrupt (15);
 

@@ -337,8 +337,6 @@ void executeCommand(uint8_t cmd)
    }
 }
 
-void YetAnotherSdccBug();
-
 void main() 
 {
    powerUp(INIT_BASE);
@@ -375,7 +373,16 @@ void main()
    initializeProto();
 
    MAIN_LOG("drawing image\n");
+#if 0
    drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
+   showSplashScreen();
+   showAPFound();
+   showNoAP();
+   showLongTermSleep();
+#else
+   afterFlashScreenSaver();
+#endif
+
    MAIN_LOG("image drawn\n");
 
    while(true);

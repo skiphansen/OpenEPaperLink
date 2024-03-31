@@ -891,3 +891,8 @@ void screenTxEnd(void)
    screenShutdown();
 }
 
+void drawWithSleep() 
+{
+   screenTxEnd();
+}
+

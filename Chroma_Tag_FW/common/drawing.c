@@ -145,10 +145,60 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    }
 // Finished with SPI flash
    powerDown(INIT_EEPROM);
-   screenTxEnd();
-//    drawWithSleep();
+   drawWithSleep();
    #undef eih
 }
+
+void DrawScreen(DrawingFunction DrawIt)
+{
+   uint8_t Part;
+   uint16_t i;
+   uint16_t j;
+   uint8_t Mask = 0x80;
+   uint8_t Value = 0;
+   uint8_t Pixel;
+
+   screenTxStart(false);
+   gPartY = 0;
+   gDrawY = 0;
+   for(Part = 0; Part < TOTAL_PART; Part++) {
+      xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
+      for(i = 0; i < LINES_PER_PART; i++) {
+         DrawIt();
+         gDrawY++;
+      }
+      j = BYTES_PER_PART;
+      for(i = 0; i < BYTES_PER_PART; i++) {
+         while(Mask != 0) {
+         // B/W bit
+            if(blockbuffer[i] & Mask) {
+               Pixel = PIXEL_BLACK;
+            }
+            else {
+               Pixel = PIXEL_WHITE;
+            }
+
+         // red/yellow W bit
+            if(blockbuffer[j] & Mask) {
+               Pixel = PIXEL_RED_YELLOW;
+            }
+            Value <<= 4;
+            Value |= Pixel;
+            if(Mask & 0b10101010) {
+            // Value ready, send it
+               screenByteTx(Value);
+            }
+            Mask >>= 1; // next bit
+         }
+         Mask = 0x80;
+         j++;
+      }
+      gPartY += LINES_PER_PART;
+   }
+// Finished with SPI flash
+   drawWithSleep();
+}
+
 
 
 #pragma callee_saves myStrlen
@@ -162,16 +212,6 @@ static uint16_t myStrlen(const char *str)
 }
 
 #if 0
-void clearScreen()
-{
-   uint16_t i = IMAGE_BYTES_2BPP;
-   screenTxStart(false);
-   while(i-- != 0) {
-      screenByteTx((PIXEL_WHITE << 4) | PIXEL_WHITE);
-   }
-   screenTxEnd();
-}
-
 void setPosXY(uint16_t x, uint16_t y) {
     shortCommand1(CMD_XSTART_POS, (uint8_t)(x / 8));
     commandBegin(CMD_YSTART_POS);

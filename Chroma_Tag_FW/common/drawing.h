@@ -7,6 +7,9 @@
 #define FONT_HEIGHT  16
 #define FONT_WIDTH   10
 
+typedef void (*DrawingFunction)(void) __reentrant;
+void DrawScreen(DrawingFunction);
+
 #pragma callee_saves drawImageAtAddress
 void drawImageAtAddress(uint32_t addr);
 
