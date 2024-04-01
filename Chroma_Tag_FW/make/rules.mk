@@ -41,7 +41,7 @@ veryclean:
 	rm -rf $(BUILDS_DIR)
 	rm -rf $(PREBUILT_DIR)
 
-flash:	$(BUILD_DIR)/$(IMAGE_NAME).bin $(OBJS)
+flash:	$(BUILD_DIR)/$(IMAGE_NAME).bin all
 	cc-tool -e -w $<
 
 reset:	
