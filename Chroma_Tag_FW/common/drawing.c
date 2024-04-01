@@ -97,7 +97,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    if(eih->dataType == DATATYPE_IMG_RAW_1BPP) {
       g2BitsPerPixel = false;
    }
-   else if(eih->dataType != DATATYPE_IMG_RAW_2BPP) {
+   else if(eih->dataType == DATATYPE_IMG_RAW_2BPP) {
       g2BitsPerPixel = true;
    }
    else {
