@@ -14,8 +14,8 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "adc.h"
 #include "cpu.h"
 #include "powermgt.h"
-#include "userinterface.h"
 #include "settings.h"
+#include "userinterface.h"
 #include "logging.h"
 #include "font.h"
 
@@ -53,6 +53,7 @@ __xdata uint16_t gWinBufNdx;
 __bit gWinColor;
 __bit gLargeFont;
 __bit gDirectionY;
+__bit g2BitsPerPixel;
 
 // NB: 8051 data / code space saving KLUDGE!
 // Use the locally in a routine but DO NOT call anything if you care
@@ -93,10 +94,19 @@ void drawImageAtAddress(uint32_t addr) __reentrant
    eepromRead(Adr,blockbuffer,sizeof(struct EepromImageHeader));
    Adr += sizeof(struct EepromImageHeader);
 
-   if(eih->dataType != DATATYPE_IMG_RAW_2BPP) {
+   if(eih->dataType == DATATYPE_IMG_RAW_1BPP) {
+      g2BitsPerPixel = false;
+   }
+   else if(eih->dataType != DATATYPE_IMG_RAW_2BPP) {
+      g2BitsPerPixel = true;
+   }
+   else {
       LOG("dataType 0x%x not supported\n",eih->dataType);
+      DumpHex(blockbuffer,sizeof(struct EepromImageHeader));
+      powerDown(INIT_EEPROM);
       return;
    }
+
    screenTxStart(false);
    gPartY = 0;
    gDrawY = 0;
@@ -104,8 +114,14 @@ void drawImageAtAddress(uint32_t addr) __reentrant
 #if 1
    // Read 6 lines of b/w pixels
       eepromRead(Adr,blockbuffer,BYTES_PER_PART);
-   // Read 6 lines of red/yellow pixels
-      eepromRead(Adr+BYTES_PER_PLANE,&blockbuffer[BYTES_PER_PART],BYTES_PER_PART);
+      if(g2BitsPerPixel) {
+      // Read 6 lines of red/yellow pixels
+         eepromRead(Adr+BYTES_PER_PLANE,&blockbuffer[BYTES_PER_PART],
+                    BYTES_PER_PART);
+      }
+      else {
+         xMemSet(&blockbuffer[BYTES_PER_PART],0,BYTES_PER_PART);
+      }
       Adr += BYTES_PER_PART;
 #else
       xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
