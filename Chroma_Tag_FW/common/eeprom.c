@@ -1,19 +1,32 @@
+#include <stdlib.h>
+
 #include "asmUtil.h"
 #include "screen.h"
 #include "eeprom.h"
 #include "printf.h"
 #include "board.h"
 #include "cpu.h"
-#include <stdlib.h>
 #include "settings.h"
+#include "powermgt.h"
 
-#ifdef DEBUGEEPROM
-   #define LOG(format, ... ) pr(format,## __VA_ARGS__)
+// NB: be VERY careful about doing any logging in this file,
+// the UART and SPI flash port are the SAME so it's very
+// easy to fuck up the flash routines you are trying to
+// debug by adding logging!  
+// 
+// Specifically don't log while the CS is active !
+#undef EEPROM_LOG
+#if 1
+   #define EEPROM_LOG(format, ... ) pr(format,## __VA_ARGS__)
 #else
-   #define LOG(format, ... )
+   #define EEPROM_LOG(format, ... )
 #endif
 
-
+#ifdef DEBUGEEPROM
+void LogRDSR(void);
+#else
+#define LogRDSR()
+#endif
 
 #ifndef SFDP_DISABLED
 static uint32_t __xdata mEepromSize;
@@ -44,7 +57,6 @@ void eepromReadStart(uint32_t addr) __reentrant
 void eepromRead(uint32_t addr, void __xdata *dstP, uint16_t len) __reentrant 
 {
    uint8_t __xdata *dst = (uint8_t __xdata *)dstP;
-
    eepromPrvSelect();
    eepromByte(0x03);
    eepromByte(addr >> 16);
@@ -64,58 +76,129 @@ static void eepromPrvSimpleCmd(uint8_t cmd)
    eepromPrvDeselect();
 }
 
-static bool eepromPrvBusyWait(void) 
+// Wait for any write operation to complete
+static void eepromPrvBusyWait(void) 
 {
-   uint8_t val;
-
    eepromPrvSelect();
    eepromByte(0x05);
-   while((val = eepromByte(0x00)) & 1) {
-      ;
-   }
+   while(eepromByte(0x00) & 1);
    eepromPrvDeselect();
-
-   return true;
 }
 
-static bool eepromWriteLL(uint32_t addr, const void __xdata *srcP, uint16_t len) {
+static void eepromWriteLL(uint32_t addr, const void __xdata *srcP, uint16_t len) 
+{
    const uint8_t __xdata *src = (const uint8_t __xdata *)srcP;
 
+   eepromPrvBusyWait();
    eepromPrvSimpleCmd(0x06);
-
    eepromPrvSelect();
    eepromByte(0x02);
    eepromByte(addr >> 16);
    eepromByte(addr >> 8);
    eepromByte(addr & 0xff);
 
-   while(len--)
+   while(len--) {
       eepromByte(*src++);
+   }
    eepromPrvDeselect();
-
-   return eepromPrvBusyWait();
 }
 
+#ifndef DEBUGEEPROM
 void eepromDeepPowerDown(void) 
 {
+   eepromPrvBusyWait();
    eepromPrvSimpleCmd(0xb9);
+   gEEPROM_PoweredUp = false;
 }
+#else
+// Debug version
+void eepromDeepPowerDown(void) 
+{
+   uint8_t Status;
+
+   eepromPrvSelect();
+   eepromByte(0x05);
+   Status = eepromByte(0x00);
+   eepromPrvDeselect();
+   EEPROM_LOG("RDSR 0x%x\n",Status);
+   if(Status & 1) {
+      EEPROM_LOG("waiting...");
+      eepromPrvBusyWait();
+   }
+   eepromPrvSimpleCmd(0xb9);
+   if(Status & 1) {
+      EEPROM_LOG("\n");
+   }
+   gEEPROM_PoweredUp = false;
+   LogRDSR();
+}
+#endif
+
+#ifdef DEBUGEEPROM
+void LogRDSR()
+{
+   uint8_t Status;
+   uint8_t P0Dir = P0DIR;
+   uint8_t P0Sel = P0SEL;
+   uint8_t P0Data = P0;
+   uint8_t P1Dir = P1DIR;
+   uint8_t P1Data = P1;
+   uint8_t P2Sel = P2SEL;
+   uint8_t PERCfg = PERCFG;
+   uint8_t P1Sel = P1SEL;
+   uint8_t U1Baud = U1BAUD;
+   uint8_t U1Gcr = U1GCR;
+   uint8_t U1Csr = U1CSR;
+   uint8_t UartSelected = gUartSelected;
+
+   eepromPrvSelect();
+   eepromByte(0x05);
+   Status = eepromByte(0x00);
+   eepromPrvDeselect();
+   EEPROM_LOG("RDSR 0x%x\n",Status);
+   EEPROM_LOG("RDSR 0x%x\n",Status);
+   EEPROM_LOG("P0Dir 0x%x\n",P0Dir);
+   EEPROM_LOG("P0Sel 0x%x\n",P0Sel);
+   EEPROM_LOG("P0Data 0x%x\n",P0Data);
+   EEPROM_LOG("P1Dir 0x%x\n",P1Dir);
+   EEPROM_LOG("P1Data 0x%x\n",P1Data);
+   EEPROM_LOG("P2Sel 0x%x\n",P2Sel);
+   EEPROM_LOG("PERCfg 0x%x\n",PERCfg);
+   EEPROM_LOG("P1Sel 0x%x\n",P1Sel);
+   EEPROM_LOG("U1Baud 0x%x\n",U1Baud);
+   EEPROM_LOG("U1Gcr 0x%x\n",U1Gcr);
+   EEPROM_LOG("U1Csr 0x%x\n",U1Csr);
+   EEPROM_LOG("UartSelected 0x%x\n",UartSelected);
+}
+#endif
 
 void eepromWakeFromPowerdown(void) 
 {
    eepromPrvSimpleCmd(0xab);
+// In the following a value of 255 for B delays for about 49 microseconds
+// tRES1 is 8.8 us for the MX25V8006E so
+// lets use 52 for about 10 microseconds
+   __asm__(
+      "  mov   B, #52         \n"
+      "00004$:          \n"
+      "  djnz  B, 00004$      \n"
+   );
+   gEEPROM_PoweredUp = true;
+   LogRDSR();
 }
 
 #pragma callee_saves eepromPrvSfdpRead
-static void eepromPrvSfdpRead(uint16_t ofst, uint8_t __xdata *dst, uint8_t len) {
+static void eepromPrvSfdpRead(uint16_t ofst, uint8_t __xdata *dst, uint8_t len) 
+{
    eepromPrvSelect();
    eepromByte(0x5a);  // cmd
    eepromByte(0);     // addr
    eepromByte(ofst >> 8);
    eepromByte(ofst);
    eepromByte(0x00);  // dummy
-   while(len--)
+   while(len--) {
       *dst++ = eepromByte(0);
+   }
    eepromPrvDeselect();
 }
 
@@ -132,12 +215,12 @@ __bit eepromInit(void)
    do {
       if(buf[0] != 0x53 || buf[1] != 0x46 || buf[2] != 0x44 || buf[3] != 0x50 
          || buf[7] != 0xff) {
-         LOG("SFDP: header not found\n");
+         EEPROM_LOG("SFDP: header not found\n");
          break;
       }
 
       if(buf[5] != 0x01) {
-         LOG("SFDP: version wrong: %u.%d\n", buf[5], buf[4]);
+         EEPROM_LOG("SFDP: version wrong: %u.%d\n", buf[5], buf[4]);
          break;
       }
 
@@ -153,26 +236,26 @@ __bit eepromInit(void)
 
             eepromPrvSfdpRead(*(uint16_t __xdata *)(buf + 4),tempBufferE,9 * 4);
             if((tempBufferE[0] & 3) != 1) {
-               LOG("SFDP: no 4K ERZ\n");
+               EEPROM_LOG("SFDP: no 4K ERZ\n");
                break;
             }
             if(!(tempBufferE[0] & 0x04)) {
-               LOG("SFDP: no large write buf\n");
+               EEPROM_LOG("SFDP: no large write buf\n");
                break;
             }
             if((tempBufferE[2] & 0x06)) {
-               LOG("SFDP: addr.len != 3\n");
+               EEPROM_LOG("SFDP: addr.len != 3\n");
                break;
             }
 
             if(!tempBufferE[1] || tempBufferE[1] == 0xff) {
-               LOG("SFDP: 4K ERZ opcode invalid\n");
+               EEPROM_LOG("SFDP: 4K ERZ opcode invalid\n");
                break;
             }
             mOpcodeErz4K = tempBufferE[1];
 
             if(tempBufferE[7] & 0x80) {
-               LOG("SFDP: device too big\n");
+               EEPROM_LOG("SFDP: device too big\n");
                break;
             }
             uint8_t __xdata t;
@@ -184,7 +267,7 @@ __bit eepromInit(void)
             else if(t = tempBufferE[5])
                mEepromSize = 0x00000020UL;
             else {
-               LOG("SFDP: device so small?!\n");
+               EEPROM_LOG("SFDP: device so small?!\n");
                break;
             }
 
@@ -203,7 +286,7 @@ __bit eepromInit(void)
                switch(tempBufferE[j]) {
                   case 0x0c:
                      if(mOpcodeErz4K != instr) {
-                        LOG("4K ERZ opcode disagreement\n");
+                        EEPROM_LOG("4K ERZ opcode disagreement\n");
                         return false;
                      }
                      break;
@@ -218,48 +301,45 @@ __bit eepromInit(void)
                }
             }
 
-            LOG("EEPROM accepted\n");
-            LOG(" ERZ opcodes: \n");
+            EEPROM_LOG("EEPROM accepted\n");
+            EEPROM_LOG(" ERZ opcodes: \n");
             if(mOpcodeErz4K) {
-               LOG(" 4K:  %02xh\n", mOpcodeErz4K);
+               EEPROM_LOG(" 4K:  %02xh\n", mOpcodeErz4K);
             }
             if(mOpcodeErz32K) {
-               LOG(" 32K: %02xh\n", mOpcodeErz32K);
+               EEPROM_LOG(" 32K: %02xh\n", mOpcodeErz32K);
             }
             if(mOpcodeErz64K) {
-               LOG(" 64K: %02xh\n", mOpcodeErz64K);
+               EEPROM_LOG(" 64K: %02xh\n", mOpcodeErz64K);
             }
-            LOG(" Size: 0x%*08lx\n", (uint16_t)&mEepromSize);
+            EEPROM_LOG(" Size: 0x%*08lx\n", (uint16_t)&mEepromSize);
             Ret = true;
          }
       }
    } while(false);
    free(tempBufferE);
    if(!Ret) {
-      LOG("SFDP: no JEDEC table of expected version found\n");
+      EEPROM_LOG("SFDP: no JEDEC table of expected version found\n");
    }
    return Ret;
 }
 #endif
 
-bool eepromWrite(uint32_t addr, const void __xdata *srcP, uint16_t len) __reentrant 
+void eepromWrite(uint32_t addr, const void __xdata *srcP, uint16_t len) __reentrant 
 {
    const uint8_t __xdata *src = (const uint8_t __xdata *)srcP;
 
    while(len) {
       uint16_t lenNow = EEPROM_WRITE_PAGE_SZ - (addr & (EEPROM_WRITE_PAGE_SZ - 1));
 
-      if(lenNow > len)
+      if(lenNow > len) {
          lenNow = len;
-
-      if(!eepromWriteLL(addr, src, lenNow))
-         return false;
-
+      }
+      eepromWriteLL(addr, src, lenNow);
       addr += lenNow;
       src += lenNow;
       len -= lenNow;
    }
-   return true;
 }
 
 bool eepromErase(uint32_t addr, uint16_t nSec) __reentrant 
@@ -294,14 +374,9 @@ bool eepromErase(uint32_t addr, uint16_t nSec) __reentrant
       eepromByte(addr >> 8);
       eepromByte(addr);
       eepromPrvDeselect();
-
-      if(!eepromPrvBusyWait()) {
-         return false;
-      }
-
+      eepromPrvBusyWait();
       addr += mathPrvMul16x8(EEPROM_ERZ_SECTOR_SZ, now);
    }
-
    return true;
 }
 

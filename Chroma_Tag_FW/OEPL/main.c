@@ -45,6 +45,12 @@ const uint8_t __code channelList[] = {
 
 uint8_t *rebootP;
 
+const uint16_t __code fwVersion = FW_VERSION;
+const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
+
+__bit lowBatteryShown;
+__bit noAPShown;
+
 #ifdef DEBUGGUI
 void displayLoop() 
 {
@@ -379,13 +385,22 @@ void main()
    showAPFound();
    showNoAP();
    showLongTermSleep();
-#else
    afterFlashScreenSaver();
 #endif
-
+   powerDown(INIT_EEPROM);
+   showSplashScreen();
    MAIN_LOG("image drawn\n");
-
+   powerUp(INIT_EEPROM);
+   doSleep(20000L);
+   powerUp(INIT_EEPROM);
+   MAIN_LOG("drawing slot 1\n");
+   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
+   MAIN_LOG("image drawn\n");
+   powerUp(INIT_EEPROM);
+   doSleep(20000L);
+   MAIN_LOG("done!\n");
    while(true);
+
    if(tagSettings.enableFastBoot) {
    // Fastboot
       MAIN_LOG("Doing fast boot\n");
@@ -413,7 +428,7 @@ void main()
 
    if(currentChannel) {
       MAIN_LOG("MAIN: Ap Found!\n");
-      //showNoAP();
+      showNoAP();
 
       showAPFound();
 #if 0
@@ -430,10 +445,9 @@ void main()
    }
    else {
       MAIN_LOG("MAIN: No AP found...\n");
-      //showAPFound();
+      showNoAP();
 #if 0
 // Why ??? 
-      showNoAP();
       // write the settings to the eeprom
       powerUp(INIT_EEPROM);
       writeSettings();
@@ -469,16 +483,6 @@ const char __xdata* fwVerString(void)
    }
 
    return fwVer;
-}
-
-const char __xdata* macString(void)
-{
-   static char __xdata macStr[28];
-
-   if(!macStr[0])
-      spr(macStr, "%M", (uintptr_near_t)mSelfMac);
-
-   return macStr;
 }
 
 uint16_t __xdata MallocCaller;

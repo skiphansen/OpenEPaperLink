@@ -22,7 +22,7 @@ void eepromOtpModeExit(void);
 void eepromRead(uint32_t addr, void __xdata *dst, uint16_t len) __reentrant;
 
 #pragma callee_saves eepromWrite
-bool eepromWrite(uint32_t addr, const void __xdata *src, uint16_t len) __reentrant;
+void eepromWrite(uint32_t addr, const void __xdata *src, uint16_t len) __reentrant;
 
 #pragma callee_saves eepromErase
 bool eepromErase(uint32_t addr, uint16_t numSectors) __reentrant;

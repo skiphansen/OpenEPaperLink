@@ -5,6 +5,7 @@
 
 void powerPortsDownForSleep(void)
 {
+#if 0
    P0 = 0b01000000;
    P1 = 0b01000000;
    P2 = 0b00000001;
@@ -14,5 +15,6 @@ void powerPortsDownForSleep(void)
    P0SEL = 0;
    P1SEL = 0;
    P2SEL = 0;
+#endif
 }
 

@@ -7,7 +7,7 @@
 //i hate globals, but for 8051 this makes life a lot easier, sorry :(
 extern uint8_t __xdata mScreenVcom;
 extern int8_t __xdata mCurTemperature;
-
+extern __bit gScreenPowered;
 
 #define SCREEN_EXPECTS_VCOM
 

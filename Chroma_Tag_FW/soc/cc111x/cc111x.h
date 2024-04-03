@@ -458,13 +458,13 @@ struct DmaDescr {
 #define UCSR_MODE       0x80  // USART mode select 0:SPI 1:UART
 
 // P2SEL bits
-#define P2SEL_PRI3P1    0x40
-#define P2SEL_PRI2P1    0x20
-#define P2SEL_PRI1P1    0x10
-#define P2SEL_PRI0P1    0x08
-#define P2SEL_SELP2_4   0x04
-#define P2SEL_SELP2_3   0x02
-#define P2SEL_SELP2_0   0x01
+#define P2SEL_PRI3P1    0x40  // USART1 has priority over USART0 when assigned same pins
+#define P2SEL_PRI2P1    0x20  // TIMER3 has priority over USART1 when assigned same pins
+#define P2SEL_PRI1P1    0x10  // TIMER4 has priority over TIMER1 when assigned same pins
+#define P2SEL_PRI0P1    0x08  // TIMER1 has priority over USART0 when assigned same pins
+#define P2SEL_SELP2_4   0x04  // P2.4 Peripheral function
+#define P2SEL_SELP2_3   0x02  // P2.3 Peripheral function
+#define P2SEL_SELP2_0   0x01  // P2.0 Peripheral function 
 
 
 #endif

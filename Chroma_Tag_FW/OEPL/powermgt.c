@@ -44,8 +44,10 @@ uint16_t __xdata longDataReqCounter;
 uint16_t __xdata voltageCheckCounter;
 
 __bit gU1Init;
-__bit gUartActive;
-__bit gEepromActive;
+// True if SPI port configured for UART, False when configured for EEPROM
+__bit gUartSelected;
+// True if EEPROM has been put into the deep power down mode
+__bit gEEPROM_PoweredUp;
 extern int8_t adcSampleTemperature(void);  // in degrees C
 
 
@@ -106,10 +108,15 @@ void powerUp(const uint8_t parts)
 
 // The debug UART and the EEPROM both use USART1 on Chroma devices
 // so we can't have both.  The EEPROM has priority
-   if((parts & INIT_EEPROM) && !gEepromActive) {
-      gEepromActive = true;
+   if(parts & INIT_EEPROM) {
       u1setEepromMode();
-      eepromWakeFromPowerdown();
+      if(!gEEPROM_PoweredUp) {
+         EEPROM_LOG("Power up EEPROM\n");
+         eepromWakeFromPowerdown();
+      }
+      else {
+         EEPROM_LOG("EEPROM selected\n");
+      }
    } 
 #if 0
 // never set Uart mode here...  maybe for now anyway
@@ -143,11 +150,9 @@ void powerDown(const uint8_t parts)
       CFGPAGE = cfgPg;
    }
 #endif
-   if(parts & INIT_EEPROM) {
+   if((parts & INIT_EEPROM) && gEEPROM_PoweredUp) {
+      EEPROM_LOG("Power down EEPROM\n");
       eepromDeepPowerDown();
-      gEepromActive = false;
-      gUartActive = false;
-      LOG("Powered down EEPROM\n");
    }
 #if 0
    if(!gEepromActive && !epdGPIOActive) {
@@ -159,6 +164,14 @@ void powerDown(const uint8_t parts)
 // t = sleep time in milliseconds
 void doSleep(uint32_t __xdata t) 
 {
+#ifdef DEBUG_MAX_SLEEP
+   if(t > DEBUG_MAX_SLEEP) {
+      LOG("Sleep time reduced from %ld",t);
+      t = DEBUG_MAX_SLEEP;
+      LOG(" to %ld ms\n",t);
+   }
+#endif
+
 #ifdef DEBUG_SLEEP
    uint32_t hrs = t;
    uint32_t Ms = mathPrvMod32x16(hrs,1000);
@@ -168,17 +181,10 @@ void doSleep(uint32_t __xdata t)
    uint32_t Mins = mathPrvMod32x16(hrs,60);
    hrs = mathPrvDiv32x16(hrs,60);
    SLEEP_LOG("Sleep for %ld (%ld:%02ld:%02ld.%03ld)",t,hrs,Mins,Sec,Ms);
-#ifdef DEBUG_MAX_SLEEP
-   if(t > DEBUG_MAX_SLEEP) {
-      t = DEBUG_MAX_SLEEP;
-      SLEEP_LOG(" {reduced to %ld sec)",mathPrvDiv32x16(t,1000));
-   }
-#endif
    SLEEP_LOG("...");
 #endif
-   if(gEepromActive) {
-      eepromDeepPowerDown();
-      gEepromActive = false;
+   if(gEEPROM_PoweredUp) {
+      powerDown(INIT_EEPROM);
    }
    screenShutdown();
 #if 0

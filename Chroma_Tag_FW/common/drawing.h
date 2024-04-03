@@ -22,7 +22,4 @@ void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color
 #pragma callee_saves fwVerString
 const char __xdata* fwVerString(void);
 
-#pragma callee_saves macString
-const char __xdata* macString(void);
-
 #endif

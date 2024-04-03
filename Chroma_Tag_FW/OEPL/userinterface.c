@@ -1,4 +1,6 @@
+#include "settings.h"
 
+#ifndef DISABLE_UI
 #include <stdbool.h>
 #include <stdarg.h>
 #include <string.h>
@@ -15,7 +17,6 @@
 #include "../oepl-definitions.h"
 #include "../oepl-proto.h"
 #include "screen.h"
-#include "settings.h"
 #include "bitmaps.h"
 #include "sleep.h"
 #include "syncedproto.h"  // for APmac / Channel
@@ -23,16 +24,9 @@
 #include "drawing.h"
 #include "logging.h"
 
-const uint16_t __code fwVersion = FW_VERSION;
-const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
-
-bool __xdata lowBatteryShown;
-bool __xdata noAPShown;
-
-
 void addOverlay() 
 {
-#if 1
+#ifdef DEBUG_FORCE_OVERLAY
 // force icons to be display for testing
    batteryVoltage = 0;
    currentChannel = 0;
@@ -113,7 +107,7 @@ void DrawSplashScreen()
    epdpr("Starting");
 
    epdPrintBegin(3,268,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("Chroma74 %04X%s",fwVersion,fwVersionSuffix);
+   epdpr("Chroma74 v%04X%s",fwVersion,fwVersionSuffix);
    epdPrintBegin(3,284,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_RED);
    DrawTagMac();
 #ifndef LEAN_VERSION
@@ -288,4 +282,4 @@ bool displayCustomImage(uint8_t imagetype)
     } 
     return false;
 }
-
+#endif

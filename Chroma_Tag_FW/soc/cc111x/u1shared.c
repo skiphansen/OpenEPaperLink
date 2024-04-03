@@ -10,8 +10,10 @@ void u1init(void)
 // UART pins
 // P1.6 is out, P1.7 is in
    P1DIR = (P1DIR & ~P1_SERIAL_IN) | P1_SERIAL_OUT;      
+#if 0
    P2SEL |= P2SEL_PRI3P1;
    P2SEL &= (uint8_t) ~P2SEL_SELP2_0;
+#endif
    P1 |= P1_SERIAL_OUT;  //when it is not uart mode, idle high
    U1UCR = U1UCR_STOP;     //no parity, 8 bits per char, normal polarity
    
@@ -72,6 +74,7 @@ void u1setUartMode(void)
    P1SEL |= P1_SERIAL_OUT | P1_SERIAL_IN;
 // Set USART 1 alternate 2 locaton connecting it to p1
    PERCFG |= PERCFG_U1CFG; 
+   gUartSelected = true;
 }
 
 void u1setEepromMode(void)
@@ -87,5 +90,6 @@ void u1setEepromMode(void)
    
 // Connect USART to EEPROM pins
    P0SEL |= P0_EEPROM_MOSI | P0_EEPROM_CLK | P0_EEPROM_MISO;
+   gUartSelected = false;
 }
 

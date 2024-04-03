@@ -1027,7 +1027,10 @@ static void screenInitIfNeeded(__bit forPartial)
    U0GCR = 0b00110001;  //BAUD_E = 0x11, msb first
    U0CSR = 0b00000000;  //SPI master mode, RX off
    
+#if 0
+// USART0 has priority over USART1 when assigned same pins
    P2SEL &= (uint8_t) ~P2SEL_PRI3P1;
+#endif
    
 // turn on the eInk power (keep in reset for now)
    P0 &= (uint8_t) ~P0_EPD_nENABLE;

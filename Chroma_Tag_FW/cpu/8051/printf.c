@@ -6,6 +6,8 @@
 #include "cpu.h"
 #include "powermgt.h"
 
+__bit gUartWasSelected;
+
 typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 
 //this implementation assumes XDATA == CODESPACE (as it is true on TI's CC111x)
@@ -706,13 +708,14 @@ void pr(const char __code *fmt, ...) __reentrant
 {
    va_list vl;
 
+   gUartWasSelected = gUartSelected;
+
    va_start(vl, fmt);
-   if(!gUartActive || gEepromActive) {
+   if(!gUartSelected) {
       u1setUartMode();
-      gUartActive = true;
    }
    prvPrintFormat(prPrvPutchar,0,fmt,vl);
-   if(gEepromActive) {
+   if(!gUartWasSelected) {
    // restore EEPROM mode
       u1setEepromMode();
    }

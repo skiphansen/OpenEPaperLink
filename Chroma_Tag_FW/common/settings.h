@@ -6,21 +6,25 @@
 #define FW_VERSION 0x0001        // version number
 #define FW_VERSION_SUFFIX ""     // suffix, like -RC1 or whatever.
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
-#define DEBUGPROTO               // debug protocol
+#define FORCE_IMG_DL             // force tag to re-download every upload
+// #define DEBUGPROTO               // debug protocol
 // #define DEBUGOTA                 // debug OTA FW updates
-#define DEBUGDRAWING             // debug the drawing part
+// #define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
 // #define DEBUGNFC                 // debug NFC functions
 // #define DEBUGGUI                 // debug GUI drawing (enabled)
 // #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
-// #define DEBUGEEPROM              // eeprom-related debug messages
+#define DEBUGEEPROM              // eeprom-related debug messages
 // #define DEBUG_NV_DATA            // debug eeprom-related data accesses
-// #define DEBUG_SLEEP              // debug sleeping
+#define DEBUG_SLEEP              // debug sleeping
 //#define DEBUG_RX_DATA            // display subgig rx packets
 //#define DEBUG_TX_DATA            // display subgig tx packets
 #define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
+// #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
+
+// #define DISABLE_UI         // when you need to debug and are out of flash
 
 #if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
 #define DEBUG_COMMS
