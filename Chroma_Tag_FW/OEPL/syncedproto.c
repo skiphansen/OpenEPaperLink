@@ -279,7 +279,7 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
    return NULL;
 }
 
-static bool processBlockPart(const struct blockPart *bp) 
+static void processBlockPart(const struct blockPart *bp) 
 {
    uint16_t __xdata start;
    uint16_t __xdata size = BLOCK_PART_DATA_SIZE;
@@ -289,23 +289,23 @@ static bool processBlockPart(const struct blockPart *bp)
 // validate if it's okay to copy data
    if(bp->blockId != curBlock.blockId) {
       BLOCK_LOG("not expected blockId %d != %d\n",bp->blockId,curBlock.blockId);
-      return false;
+      return;
    }
 
    if(bp->blockPart > BLOCK_MAX_PARTS) {
       BLOCK_LOG("bad blockPart\n");
-      return false;
+      return;
    }
 
    if(bp->blockPart < gSubBlockID) {
       BLOCK_LOG("blockPart < gSubBlockID\n");
-      return false;
+      return;
    }
 
    if(start + size > sizeof(blockbuffer)) {
       BLOCK_LOG("bad start 0x%x gSubBlockID %d size %u\n",
                 start,gSubBlockID,size);
-      return false;
+      return;
    }
 
 #if 0
@@ -323,16 +323,17 @@ static bool processBlockPart(const struct blockPart *bp)
       xMemCopy((void *)(blockbuffer + start), (const void *)bp->data, size);
    // we don't need this block anymore, set bit to 0 so we don't request it again
       curBlock.requestedParts[bp->blockPart / 8] &= ~(1 << (bp->blockPart % 8));
-      return true;
+      return;
    }
    BLOCK_LOG("checkCRC failed\n");
-   return false;
+   return;
 }
 
-static bool blockRxLoop(const uint32_t timeout) 
+static void blockRxLoop(const uint32_t timeout) 
 {
    uint32_t __xdata t;
-   bool success = false;
+   uint8_t i;
+
    radioRxEnable(true);
    t = timerGet() + (TIMER_TICKS_PER_MS * (timeout + 20));
    while(timerGet() < t) {
@@ -342,14 +343,22 @@ static bool blockRxLoop(const uint32_t timeout)
          // packet type 1
          // BLOCK_PART_DATA_SIZE = 99
             #define BP (struct blockPart *)(inBuffer + sizeof(struct MacFrameNormal) + 1)
-            success = processBlockPart(BP);
+            processBlockPart(BP);
             #undef bp
+            for(i = 0; i < BLOCK_REQ_PARTS_BYTES; i++) {
+               if(curBlock.requestedParts[i] != 0) {
+                  break;
+               }
+            }
+            if(i == BLOCK_REQ_PARTS_BYTES) {
+            // got all of the parts we were expecting, bail
+               break;
+            }
          }
       }
    }
    radioRxEnable(false);
    radioRxFlush();
-   return success;
 }
 
 static struct blockRequestAck *__xdata continueToRX() 
@@ -481,10 +490,11 @@ static uint32_t getAddressForSlot(const uint8_t s)
 
 static uint8_t findSlotVer(const uint8_t *ver) 
 {
-#ifdef DEBUGBLOCKS
+#ifdef FORCE_IMG_DL
+// Force re-download each and every upload without checking if it's 
+// already in the eeprom somewhere
    return 0xFF;
 #else
-   // return 0xFF;  // remove me! This forces the tag to re-download each and every upload without checking if it's already in the eeprom somewhere
    for(uint8_t c = 0; c < IMAGE_SLOTS; c++) {
       eepromRead(getAddressForSlot(c), eih, sizeof(struct EepromImageHeader));
       if(xMemEqual4(&eih->validMarker, &markerValid)) {
@@ -655,8 +665,8 @@ static bool getDataBlock(const uint16_t blockSize)
             radioRxEnable(true);
          }
       }
-      blockRxLoop(290);  // BLOCK RX LOOP - receive a block, until the timeout has passed
-//         blockRxLoop(5000);  // BLOCK RX LOOP - receive a block, until the timeout has passed
+   // BLOCK RX LOOP - receive a block, until the timeout has passed
+      blockRxLoop(290);  
       powerDown(INIT_RADIO);
       BLOCK_LOG("Rx ");
       DumpCurBlock();
