@@ -153,8 +153,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
 
     const HwType hwdata = getHwType(taginfo->hwType);
     if (hwdata.bpp == 0) {
-        taginfo->nextupdate = now + 600;
-        wsErr("No definition found for tag type " + String(taginfo->hwType));
+        taginfo->nextupdate = now + 300;
+        Serial.println("No definition found for tag type " + String(taginfo->hwType));
         return;
     }
 
@@ -201,16 +201,18 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     taginfo->nextupdate = now + 60;
 
     imgParam imageParams;
+    imageParams.hwdata = hwdata;
     imageParams.width = hwdata.width;
     imageParams.height = hwdata.height;
     imageParams.bpp = hwdata.bpp;
     imageParams.rotatebuffer = hwdata.rotatebuffer;
+    imageParams.shortlut = hwdata.shortlut;
     imageParams.highlightColor = getColor(String(hwdata.highlightColor));
 
     imageParams.hasRed = false;
     imageParams.dataType = DATATYPE_IMG_RAW_1BPP;
     imageParams.dither = 2;
-    if (taginfo->hasCustomLUT && taginfo->lut != 1) imageParams.grayLut = true;
+    // if (taginfo->hasCustomLUT && taginfo->lut != 1) imageParams.grayLut = true;
 
     imageParams.invert = taginfo->invert;
     imageParams.symbols = 0;
@@ -220,7 +222,6 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     } else {
         imageParams.zlib = 0;
     }
-    imageParams.shortlut = hwdata.shortlut;
 
     imageParams.lut = EPD_LUT_NO_REPEATS;
     if (taginfo->lut == 2) imageParams.lut = EPD_LUT_FAST_NO_REDS;
@@ -234,6 +235,16 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         Serial.println("using custom LUT");
         imageParams.lut = EPD_LUT_OTA;
     }
+
+    int32_t interval = cfgobj["interval"].as<int>() * 60;
+    if (interval == -1440 * 60) {
+        interval = util::getMidnightTime() - now;
+    } else if (interval < 0) {
+        interval = -interval;
+        unsigned int secondsUntilNext = (interval - (now % interval)) % interval;
+        interval = secondsUntilNext;
+    } else if (interval < 180)
+        interval = 60 * 60;
 
     switch (taginfo->contentMode) {
         case 0:   // Not configured
@@ -332,8 +343,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         case 8:  // Forecast
 
             drawForecast(filename, cfgobj, taginfo, imageParams);
-            taginfo->nextupdate = now + 3600;
-            updateTagImage(filename, mac, 15, taginfo, imageParams);
+            taginfo->nextupdate = now + interval;
+            updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
             break;
 
         case 5:  // Firmware
@@ -363,13 +374,12 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
 
         {
             const int httpcode = getImgURL(filename, cfgobj["url"], (time_t)cfgobj["#fetched"], imageParams, String(hexmac));
-            const int interval = cfgobj["interval"].as<int>();
             if (httpcode == 200) {
-                taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
-                updateTagImage(filename, mac, interval, taginfo, imageParams);
+                taginfo->nextupdate = now + interval;
+                updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
                 cfgobj["#fetched"] = now;
             } else if (httpcode == 304) {
-                taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
+                taginfo->nextupdate = now + interval;
             } else {
                 taginfo->nextupdate = now + 300;
             }
@@ -380,9 +390,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         case 9:  // RSSFeed
 
             if (getRssFeed(filename, cfgobj["url"], cfgobj["title"], taginfo, imageParams)) {
-                const int interval = cfgobj["interval"].as<int>();
-                taginfo->nextupdate = now + 60 * (interval < 3 ? 60 : interval);
-                updateTagImage(filename, mac, interval, taginfo, imageParams);
+                taginfo->nextupdate = now + interval;
+                updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
             } else {
                 taginfo->nextupdate = now + 300;
             }
@@ -402,9 +411,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         case 11:  // Calendar:
 
             if (getCalFeed(filename, cfgobj, taginfo, imageParams)) {
-                const int interval = cfgobj["interval"].as<int>();
-                taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
-                updateTagImage(filename, mac, interval, taginfo, imageParams);
+                taginfo->nextupdate = now + interval;
+                updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
             } else {
                 taginfo->nextupdate = now + 300;
             }
@@ -474,13 +482,12 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
                     DynamicJsonDocument json(1000);
                     Serial.println("Get json url + file");
                     if (util::httpGetJson(configUrl, json, 1000)) {
+                        taginfo->nextupdate = now + interval;
                         if (getJsonTemplateFileExtractVariables(filename, configFilename, json, taginfo, imageParams)) {
-                            updateTagImage(filename, mac, cfgobj["interval"].as<int>(), taginfo, imageParams);
+                            updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
                         } else {
                             wsErr("error opening file " + configFilename);
                         }
-                        const int interval = cfgobj["interval"].as<int>();
-                        taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
                     } else {
                         taginfo->nextupdate = now + 600;
                     }
@@ -488,7 +495,7 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
                 } else {
                     const bool result = getJsonTemplateFile(filename, configFilename, taginfo, imageParams);
                     if (result) {
-                        updateTagImage(filename, mac, cfgobj["interval"].as<int>(), taginfo, imageParams);
+                        updateTagImage(filename, mac, interval, taginfo, imageParams);
                     } else {
                         wsErr("error opening file " + configFilename);
                     }
@@ -496,13 +503,12 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
                 }
             } else {
                 const int httpcode = getJsonTemplateUrl(filename, cfgobj["url"], (time_t)cfgobj["#fetched"], String(hexmac), taginfo, imageParams);
-                const int interval = cfgobj["interval"].as<int>();
                 if (httpcode == 200) {
-                    taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
-                    updateTagImage(filename, mac, interval, taginfo, imageParams);
+                    taginfo->nextupdate = now + interval;
+                    updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
                     cfgobj["#fetched"] = now;
                 } else if (httpcode == 304) {
-                    taginfo->nextupdate = now + 60 * (interval < 3 ? 15 : interval);
+                    taginfo->nextupdate = now + interval;
                 } else {
                     taginfo->nextupdate = now + 600;
                 }
@@ -558,6 +564,7 @@ bool updateTagImage(String &filename, const uint8_t *dst, uint16_t nextCheckin, 
             imageParams.dataType = DATATYPE_IMG_RAW_2BPP;
             Serial.println("datatype: DATATYPE_IMG_RAW_2BPP");
         }
+        if (nextCheckin > 0x7fff) nextCheckin = 0;
         prepareDataAvail(filename, imageParams.dataType, imageParams.lut, dst, nextCheckin);
     }
     return true;
@@ -609,13 +616,13 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
     if (font.startsWith("fonts/calibrib")) {
         String numericValueStr = font.substring(14);
         int calibriSize = numericValueStr.toInt();
-        if (calibriSize > 30) {
+        if (calibriSize != 30 && calibriSize != 16) {
             font = "Signika-SB.ttf";
             size = calibriSize;
         }
     }
     if (font == "glasstown_nbp_tf") {
-        font = "BellCent10.vlw";
+        font = "tahoma9.vlw";
         posy -= 8;
     }
     if (font == "7x14_tf") {
@@ -649,7 +656,11 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
                 posx -= truetype.getStringWidth(content);
             }
             truetype.setTextBoundary(posx, spr.width(), spr.height());
-            truetype.setTextColor(spr.color16to8(color), spr.color16to8(color));
+            if (spr.getColorDepth() == 8) {
+                truetype.setTextColor(spr.color16to8(color), spr.color16to8(color));
+            } else {
+                truetype.setTextColor(color, color);
+            }
             truetype.textDraw(posx, posy, content);
             truetype.end();
         } break;
@@ -658,7 +669,7 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
             spr.setTextDatum(align);
             if (font != "") spr.loadFont(font.substring(1), *contentFS);
             spr.setTextColor(color, bgcolor);
-            spr.setTextWrap(true, false);
+            spr.setTextWrap(false, false);
             spr.drawString(content, posx, posy);
             if (font != "") spr.unloadFont();
         }
@@ -710,9 +721,14 @@ void drawTextBox(TFT_eSprite &spr, String &content, int16_t &posx, int16_t &posy
 }
 
 void initSprite(TFT_eSprite &spr, int w, int h, imgParam &imageParams) {
-    spr.setColorDepth(8);
+    spr.setColorDepth(16);
     spr.createSprite(w, h);
-    spr.setRotation(3);
+    if (spr.getPointer() == nullptr) {
+        wsErr("low on memory. Fallback to 8bpp");
+        util::printLargestFreeBlock();
+        spr.setColorDepth(8);
+        spr.createSprite(w, h);
+    }
     if (spr.getPointer() == nullptr) {
         wsErr("low on memory. Fallback to 1bpp");
         util::printLargestFreeBlock();
@@ -724,6 +740,7 @@ void initSprite(TFT_eSprite &spr, int w, int h, imgParam &imageParams) {
     if (spr.getPointer() == nullptr) {
         wsErr("Failed to create sprite");
     }
+    spr.setRotation(3);
     spr.fillSprite(TFT_WHITE);
 }
 
@@ -1227,7 +1244,7 @@ bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgPa
             // 1: 20; offset cal block
             // 2: 30; offset left
             // 3: calibrib16.vlw; headers font
-            // 4: BellCent10.vlw; appointments font
+            // 4: tahoma9.vlw; appointments font
             // 5: 14; line height
 
             timeinfo.tm_hour = 0;
@@ -1260,9 +1277,9 @@ bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgPa
                 drawString(spr, String(languageDaysShort[dayInfo->tm_wday]) + " " + String(dayInfo->tm_mday), colStart + colWidth / 2, calTop, loc["gridparam"][3], TC_DATUM, TFT_BLACK);
 
                 if (dayInfo->tm_wday == 0 || dayInfo->tm_wday == 6) {
-                    spr.fillRect(colStart + 1, calTop + calYOffset, colWidth - 1, calHeight - 1, TFT_DARKGREY);
+                    spr.fillRect(colStart + 1, calTop + calYOffset, colWidth - 1, calHeight - 1, getColor("darkgray"));
                 } else {
-                    spr.fillRect(colStart + 1, calTop + calYOffset, colWidth - 1, calHeight - 1, TFT_LIGHTGREY);
+                    spr.fillRect(colStart + 1, calTop + calYOffset, colWidth - 1, calHeight - 1, getColor("lightgray"));
                 }
             }
 
@@ -1412,10 +1429,15 @@ bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgPa
 #endif
 
 #ifdef CONTENT_DAYAHEAD
-uint16_t getPercentileColor(const double *prices, int numPrices, double price) {
+uint16_t getPercentileColor(const double *prices, int numPrices, double price, HwType hwdata) {
     double percentile = 100.0;
     int colorIndex = 3;
     const char *colors[] = {"black", "darkgray", "pink", "red"};
+    if (hwdata.highlightColor == 3) {
+        // yellow
+        colors[2] = "brown";
+        colors[3] = "yellow";
+    }
     const int numColors = sizeof(colors) / sizeof(colors[0]);
 
     const double boundaries[] = {40.0, 80.0, 90.0};
@@ -1508,15 +1530,17 @@ bool getDayAheadFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, 
 
     int n = doc.size();
 
+    int units = cfgobj["units"].as<int>();
+    if (units == 0) units = 1;
     double tarifkwh = cfgobj["tariffkwh"].as<double>();
     double tariftax = cfgobj["tarifftax"].as<double>();
-    double minPrice = (doc[0]["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100);
+    double minPrice = (doc[0]["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100) / units;
     double maxPrice = minPrice;
     double prices[n];
 
     for (int i = 0; i < n; i++) {
         const JsonObject &obj = doc[i];
-        const double price = (obj["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100);
+        const double price = (obj["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100) / units;
         minPrice = min(minPrice, price);
         maxPrice = max(maxPrice, price);
         prices[i] = price;
@@ -1532,7 +1556,7 @@ bool getDayAheadFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, 
     for (double i = minPrice; i <= maxPrice; i += yAxisScale.step) {
         int y = mapDouble(i, minPrice, maxPrice, spr.height() - barBottom, spr.height() - barBottom - loc["bars"][2].as<int>());
         spr.drawLine(0, y, spr.width(), y, TFT_BLACK);
-        drawString(spr, String(int(i)), yAxisX, y - 8, loc["yaxis"][0], TL_DATUM, TFT_BLACK);
+        drawString(spr, String(int(i * units)), yAxisX, y - 9, loc["yaxis"][0], TL_DATUM, TFT_BLACK);
     }
 
     uint16_t barwidth = loc["bars"][1].as<int>() / n;
@@ -1547,9 +1571,9 @@ bool getDayAheadFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, 
         struct tm item_timeinfo;
         localtime_r(&item_time, &item_timeinfo);
 
-        const double price = (obj["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100);
+        const double price = (obj["price"].as<double>() / 10 + tarifkwh) * (1 + tariftax / 100) / units;
 
-        uint16_t barcolor = getPercentileColor(prices, n, price);
+        uint16_t barcolor = getPercentileColor(prices, n, price, imageParams.hwdata);
         uint16_t thisbarh = mapDouble(price, minPrice, maxPrice, 0, loc["bars"][2].as<int>());
         spr.fillRect(barX + i * barwidth, spr.height() - barBottom - thisbarh, barwidth - 1, thisbarh, barcolor);
         if (i % 2 == 0) {
@@ -1741,10 +1765,13 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
         drawString(spr, "Well done!", spr.width() / 2, 90, "calibrib30.vlw", TC_DATUM, TFT_BLACK);
         spr2buffer(spr, filename2, imageParams);
 
+        if (imageParams.zlib) imageParams.dataType = DATATYPE_IMG_ZLIB;
+
         struct imageDataTypeArgStruct arg = {0};
         arg.preloadImage = 1;
         arg.specialType = 17;  // button 2
         arg.lut = 0;
+
         prepareDataAvail(filename2, imageParams.dataType, *((uint8_t *)&arg), taginfo->mac, 5 | 0x8000 );
 
         spr.fillRect(0, 0, spr.width(), spr.height(), TFT_WHITE);
@@ -1761,14 +1788,24 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
 
         cfgobj["#init"] = "1";
     }
-
+    uint8_t offsety = 0;
+    uint8_t buttony = 145;
     spr.fillRect(0, 0, spr.width(), spr.height(), TFT_WHITE);
-    drawString(spr, cfgobj["title"], spr.width() / 2, 10, "calibrib30.vlw", TC_DATUM, TFT_BLACK);
-    spr.drawLine(0, 40, spr.width(), 40, TFT_BLACK);
-    drawString(spr, cfgobj["button1"], 32, 145, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
-    drawString(spr, cfgobj["button2"], 122, 145, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
-    spr.fillTriangle(27, 160, 37, 160, 32, 165, TFT_BLACK);
-    spr.fillTriangle(127, 160, 117, 160, 122, 165, TFT_BLACK);
+    if (imageParams.rotate == 2) {
+        offsety = 25;
+        buttony = 10;
+        spr.fillTriangle(spr.width() - 27, spr.height() - 160, spr.width() - 37, spr.height() - 160, spr.width() - 32, spr.height() - 165, TFT_BLACK);
+        spr.fillTriangle(spr.width() - 127, spr.height() - 160, spr.width() - 117, spr.height() - 160, spr.width() - 122, spr.height() - 165, TFT_BLACK);
+        drawString(spr, cfgobj["button1"], spr.width() - 32, buttony, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
+        drawString(spr, cfgobj["button2"], spr.width() - 122, buttony, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
+    } else {
+        spr.fillTriangle(27, 160, 37, 160, 32, 165, TFT_BLACK);
+        spr.fillTriangle(127, 160, 117, 160, 122, 165, TFT_BLACK);
+        drawString(spr, cfgobj["button1"], 32, buttony, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
+        drawString(spr, cfgobj["button2"], 122, buttony, "calibrib16.vlw", TC_DATUM, TFT_BLACK);
+    }
+    drawString(spr, cfgobj["title"], spr.width() / 2, 10 + offsety, "calibrib30.vlw", TC_DATUM, TFT_BLACK);
+    spr.drawLine(0, 40 + offsety, spr.width(), 40 + offsety, TFT_BLACK);
 
     uint8_t mode = cfgobj["mode"].as<int>();
     switch (taginfo->wakeupReason) {
@@ -1802,9 +1839,9 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
     if (timestamp == 0) strcpy(dateString1, "never");
 
     if (mode == 0) {
-        drawString(spr, "last:", 10, 50, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-        drawString(spr, dateString1, spr.width() / 2, 50, "bahnschrift30.vlw", TC_DATUM, TFT_BLACK);
-        drawString(spr, cfgobj["last2"].as<String>(), spr.width() / 2, 80, "bahnschrift30.vlw", TC_DATUM, TFT_BLACK);
+        drawString(spr, "last:", 10, 50 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+        drawString(spr, dateString1, spr.width() / 2, 50 + offsety, "bahnschrift30.vlw", TC_DATUM, TFT_BLACK);
+        drawString(spr, cfgobj["last2"].as<String>(), spr.width() / 2, 80 + offsety, "bahnschrift30.vlw", TC_DATUM, TFT_BLACK);
 
         if (nextaction > 0 && timestamp > 0) {
             timestamp += nextaction * 24 * 3600;
@@ -1812,12 +1849,12 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
             localtime_r(&timestamp, &timeinfo);
             strftime(dateString1, sizeof(dateString1), languageDateFormat[0].c_str(), &timeinfo);
 
-            drawString(spr, "next:", 10, 115, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-            drawString(spr, dateString1, 50, 115, "calibrib16.vlw", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
+            drawString(spr, "next:", 10, 115 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+            drawString(spr, dateString1, 50, 115 + offsety, "calibrib16.vlw", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
         }
     } else {
-        drawString(spr, cfgobj["button1"].as<String>(), 10, 50, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-        drawString(spr, dateString1, 20, 67, "fonts/bahnschrift20", TL_DATUM, TFT_BLACK);
+        drawString(spr, cfgobj["button1"].as<String>(), 10, 50 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+        drawString(spr, dateString1, 20, 67 + offsety, "fonts/bahnschrift20", TL_DATUM, TFT_BLACK);
 
         if (nextaction > 0 && timestamp > 0) {
             timestamp += nextaction * 24 * 3600;
@@ -1825,8 +1862,8 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
             localtime_r(&timestamp, &timeinfo);
             strftime(dateString1, sizeof(dateString1), languageDateFormat[0].c_str(), &timeinfo);
 
-            drawString(spr, "next", 200, 50, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-            drawString(spr, dateString1, 210, 67, "fonts/bahnschrift20", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
+            drawString(spr, "next", 200, 50 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+            drawString(spr, dateString1, 210, 67 + offsety, "fonts/bahnschrift20", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
         }
 
         char dateString2[40];
@@ -1835,16 +1872,16 @@ void drawTimestamp(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, im
         strftime(dateString2, sizeof(dateString2), dateformat.c_str(), &timeinfo);
         if (timestamp == 0) strcpy(dateString2, "never");
 
-        drawString(spr, cfgobj["button2"].as<String>(), 10, 90, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-        drawString(spr, dateString2, 20, 107, "fonts/bahnschrift20", TL_DATUM, TFT_BLACK);
+        drawString(spr, cfgobj["button2"].as<String>(), 10, 90 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+        drawString(spr, dateString2, 20, 107 + offsety, "fonts/bahnschrift20", TL_DATUM, TFT_BLACK);
 
         if (nextaction > 0 && timestamp > 0) {
             timestamp += nextaction * 24 * 3600;
             localtime_r(&timestamp, &timeinfo);
             strftime(dateString2, sizeof(dateString2), languageDateFormat[0].c_str(), &timeinfo);
 
-            drawString(spr, "next", 200, 90, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
-            drawString(spr, dateString2, 210, 107, "fonts/bahnschrift20", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
+            drawString(spr, "next", 200, 90 + offsety, "calibrib16.vlw", TL_DATUM, TFT_BLACK);
+            drawString(spr, dateString2, 210, 107 + offsety, "fonts/bahnschrift20", TL_DATUM, timestamp < now ? imageParams.highlightColor : TFT_BLACK);
         }
     }
 
@@ -2132,9 +2169,10 @@ uint16_t getColor(const String &color) {
     if (color == "1" || color == "" || color == "black") return TFT_BLACK;
     if (color == "2" || color == "red") return TFT_RED;
     if (color == "3" || color == "yellow") return TFT_YELLOW;
-    if (color == "4" || color == "lightgray") return TFT_LIGHTGREY;
+    if (color == "4" || color == "lightgray") return 0xBDF7;
     if (color == "5" || color == "darkgray") return TFT_DARKGREY;
-    if (color == "6" || color == "pink") return TFT_PINK;
+    if (color == "6" || color == "pink") return 0xFBCF;
+    if (color == "7" || color == "brown") return 0x8400;
     uint16_t r, g, b;
     if (color.length() == 7 && color[0] == '#' &&
         sscanf(color.c_str(), "#%2hx%2hx%2hx", &r, &g, &b) == 3) {

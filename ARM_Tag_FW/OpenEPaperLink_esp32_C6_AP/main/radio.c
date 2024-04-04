@@ -101,22 +101,22 @@ bool radioTx(uint8_t *packet) {
     static uint8_t txPKT[130];
 #endif
     led_flash(1);
-    while (isInTransmit) {
-    }
-    // while (getMillis() - lastZbTx < 6) {
-    // }
-    // lastZbTx = getMillis();
-    memcpy(txPKT, packet, packet[0]);
+	while (isInTransmit) {
+	}
+	// while (getMillis() - lastZbTx < 6) {
+	// }
+	// lastZbTx = getMillis();
+	memcpy(txPKT, packet, packet[0]);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    struct MacFrameNormal  *txHeader = (struct MacFrameNormal *) (packet + 1);
+	struct MacFrameNormal  *txHeader = (struct MacFrameNormal *) (packet + 1);
 
-    if(txHeader->pan == PROTO_PAN_ID_SUBGHZ) {
-       return SubGig_radioTx(packet);
-    }
+	if(txHeader->pan == PROTO_PAN_ID_SUBGHZ) {
+		return SubGig_radioTx(packet);
+	}
 #endif
-    isInTransmit = 1;
-    esp_ieee802154_transmit(txPKT, false);
-    return true;
+	isInTransmit = 1;
+	esp_ieee802154_transmit(txPKT, false);
+	return true;
 }
 
 void radioSetChannel(uint8_t ch) {

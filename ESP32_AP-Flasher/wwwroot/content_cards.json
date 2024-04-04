@@ -23,7 +23,8 @@
         "type": "select",
         "options": {
           "0": "off",
-          "1": "on"
+          "1": "floyd-steinberg dithering",
+          "2": "ordered dithering"
         }
       }
     ]
@@ -147,6 +148,17 @@
         }
       },
       {
+        "key": "interval",
+        "name": "Interval",
+        "desc": "How often the forecast is being refreshed.",
+        "type": "select",
+        "options": {
+          "60": "Every hour",
+          "180": "-Every three hours",
+          "-1440": "At midnight"
+        }
+      },
+      {
         "key": "#lat",
         "name": "Lat",
         "desc": "Latitude (set automatic when generating image)",
@@ -212,7 +224,7 @@
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "How often (in minutes) the feed is being refreshed",
+        "desc": "How often (in minutes) the feed is being refreshed. Negative value to align the interval (-60 is 'on the whole hour')",
         "type": "int"
       }
     ]
@@ -231,7 +243,7 @@
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "How often (in minutes) the image is being fetched. Minimum is 3 minutes.",
+        "desc": "How often (in minutes) the image is being fetched. Minimum is 3 minutes. Negative value to align the interval (-60 is 'on the whole hour')",
         "type": "int"
       }
     ]
@@ -276,7 +288,7 @@
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "How often (in minutes) the calendar is being refreshed",
+        "desc": "How often (in minutes) the calendar is being refreshed. Negative value to align the interval (-60 is 'on the whole hour')",
         "type": "int"
       }
     ]
@@ -380,7 +392,7 @@
       {
         "key": "tariffkwh",
         "name": "Fixed surcharge",
-        "desc": "Fixed surcharge per kWh, in 1/100 units (cents)",
+        "desc": "Fixed surcharge per kWh, in 1/100 units (cents/öre/øre)",
         "type": "text"
       },
       {
@@ -388,7 +400,17 @@
         "name": "Tax percentage",
         "desc": "Percentage to add to the total (for example, 21, for 21% VAT)",
         "type": "text"
-      }
+      },
+      {
+        "key": "units",
+        "name": "Price units",
+        "desc": "Display whole units (EUR/NOK/DKK) or cents",
+        "type": "select",
+        "options": {
+          "100": "1/1 units (EUR/NOK/DKK)",
+          "1": "1/100 units (cents/öre/øre)"
+        }
+      }      
     ]
   },
   {
@@ -411,7 +433,7 @@
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "In case of an url, how often (in minutes) the template is being fetched. Minimum is 3 minutes.",
+        "desc": "In case of an url, how often (in minutes) the template is being fetched. Minimum is 3 minutes. Negative value to align the interval (-60 is 'on the whole hour')",
         "type": "int"
       }
     ]
@@ -458,7 +480,8 @@
         "type": "select",
         "options": {
           "0": "off",
-          "1": "on"
+          "1": "floyd-steinberg dithering",
+          "2": "ordered dithering"
         }
       },
       {
