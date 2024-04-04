@@ -15,7 +15,7 @@
 // #define DEBUGNFC                 // debug NFC functions
 // #define DEBUGGUI                 // debug GUI drawing (enabled)
 // #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
-#define DEBUGEEPROM              // eeprom-related debug messages
+// #define DEBUGEEPROM              // eeprom-related debug messages
 // #define DEBUG_NV_DATA            // debug eeprom-related data accesses
 #define DEBUG_SLEEP              // debug sleeping
 //#define DEBUG_RX_DATA            // display subgig rx packets
@@ -23,6 +23,7 @@
 #define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
 // #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
+// #define DEBUG_CHIP_CFG   // log chip configuration
 
 // #define DISABLE_UI         // when you need to debug and are out of flash
 

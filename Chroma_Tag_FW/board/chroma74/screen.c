@@ -109,7 +109,7 @@ struct LutCorrectionEntry {
    const struct LutCorrectionRange __code *ranges;
 };
 
-static __bit mInited = false;
+__bit gScreenPowered = false;
 
 #define LUT_CMD_000  0x21
 #define LUT_CMD_001  0x23
@@ -998,39 +998,17 @@ static void screenPrvSleepTillDone(void)
 
 static void screenInitIfNeeded(__bit forPartial)
 {
-   if(mInited) {
+   if(gScreenPowered) {
       return;
    }
+   gScreenPowered = true;
    
-   mInited = true;
-   
-// pins are gpio
-   P0SEL &= (uint8_t) ~(P0_EPD_BS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD);
+// reset controller   
+   P1 &= ~P1_EPD_nRESET;
 
-   P1SEL = (P1SEL & (uint8_t) ~(P1_EPD_BUSY | P1_EPD_nCS0 | P1_EPD_nRESET)) 
-            | P1_EPD_SCK | P1_EPD_DI;
-   
-// directions set as needed
-   P0DIR |= P0_EPD_BS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD;
-   P1DIR = (P1DIR & (uint8_t)~P1_EPD_BUSY) 
-            | P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI;
-   
-// default state set (incl keeping it in reset and disabled, data mode selected)
-   P0 = (P0 & (uint8_t) ~(P0_EPD_BS1)) | P0_EPD_nENABLE | P0_EPD_D_nCMD;
-
-   P1 = (P1 & (uint8_t) ~(P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI))
-         | P1_EPD_nCS0;
-   
-// configure the uart0 (alt2, spi, fast)
-   PERCFG |= (1 << 0);
    U0BAUD = 0;       //F/8 is max for spi - 3.25 MHz
    U0GCR = 0b00110001;  //BAUD_E = 0x11, msb first
    U0CSR = 0b00000000;  //SPI master mode, RX off
-   
-#if 0
-// USART0 has priority over USART1 when assigned same pins
-   P2SEL &= (uint8_t) ~P2SEL_PRI3P1;
-#endif
    
 // turn on the eInk power (keep in reset for now)
    P0 &= (uint8_t) ~P0_EPD_nENABLE;
@@ -1144,12 +1122,14 @@ static void screenInitIfNeeded(__bit forPartial)
       einkDeselect();
    }
 #endif
+   LOG_CONFIG("screenInitIfNeeded");
 }
 
 void screenShutdown(void)
 {
-   if (!mInited)
+   if (!gScreenPowered) {
       return;
+   }
    
    einkSelect();
    screenPrvSendCommand(CMD_POWER_OFF);
@@ -1161,7 +1141,9 @@ void screenShutdown(void)
    einkDeselect();
    SET_EPD_nENABLE(1);
    
-   mInited = false;
+   gScreenPowered = false;
+
+   LOG_CONFIG("screenShutdown");
 }
 
 /*

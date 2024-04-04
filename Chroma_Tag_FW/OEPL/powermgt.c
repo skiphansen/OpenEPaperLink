@@ -24,7 +24,6 @@
 #include "sleep.h"
 #include "syncedproto.h"
 #include "timer.h"
-// #include "uart.h"  // for initUart
 #include "userinterface.h"
 #include "wdt.h"
 #include "logging.h"
@@ -43,7 +42,6 @@ __bit lowBattery;
 uint16_t __xdata longDataReqCounter;
 uint16_t __xdata voltageCheckCounter;
 
-__bit gU1Init;
 // True if SPI port configured for UART, False when configured for EEPROM
 __bit gUartSelected;
 // True if EEPROM has been put into the deep power down mode
@@ -92,6 +90,7 @@ void powerUp(const uint8_t parts)
       irqsOn();
       wdtOn();
       wdt10s();
+      PortInit();
       u1init();
    }
 

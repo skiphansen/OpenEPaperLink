@@ -8,6 +8,7 @@
 #include "cpu.h"
 #include "settings.h"
 #include "powermgt.h"
+#include "logging.h"
 
 // NB: be VERY careful about doing any logging in this file,
 // the UART and SPI flash port are the SAME so it's very
@@ -112,6 +113,17 @@ void eepromDeepPowerDown(void)
 }
 #else
 // Debug version
+void LogRDSR()
+{
+   uint8_t Status;
+
+   eepromPrvSelect();
+   eepromByte(0x05);
+   Status = eepromByte(0x00);
+   eepromPrvDeselect();
+   EEPROM_LOG("RDSR 0x%x\n",Status);
+}
+
 void eepromDeepPowerDown(void) 
 {
    uint8_t Status;
@@ -130,47 +142,11 @@ void eepromDeepPowerDown(void)
       EEPROM_LOG("\n");
    }
    gEEPROM_PoweredUp = false;
-   LogRDSR();
+   LOG_CONFIG("EEPROM PowerDown");
 }
 #endif
 
-#ifdef DEBUGEEPROM
-void LogRDSR()
-{
-   uint8_t Status;
-   uint8_t P0Dir = P0DIR;
-   uint8_t P0Sel = P0SEL;
-   uint8_t P0Data = P0;
-   uint8_t P1Dir = P1DIR;
-   uint8_t P1Data = P1;
-   uint8_t P2Sel = P2SEL;
-   uint8_t PERCfg = PERCFG;
-   uint8_t P1Sel = P1SEL;
-   uint8_t U1Baud = U1BAUD;
-   uint8_t U1Gcr = U1GCR;
-   uint8_t U1Csr = U1CSR;
-   uint8_t UartSelected = gUartSelected;
 
-   eepromPrvSelect();
-   eepromByte(0x05);
-   Status = eepromByte(0x00);
-   eepromPrvDeselect();
-   EEPROM_LOG("RDSR 0x%x\n",Status);
-   EEPROM_LOG("RDSR 0x%x\n",Status);
-   EEPROM_LOG("P0Dir 0x%x\n",P0Dir);
-   EEPROM_LOG("P0Sel 0x%x\n",P0Sel);
-   EEPROM_LOG("P0Data 0x%x\n",P0Data);
-   EEPROM_LOG("P1Dir 0x%x\n",P1Dir);
-   EEPROM_LOG("P1Data 0x%x\n",P1Data);
-   EEPROM_LOG("P2Sel 0x%x\n",P2Sel);
-   EEPROM_LOG("PERCfg 0x%x\n",PERCfg);
-   EEPROM_LOG("P1Sel 0x%x\n",P1Sel);
-   EEPROM_LOG("U1Baud 0x%x\n",U1Baud);
-   EEPROM_LOG("U1Gcr 0x%x\n",U1Gcr);
-   EEPROM_LOG("U1Csr 0x%x\n",U1Csr);
-   EEPROM_LOG("UartSelected 0x%x\n",UartSelected);
-}
-#endif
 
 void eepromWakeFromPowerdown(void) 
 {
@@ -185,6 +161,7 @@ void eepromWakeFromPowerdown(void)
    );
    gEEPROM_PoweredUp = true;
    LogRDSR();
+   LOG_CONFIG("EEPROM wake");
 }
 
 #pragma callee_saves eepromPrvSfdpRead

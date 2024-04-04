@@ -81,8 +81,12 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
    #define DRAW_LOG_HEX(x,y)
 #endif
 
-
-
+#ifdef DEBUG_CHIP_CFG
+   void LogConfig(const char __code *Msg);
+   #define LOG_CONFIG(x)   LogConfig(x)
+#else
+   #define LOG_CONFIG(x)
+#endif
 
 #endif   // _LOGGING_H_
 
