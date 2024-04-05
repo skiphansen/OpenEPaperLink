@@ -378,7 +378,6 @@ void main()
 // get the highest slot number, number of slots
    initializeProto();
 
-   MAIN_LOG("drawing image\n");
 #if 0
    drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
    showSplashScreen();
@@ -386,7 +385,7 @@ void main()
    showNoAP();
    showLongTermSleep();
    afterFlashScreenSaver();
-#endif
+   MAIN_LOG("drawing image\n");
    powerDown(INIT_EEPROM);
    showSplashScreen();
    MAIN_LOG("image drawn\n");
@@ -400,6 +399,7 @@ void main()
    doSleep(20000L);
    MAIN_LOG("done!\n");
    while(true);
+#endif
 
    if(tagSettings.enableFastBoot) {
    // Fastboot

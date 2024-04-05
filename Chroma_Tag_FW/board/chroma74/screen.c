@@ -6,6 +6,7 @@
 #include "timer.h"
 #include "sleep.h"
 #include "board.h"
+#include "powermgt.h"
 #include "settings.h"
 #include "logging.h"
 
@@ -120,13 +121,12 @@ __bit gScreenPowered = false;
 #define LUT_CMD_110  0x27
 #define LUT_CMD_111  0x28
 
+#ifdef DMITRY_LUT
 #define SET_LUT(_idx, _nm, _len, _corrections)  screenPrvSendLut(_idx, _nm, sizeof(_nm), _len, false, _corrections);
 #define SET_COLOR_LUT(_idx, _nm, _corrections)  SET_LUT(LUT_CMD_ ## _idx, _nm, 260, _corrections);
 #define SET_XON_LUT(_nm)                  screenPrvSendLut(0x29, _nm, sizeof(_nm), 200, true, 0);
 
 extern int LinkError(void);
-
-#ifdef DMITRY_LUT
 #define VERIFY_SUM8(_v1, _v2, _v3, _v4, _v5, _v6, _v7, _v8, _sum) (_v1), (_v2), (_v3), (_v4), (_v5), (_v6), (_v7), (_v8) + (((_v1) + (_v2) + (_v3) + (_v4) + (_v5) + (_v6) + (_v7) + (_v8) != (_sum)) ? LinkError() : 0)
 #if BUILD == chroma74y
 #define NUM_REPS_INITIAL_CHILL      1
@@ -814,6 +814,42 @@ struct Atc1441Luts {
 #error "Unknown LUT type"
 #endif
 
+
+#pragma callee_saves screenPrvWaitByteSent
+static inline void screenPrvWaitByteSent(void)
+{
+   while (U0CSR & 0x01);
+}
+
+#pragma callee_saves screenPrvSendCommand
+static inline void screenPrvSendCommand(uint8_t cmdByte)
+{
+   screenPrvWaitByteSent();
+   P0 &= (uint8_t) ~P0_EPD_D_nCMD;
+   __asm__("nop");
+   screenByteTx(cmdByte);
+   __asm__("nop");
+   screenPrvWaitByteSent();
+   P0 |= P0_EPD_D_nCMD;
+}
+
+#pragma callee_saves einkSelect
+static inline void einkSelect(void)
+{
+   P1 &= (uint8_t) ~P1_EPD_nCS0;
+   __asm__("nop");   //60ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
+#pragma callee_saves einkDeselect
+static inline void einkDeselect(void)
+{
+   screenPrvWaitByteSent();
+   __asm__("nop");   //20ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+   P1 |= P1_EPD_nCS0;
+   __asm__("nop");   //40ns between deselect select and reselect as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
+#ifdef DMITRY_LUT
 static const struct LutCorrectionRange __code corrYellowStageTwoRanges[] = {
    {
       .minTemp = -128,
@@ -863,41 +899,6 @@ static const uint8_t __code mLutFastXon[] = {
 
    0x04, 0xff, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
-
-
-#pragma callee_saves screenPrvWaitByteSent
-static inline void screenPrvWaitByteSent(void)
-{
-   while (U0CSR & 0x01);
-}
-
-#pragma callee_saves screenPrvSendCommand
-static inline void screenPrvSendCommand(uint8_t cmdByte)
-{
-   screenPrvWaitByteSent();
-   P0 &= (uint8_t) ~P0_EPD_D_nCMD;
-   __asm__("nop");
-   screenByteTx(cmdByte);
-   __asm__("nop");
-   screenPrvWaitByteSent();
-   P0 |= P0_EPD_D_nCMD;
-}
-
-#pragma callee_saves einkSelect
-static inline void einkSelect(void)
-{
-   P1 &= (uint8_t) ~P1_EPD_nCS0;
-   __asm__("nop");   //60ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
-}
-
-#pragma callee_saves einkDeselect
-static inline void einkDeselect(void)
-{
-   screenPrvWaitByteSent();
-   __asm__("nop");   //20ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
-   P1 |= P1_EPD_nCS0;
-   __asm__("nop");   //40ns between deselect select and reselect as per spec. at our clock speed that is less than a single cycle, so delay a cycle
-}
 
 static void screenPrvSendLut(uint8_t cmd, const uint8_t __code *ptr, uint16_t len, uint16_t sendLen, __bit padWithXonConstant /* else zero */, const struct LutCorrectionEntry __code *corrections) __reentrant
 {
@@ -954,6 +955,7 @@ static void screenPrvSendLut(uint8_t cmd, const uint8_t __code *ptr, uint16_t le
       screenByteTx(*dst++);
    einkDeselect();
 }
+#endif
 
 void P1INT_ISR(void) __interrupt (15)
 {
@@ -968,7 +970,7 @@ static void screenPrvSleepTillDone(void)
    P1IEN |= P1_EPD_BUSY;         // port 1 pin 0 interrupts
    
    (void)P1;                  //read port;
-   P1IFG &= (uint8_t)~(1 << 0);  //clear int flag in port
+   P1IFG &= (uint8_t)~P1_EPD_BUSY;  //clear int flag in port
    (void)P1IFG;
    IRCON2 &= (uint8_t)~(1 << 3); //clear P1 int flag in int controller
    
@@ -985,12 +987,14 @@ static void screenPrvSleepTillDone(void)
    sleepTillInt();
    
    P1IEN &= (uint8_t)~(1 << 0);  //port 1 pin 0 interrupts
-   P1IFG &=(uint8_t)~(1 << 0);      //clear int flag in port
+   P1IFG &=(uint8_t)~P1_EPD_BUSY;      //clear int flag in port
    IRCON2 &=(uint8_t)~(1 << 3);  //clear P1 int flag in int controller
    
    IEN2 = ien2;
    IEN1 = ien1;
    IEN0 = ien0;
+
+   powerUp(INIT_BASE);
 
 // just in case we're not done...
    while(!EPD_BUSY());
@@ -1146,41 +1150,6 @@ void screenShutdown(void)
    LOG_CONFIG("screenShutdown");
 }
 
-/*
-void screenTest(void)
-{
-   uint16_t r, c;
-   
-   screenInitIfNeeded(false);
-   
-   einkSelect();
-   screenPrvSendCommand(0x10);
-      
-   for (r = 0; r < SCREEN_HEIGHT; r++) {
-      
-      uint8_t prevVal = 0;
-      
-      for (c = 0; c < SCREEN_WIDTH; c++) {
-         
-         uint8_t val = ((r - c) >> 4) & 7;
-         
-         if ((uint8_t)c & 1)
-            screenByteTx((prevVal << 4) | val);
-         else
-            prevVal = val;
-      }
-   }
-
-   einkDeselect();
-   
-   einkSelect();
-   screenPrvSendCommand(0x12);
-   einkDeselect();
-   
-   screenPrvSleepTillDone();
-}
-*/
-
 void screenTxStart(__bit forPartial)
 {
    screenInitIfNeeded(forPartial);
@@ -1196,29 +1165,24 @@ void screenByteTx(uint8_t byte)
    U0DBUF = byte;
 }
 
-void screenTxEnd(void)
+void drawWithSleep() 
 {
    einkDeselect();
-   
    einkSelect();
    screenPrvSendCommand(CMD_DISPLAY_REFRESH);
    einkDeselect();
    
-   timerDelay(TIMER_TICKS_PER_SECOND / 10);
-   
-#if 1
+#if 0
    DRAW_LOG("waiting for refresh to complete\n");
    while(!EPD_BUSY());
    DRAW_LOG("done\n");
 #else
+   LOG("Calling screenPrvSleepTillDone\n");
+
    screenPrvSleepTillDone();
+   LOG("screenPrvSleepTillDone returned\n");
 #endif
    
    screenShutdown();
-}
-
-void drawWithSleep() 
-{
-   screenTxEnd();
 }
 
