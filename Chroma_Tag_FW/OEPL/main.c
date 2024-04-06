@@ -445,8 +445,6 @@ void main()
 
    if(currentChannel) {
       MAIN_LOG("MAIN: Ap Found!\n");
-      showNoAP();
-
       showAPFound();
 #if 0
 // Why ??? 
@@ -455,7 +453,6 @@ void main()
       writeSettings();
       powerDown(INIT_EEPROM);
 #endif
-
       initPowerSaving(INTERVAL_BASE);
       currentTagMode = TAG_MODE_ASSOCIATED;
       doSleep(5000UL);
@@ -470,7 +467,6 @@ void main()
       writeSettings();
       powerDown(INIT_EEPROM);
 #endif
-
       initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
       currentTagMode = TAG_MODE_CHANSEARCH;
       doSleep(120000UL);
@@ -488,18 +484,6 @@ void main()
          TagChanSearch();
       }
    }
-}
-
-const char __xdata* fwVerString(void)
-{
-   static char __xdata fwVer[32];
-
-   if(!fwVer[0]) {
-      spr(fwVer, "FW v%u.%u.%*u",
-          fwVersion / 100,(fwVersion % 100) / 10,fwVersion % 10);
-   }
-
-   return fwVer;
 }
 
 uint16_t __xdata MallocCaller;
