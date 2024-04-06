@@ -203,9 +203,9 @@ static void sendShortAvailDataReq()
 // 21    <AvailDataReq>
 // 1     <crc> (actually a 1 byte checksum of <AvailDataReq>)
 // Total tx len data = 42 (including frame len)
+#define availreq ((struct AvailDataReq * __xdata)&outBuffer[2 + sizeof(struct MacFrameBcast)])
 static void sendAvailDataReq() 
 {
-   struct AvailDataReq *__xdata availreq = (struct AvailDataReq *)(outBuffer + 2 + sizeof(struct MacFrameBcast));
    outBuffer[0] = sizeof(struct MacFrameBcast) + sizeof(struct AvailDataReq) + 2 + 2;
    UpdateBcastFrame();
    outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_AVAIL_DATA_REQ;
@@ -223,6 +223,7 @@ static void sendAvailDataReq()
    addCRC(availreq, sizeof(struct AvailDataReq));
    radioTx(outBuffer);
 }
+#undef AvailDataReq
 
 struct AvailDataInfo *__xdata getAvailDataInfo() 
 {
@@ -369,10 +370,12 @@ static struct blockRequestAck *__xdata continueToRX()
    #undef ack
 }
 
+#define f ((struct MacFrameNormal * __xdata)(outBuffer + 1))
+//   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
 static void sendBlockRequest() 
 {
    xMemSet(outBuffer,0,sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2);
-   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
+//   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    struct blockRequest *__xdata blockreq = (struct blockRequest *)(outBuffer + 2 + sizeof(struct MacFrameNormal));
    outBuffer[0] = sizeof(struct MacFrameNormal) + sizeof(struct blockRequest) + 2 + 2;
    if(gNewBlock) {
@@ -397,6 +400,7 @@ static void sendBlockRequest()
    addCRC(blockreq, sizeof(struct blockRequest));
    radioTx(outBuffer);
 }
+#undef f
 
 static struct blockRequestAck *__xdata performBlockRequest() __reentrant 
 {
@@ -440,10 +444,10 @@ static struct blockRequestAck *__xdata performBlockRequest() __reentrant
    return continueToRX();
 }
 
+#define f ((struct MacFrameNormal * __xdata)(outBuffer + 1))
 static void sendXferCompletePacket() 
 {
    xMemSet(outBuffer,0,sizeof(struct MacFrameNormal) + 2 + 4);
-   struct MacFrameNormal *__xdata f = (struct MacFrameNormal *)(outBuffer + 1);
    outBuffer[0] = sizeof(struct MacFrameNormal) + 2 + 2;
    outBuffer[sizeof(struct MacFrameNormal) + 1] = PKT_XFER_COMPLETE;
    xMemCopyShort((void *)(f->src), (void *) mSelfMac,8);
@@ -460,6 +464,7 @@ static void sendXferCompletePacket()
    f->seq = seq++;
    radioTx(outBuffer);
 }
+#undef f
 
 static void sendXferComplete() 
 {
