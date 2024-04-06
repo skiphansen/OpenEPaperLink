@@ -964,40 +964,6 @@ void P1INT_ISR(void) __interrupt (15)
 
 static void screenPrvSleepTillDone(void)
 {
-   uint8_t ien0, ien1, ien2;
-
-   PICTL &= (uint8_t)~(1 << 1);  //port 1 interupts on rising edge
-   P1IEN |= P1_EPD_BUSY;         // port 1 pin 0 interrupts
-   
-   (void)P1;                  //read port;
-   P1IFG &= (uint8_t)~P1_EPD_BUSY;  //clear int flag in port
-   (void)P1IFG;
-   IRCON2 &= (uint8_t)~(1 << 3); //clear P1 int flag in int controller
-   
-   ien0 = IEN0;
-   IEN0 = 0;
-   ien1 = IEN1;
-   IEN1 = 0;
-   ien2 = IEN2;
-   IEN2 = IEN2_P1IE;       // p1 int only
-   EA   = 1;               // ints in general are on
-   
-   SLEEP = (SLEEP & (uint8_t)~(3 << 0)) | (0 << 0);   //sleep in pm0
-   
-   sleepTillInt();
-   
-   P1IEN &= (uint8_t)~(1 << 0);  //port 1 pin 0 interrupts
-   P1IFG &=(uint8_t)~P1_EPD_BUSY;      //clear int flag in port
-   IRCON2 &=(uint8_t)~(1 << 3);  //clear P1 int flag in int controller
-   
-   IEN2 = ien2;
-   IEN1 = ien1;
-   IEN0 = ien0;
-
-   powerUp(INIT_BASE);
-
-// just in case we're not done...
-   while(!EPD_BUSY());
 }
 
 static void screenInitIfNeeded(__bit forPartial)
@@ -1187,17 +1153,41 @@ void drawWithSleep()
    screenPrvSendCommand(CMD_DISPLAY_REFRESH);
    einkDeselect();
    
-#if 0
-   DRAW_LOG("waiting for refresh to complete\n");
-   while(!EPD_BUSY());
-   DRAW_LOG("done\n");
-#else
-   LOG("Calling screenPrvSleepTillDone\n");
+   uint8_t ien0, ien1, ien2;
 
-   screenPrvSleepTillDone();
-   LOG("screenPrvSleepTillDone returned\n");
-#endif
+   PICTL &= (uint8_t)~(1 << 1);  //port 1 interupts on rising edge
+   P1IEN |= P1_EPD_BUSY;         // port 1 pin 0 interrupts
    
+   (void)P1;                  //read port;
+   P1IFG &= (uint8_t)~P1_EPD_BUSY;  //clear int flag in port
+   (void)P1IFG;
+   IRCON2 &= (uint8_t)~(1 << 3); //clear P1 int flag in int controller
+   
+   ien0 = IEN0;
+   IEN0 = 0;
+   ien1 = IEN1;
+   IEN1 = 0;
+   ien2 = IEN2;
+   IEN2 = IEN2_P1IE;       // p1 int only
+   EA   = 1;               // ints in general are on
+   
+   SLEEP = (SLEEP & (uint8_t)~(3 << 0)) | (0 << 0);   //sleep in pm0
+   
+   sleepTillInt();
+   
+   P1IEN &= (uint8_t)~(1 << 0);  //port 1 pin 0 interrupts
+   P1IFG &=(uint8_t)~P1_EPD_BUSY;      //clear int flag in port
+   IRCON2 &=(uint8_t)~(1 << 3);  //clear P1 int flag in int controller
+   
+   IEN2 = ien2;
+   IEN1 = ien1;
+   IEN0 = ien0;
+
+   powerUp(INIT_BASE);
+
+// just in case we're not done...
+   while(!EPD_BUSY());
+
    screenShutdown();
 }
 
