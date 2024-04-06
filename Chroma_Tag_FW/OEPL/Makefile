@@ -22,7 +22,7 @@ endif
 FW_VER := $(shell grep "\#define FW_VERSION" ../common/settings.h | grep -v "suffix" | awk '{print $$3}' | cut -c 3-)
 
 #file containing main() must be first!
-SOURCES	= main.c eeprom.c drawing.c comms.c settings.c chars.c cpu.c 
+SOURCES	= main.c eeprom.c drawing.c comms.c settings.c cpu.c 
 SOURCES += board.c powermgt.c syncedproto.c userinterface.c
 include ../make/common.mk
 SOURCES += $(SOC_DIR)/wdt.c $(SOC_DIR)/timer.c $(SOC_DIR)/sleep.c 

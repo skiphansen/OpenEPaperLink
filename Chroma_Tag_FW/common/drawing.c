@@ -9,7 +9,6 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "printf.h"
 #include "screen.h"
 #include "eeprom.h"
-#include "chars.h"
 #include "board.h"
 #include "adc.h"
 #include "cpu.h"
