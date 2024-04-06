@@ -56,31 +56,6 @@ void initPowerSaving(const uint16_t initialValue)
    }
 }
 
-static void configSPI(const bool setup) 
-{
-#if 0
-   if(setup == spiActive) return;
-   if(setup) {
-      P0FUNC |= (1 << 0) | (1 << 1) | (1 << 2);
-      P0DIR |= (1 << 2);                // MISO as input
-      P0DIR &= ~((1 << 0) | (1 << 1));  // CLK and MOSI as output
-      P0PULL |= (1 << 2);
-      spiInit();
-      wdtOn();
-   } else {
-      P0FUNC &= ~((1 << 0) | (1 << 1) | (1 << 2));
-      P0DIR |= (1 << 0) | (1 << 1) | (1 << 2);
-      P0PULL &= ~(1 << 2);
-      uint8_t bcp;
-      CLKEN &= ~(0x08);
-      bcp = CFGPAGE;
-      CFGPAGE = 4;
-      SPIENA &= ~(0x81);
-      CFGPAGE = bcp;
-   }
-   spiActive = setup;
-#endif
-}
 
 void powerUp(const uint8_t parts) 
 {
@@ -186,10 +161,7 @@ void doSleep(uint32_t __xdata t)
       powerDown(INIT_EEPROM);
    }
    screenShutdown();
-#if 0
    powerPortsDownForSleep();
-   gUartActive = false;
-#endif
 
 // sleepy time
    sleepForMsec(t);

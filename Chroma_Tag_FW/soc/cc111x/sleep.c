@@ -74,23 +74,15 @@ void sleepForMsec(uint32_t units)
 
    while(forever || units != 0) {
       uint16_t now;
-#if 1
-   // sleep mode errata require it to be entered only from RCOSC
-      CLKCON |= TICKSPD_DIV_2;            //clock down to clock/2 as that is the best we get from rcosc
-      CLKCON |= CLKCON_OSC;            //switch to rc osc
-      while(!(SLEEP & SLEEP_HFRC_S));     //wait for HFRC to stabilize 
-      while(!(CLKCON & CLKCON_OSC));   //wait for the switch
-#else
    // Switch system clock source to HS RCOSC and max CPU speed:
       SLEEP &= ~SLEEP_OSC_PD;
       while(!(SLEEP & SLEEP_HFRC_S));
-      CLKCON = (CLKCON & ~CLKCON_CLKSPD) | CLKCON_OSC | CLKSPD_DIV_2;
+      CLKCON = (CLKCON & CLKCON_TICKSPD_MASK) | CLKCON_OSC | CLKSPD_DIV_2;
       while(!(CLKCON & CLKCON_OSC));
       SLEEP |= SLEEP_OSC_PD;
 
    // Set LS XOSC as the Sleep Timer clock source (CLKCON.OSC32 = 0)
       CLKCON &= ~CLKCON_OSC32;
-#endif
    
       if(units > 0xfff0L) {
     // we can sleep for up to 33 mins effectively this way
@@ -119,6 +111,9 @@ void sleepForMsec(uint32_t units)
       WOREVT1 = now >> 8;
       WOREVT0 = now & 0xff;
       
+// ** Beginning of timing critical code ***
+// The following is from the CC1110Fx/CC1111Fx ERRATA NOTE (swrz022c)
+
    // Wait until a positive 32 kHz edge
       tmp = WORTIME0;
       while(tmp == WORTIME0); 
@@ -140,7 +135,7 @@ void sleepForMsec(uint32_t units)
          __asm__("ORL 0x87,#0x01"); // PCON |= 0x01 -- Now in PM2;
          __asm__("NOP");            // First call when awake
       }
-   // End of timing critical code
+// ** End of timing critical code **
 
    // Enable Flash Cache.
       MEMCTR &= ~MEMCTR_CACHD;
@@ -166,7 +161,6 @@ void sleepForMsec(uint32_t units)
       CLKCON = 0x38;          //go to 26MHz system and timer speed,  timer clock is Fosc / 128 = 203.125KHz
       SLEEP = 4;              //power down the unused (HFRC oscillator)
 #endif
-
    }
 
 }

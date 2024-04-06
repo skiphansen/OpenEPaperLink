@@ -82,6 +82,8 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
 #endif
 
 #ifdef DEBUG_CHIP_CFG
+   void CopyCfg(void);
+   void PrintCfg(void);
    void LogConfig(const char __code *Msg);
    #define LOG_CONFIG(x)   LogConfig(x)
 #else

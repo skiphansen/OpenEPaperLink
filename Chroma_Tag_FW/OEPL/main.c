@@ -344,7 +344,24 @@ void executeCommand(uint8_t cmd)
 }
 
 void main() 
-{
+{  
+#ifdef DEBUG_CHIP_CFG
+   CopyCfg();
+   doSleep(3000UL);
+   powerUp(INIT_BASE);
+   LOG("At startup before init:\n");
+   PrintCfg();
+   CopyCfg();
+   LOG("At after powerUp:\n");
+   PrintCfg();
+   powerPortsDownForSleep();
+   CopyCfg();
+   doSleep(3000UL);
+   LOG("At after sleep:\n");
+   PrintCfg();
+   P0DIR = 0;
+   doSleep(3000UL);
+#endif
    powerUp(INIT_BASE);
 
    LOG("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);

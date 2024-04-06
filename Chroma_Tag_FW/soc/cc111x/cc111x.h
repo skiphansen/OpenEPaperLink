@@ -68,7 +68,11 @@ __sbit __at (0xAF) IEN_EA;
 __sfr __at (0x80) P0;
 
 __sfr __at (0x86) U0CSR;
+
+// PCON (0x87) - Power Mode Control
 __sfr __at (0x87) PCON;
+#define PCON_IDLE                         0x01
+
 __sfr __at (0x88) TCON;
 __sfr __at (0x89) P0IFG;
 __sfr __at (0x8A) P1IFG;
@@ -114,8 +118,8 @@ __sfr __at (0xA1) WORIRQ;
 __sfr __at (0xA2) WORCTRL;
 #define WORCTL_WOR_RESET                  0x04
 #define WORCTL_WOR_RES                    0x03
-#define WORCTL_WOR_RES0                   0x01
 #define WORCTL_WOR_RES1                   0x02
+#define WORCTL_WOR_RES0                   0x01
 
 __sfr __at (0xA3) WOREVT0;
 __sfr __at (0xA4) WOREVT1;
@@ -190,12 +194,12 @@ __sfr __at (0xC5) U0GCR;
 
 // CLKCON (0xC6) - Clock Control
 __sfr __at (0xC6) CLKCON;
-#define CLKCON_OSC32          0x80  // bit mask, for the slow 32k clock oscillator
-#define CLKCON_OSC            0x40  // bit mask, for the system clock oscillator
+#define CLKCON_OSC32          0x80  // 32k clock osc select 0: Xtal 1: RC
+#define CLKCON_OSC            0x40  // system clock osc select 0: Xtal 1:RC
 #define CLKCON_TICKSPD_MASK   0x38  // bit mask, for timer ticks output setting
-#define CLKCON_TICKSPD(x)     (x << 3) // for timer tick speed 0->7
+#define CLKCON_TICKSPD(x)     (x << 3) // for timer tick divider select 0 = /1
 #define CLKCON_CLKSPD_MASK    0x07  // bit mask, for the clock speed
-#define CLKCON_CLKSPD(x)      (x)   // speed 0-> 7)
+#define CLKCON_CLKSPD(x)      (x)   // system clk divider 0 = /1
 
 #define TICKSPD_DIV_1                     (0x00 << 3)
 #define TICKSPD_DIV_2                     (0x01 << 3)
@@ -259,7 +263,19 @@ __sfr __at (0xE1) RFST;
 
 __sfr __at (0xE2) T1CNTL;
 __sfr __at (0xE3) T1CNTH;
+// T1CTL (0xE4) - Timer 1 Control and Status
 __sfr __at (0xE4) T1CTL;
+#define T1CTL_CH2IF                       0x80 // Timer 1 channel 2 interrupt flag
+#define T1CTL_CH1IF                       0x40 // Timer 1 channel 1 interrupt flag
+#define T1CTL_CH0IF                       0x20 // Timer 1 channel 0 interrupt flag
+#define T1CTL_OVFIF                       0x10 // Timer 1 counter overflow interrupt flag
+#define T1CTL_DIV                         0x0C
+#define T1CTL_DIV0                        0x04
+#define T1CTL_DIV1                        0x08
+#define T1CTL_MODE                        0x03
+#define T1CTL_MODE0                       0x01
+#define T1CTL_MODE1                       0x02
+
 __sfr __at (0xE5) T1CCTL0;
 __sfr __at (0xE6) T1CCTL1;
 __sfr __at (0xE7) T1CCTL2;
@@ -296,7 +312,20 @@ __sfr __at (0xF3) P0SEL;
 __sfr __at (0xF4) P1SEL;
 __sfr __at (0xF5) P2SEL;
 __sfr __at (0xF6) P1INP;
+
+// P2INP (0xF7) - Port 2 Input Mode
 __sfr __at (0xF7) P2INP;
+#define P2INP_PDUP2                       0x80
+#define P2INP_PDUP1                       0x40
+#define P2INP_PDUP0                       0x20
+#define P2INP_MDP2                        0x1F
+
+#define P2INP_MDP2_0                      (0x01)
+#define P2INP_MDP2_1                      (0x02)
+#define P2INP_MDP2_2                      (0x04)
+#define P2INP_MDP2_3                      (0x08)
+#define P2INP_MDP2_4                      (0x10)
+
 
 // U1CSR (0xF8) - USART 1 Control and Status - bit accessible SFR register
 __sfr __at (0xF8) U1CSR;

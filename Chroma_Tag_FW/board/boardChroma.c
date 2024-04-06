@@ -43,29 +43,30 @@
 // This is accomplished by setting PERCFG and P1SEL dynamically depending on
 // how USART1 is being used.
 // 
+// NB: since the EPD isn't powered until we use it DO NOT connect 
+// the EPD SPI pins as SPI initally and drive all of the control pins
+// LOW to avoid back powering the EPD via the control pins
 void PortInit()
 {
    PERCFG = PERCFG_U0CFG;  // USART0 on P1
 
-// Set port 0 default output value (all high except BS1)
-   P0 =  P0_EEPROM_CLK | P0_EEPROM_MOSI | P0_EPD_nENABLE | P0_EPD_D_nCMD;
+// Set port 0 default output value
+   P0 =  P0_EEPROM_CLK | P0_EEPROM_MOSI | P0_EPD_nENABLE;
 
 // Port 0 output pins
    P0DIR = P0_EPD_BS1 | P0_EEPROM_CLK | P0_EEPROM_MOSI 
          | P0_EPD_nENABLE | P0_EPD_D_nCMD;
-
 // Port 0 peripheral pins
    P0SEL = P0_EEPROM_CLK | P0_EEPROM_MOSI | P0_EEPROM_MISO;
 
-// Set port 1 default output value (all high)
-   P1 = P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK 
-      | P1_EPD_DI | P1_SERIAL_OUT;      
+// Set port 1 default output value
+   P1 = P1_SERIAL_OUT;      
 
 // Port 1 output pins
    P1DIR = P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK 
          | P1_EPD_DI | P1_SERIAL_OUT;
 
-// Port 1 peripheral pins
+// Port 1 peripheral pins 
    P1SEL = P1_EPD_SCK | P1_EPD_DI | P1_SERIAL_OUT | P1_SERIAL_IN;
 
 // Both USART0 and USART1 are assigned to P1, the P2SEL register defines
@@ -107,20 +108,100 @@ void LogConfig(const char __code *Msg)
    LOG("U1Csr 0x%x\n",U1Csr);
    LOG("UartSelected 0x%x\n",gUartSelected);
 }
+
+static uint8_t g_Status;
+static uint8_t gP0Dir;
+static uint8_t gP0Sel;
+static uint8_t gP0Data;
+static uint8_t gP1Dir;
+static uint8_t gP1Data;
+static uint8_t gP2Sel;
+static uint8_t gPERCfg;
+static uint8_t gP1Sel;
+static uint8_t gU1Baud;
+static uint8_t gU1Gcr;
+static uint8_t gU1Csr;
+static uint8_t gP0INP;
+static uint8_t gP1INP;
+static uint8_t gP2INP;
+static uint8_t gP2Dir;
+static uint8_t gP2Data;
+
+void CopyCfg()
+{
+   gP0Sel = P0SEL;
+   gP0Dir = P0DIR;
+   gP0Data = P0;
+   gP1Dir = P1DIR;
+   gP0INP = P0INP;
+
+   gP1Sel = P1SEL;
+   gP1Dir = P1DIR;
+   gP1Data = P1;
+   gP1Dir = P1DIR;
+   gP1INP = P1INP;
+
+   gP2Sel = P2SEL;
+   gP2Dir = P2DIR;
+   gP2Data = P2;
+   gP2INP = P2INP;
+
+   gPERCfg = PERCFG;
+   gU1Baud = U1BAUD;
+   gU1Gcr = U1GCR;
+   gU1Csr = U1CSR;
+}
+
+void PrintCfg()
+{
+   LOG("P0Sel 0x%x\n",gP0Sel);
+   LOG("P0Dir 0x%x\n",gP0Dir);
+   LOG("P0Data 0x%x\n",gP0Data);
+   LOG("P0Inp 0x%x\n\n",gP0INP);
+
+   LOG("P1Sel 0x%x\n",gP1Sel);
+   LOG("P1Dir 0x%x\n",gP1Dir);
+   LOG("P1Data 0x%x\n",gP1Data);
+   LOG("P1Inp 0x%x\n\n",gP1INP);
+
+   LOG("P2Sel 0x%x\n",gP2Sel);
+   LOG("P2Dir 0x%x\n",gP2Dir);
+   LOG("P2Data 0x%x\n",gP2Data);
+   LOG("P2Inp 0x%x\n\n",gP2INP);
+
+   LOG("PERCfg 0x%x\n",gPERCfg);
+   LOG("U1Baud 0x%x\n",gU1Baud);
+   LOG("U1Gcr 0x%x\n",gU1Gcr);
+   LOG("U1Csr 0x%x\n",gU1Csr);
+}
 #endif
 
 void powerPortsDownForSleep(void)
 {
-#if 0
-   P0 = 0b01000000;
-   P1 = 0b01000000;
-   P2 = 0b00000001;
-   P0DIR = 0b11111111;
-   P1DIR = 0b01101110;
-   P2DIR = 0b00000001;
+   T1CTL = 0;  //timer off
+   U1GCR = 0;  // Disable Rx
+
+// Enable pull-up on P2_EEPROM_nCS
+// P0, P1 pins with have pull-up if enabled
+   P2INP = P2_DBG_DAT | P2_DBG_CLK | P2_XOSC32_Q1 | P2_XOSC32_Q2;
+
+// Tristate all P0 pins except P0_EEPROM_MOSI and P0_EPD_nENABLE
+   P0INP = ~(P0_EEPROM_MOSI | P0_EPD_nENABLE);
+
+// Tristate all P1 pins except P1_SERIAL_OUT
+   P1INP = ~P1_SERIAL_OUT;
+
+// Set all GPIO ports to input mode
+   P0DIR = 0;
+   P1DIR = 0;
+   P2DIR = 0;
+
+// Disconnect all perpherials from pins
    P0SEL = 0;
    P1SEL = 0;
    P2SEL = 0;
+#ifdef DEBUG_CHIP_CFG
+   CopyCfg();
 #endif
 }
 

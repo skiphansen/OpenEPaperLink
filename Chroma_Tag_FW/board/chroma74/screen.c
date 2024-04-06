@@ -1007,15 +1007,19 @@ static void screenInitIfNeeded(__bit forPartial)
    }
    gScreenPowered = true;
    
-// reset controller   
-   P1 &= ~P1_EPD_nRESET;
+// Don't select the EPD yet
+   P1 |= P1_EPD_nCS0;
 
-   U0BAUD = 0;       //F/8 is max for spi - 3.25 MHz
-   U0GCR = 0b00110001;  //BAUD_E = 0x11, msb first
-   U0CSR = 0b00000000;  //SPI master mode, RX off
-   
 // turn on the eInk power (keep in reset for now)
    P0 &= (uint8_t) ~P0_EPD_nENABLE;
+
+// Connect the P1 EPD pins to USART0
+   P1SEL |= P1_EPD_SCK | P1_EPD_DI;
+   
+   U0BAUD = 0;          // F/8 is max for spi - 3.25 MHz
+   U0GCR = 0b00110001;  // BAUD_E = 0x11, msb first
+   U0CSR = 0b00000000;  // SPI master mode, RX off
+   
    timerDelay(TIMER_TICKS_PER_SECOND * 10 / 1000); //wait 10ms
    
 // release reset
@@ -1023,7 +1027,7 @@ static void screenInitIfNeeded(__bit forPartial)
    timerDelay(TIMER_TICKS_PER_SECOND * 10 / 1000); //wait 10ms
    
 // wait for not busy
-   while (!EPD_BUSY());
+   while(!EPD_BUSY());
    
 // we can now talk to it
    einkSelect();
@@ -1143,6 +1147,17 @@ void screenShutdown(void)
    screenPrvSendCommand(CMD_DEEP_SLEEP);
    screenByteTx(0xa5);
    einkDeselect();
+
+// Reconfigure the EPD SPI pins as GPIO
+// Disconnect the P1 EPD SPI pins from USART0 and connect them to GPIO
+   P1SEL &= ~(P1_EPD_SCK | P1_EPD_DI);
+
+// Drive all of the control pins LOW to avoid back powering the EPD via the 
+// control pins
+
+   P0 &= ~(P0_EPD_BS1 | P0_EPD_nCS1 | P0_EPD_D_nCMD);
+   P1 &= ~(P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI);
+// Turn off power to the EPD
    SET_EPD_nENABLE(1);
    
    gScreenPowered = false;
