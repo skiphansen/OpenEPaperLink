@@ -100,7 +100,7 @@ void drawImageAtAddress(uint32_t addr) __reentrant
       g2BitsPerPixel = true;
    }
    else {
-      LOG("dataType 0x%x not supported\n",eih->dataType);
+      LOGA("dataType 0x%x not supported\n",eih->dataType);
       DumpHex(blockbuffer,sizeof(struct EepromImageHeader));
       powerDown(INIT_EEPROM);
       return;
@@ -213,28 +213,6 @@ void DrawScreen(DrawingFunction DrawIt)
 // Finished with SPI flash
    drawWithSleep();
 }
-
-
-
-#pragma callee_saves myStrlen
-static uint16_t myStrlen(const char *str)
-{
-   const char * __xdata strP = str;
-   
-   while (charsPrvDerefAndIncGenericPtr(&strP));
-   
-   return strP - str;
-}
-
-#if 0
-void setPosXY(uint16_t x, uint16_t y) {
-    shortCommand1(CMD_XSTART_POS, (uint8_t)(x / 8));
-    commandBegin(CMD_YSTART_POS);
-    epdSend((y) & 0xff);
-    epdSend((y) >> 8);
-    commandEnd();
-}
-#endif
 
 // x,y where to put bmp.  (x must be a multiple of 8)
 // bmp[0] =  bmp width in pixels (must be a multiple of 8)

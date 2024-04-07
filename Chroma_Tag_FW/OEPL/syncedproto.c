@@ -24,8 +24,6 @@
 #include "timer.h"
 #include "userinterface.h"
 #include "wdt.h"
-// #include "uart.h"
-// #include "flash.h"
 #include "logging.h"
 
 // Kludge to save a few bytes of xcata and code
@@ -165,7 +163,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
    radioRxFlush();
    radioRxEnable(true);
    for(uint8_t c = 1; c <= MAXIMUM_PING_ATTEMPTS; c++) {
-      AP_SEARCH_LOG("Trying ch %d %d\n",channel,c);
+      LOGA("Trying ch %d %d\n",channel,c);
       sendPing();
       t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW);
       while(timerGet() < t) {
@@ -324,9 +322,12 @@ static void processBlockPart(const struct blockPart *bp)
       xMemCopy((void *)(blockbuffer + start), (const void *)bp->data, size);
    // we don't need this block anymore, set bit to 0 so we don't request it again
       curBlock.requestedParts[bp->blockPart / 8] &= ~(1 << (bp->blockPart % 8));
+#ifndef DEBUGBLOCKS
+   LOGA(".");
+#endif
       return;
    }
-   BLOCK_LOG("checkCRC failed\n");
+   LOGE("checkCRC failed\n");
    return;
 }
 
@@ -353,6 +354,9 @@ static void blockRxLoop(const uint32_t timeout)
             }
             if(i == BLOCK_REQ_PARTS_BYTES) {
             // got all of the parts we were expecting, bail
+#ifndef DEBUGBLOCKS
+               LOG("\n");
+#endif
                break;
             }
          }
@@ -635,6 +639,9 @@ static bool getDataBlock(const uint16_t blockSize)
 
    while(blockAttempts--) {
       if(NewSubBlock) {
+#ifndef DEBUGBLOCKS
+         LOGA("REQ %d part %d",curBlock.blockId,gSubBlockID);
+#endif
          NewSubBlock = false;
          gPartsThisBlock = gBlockData.size / BLOCK_PART_DATA_SIZE;
          if((gBlockData.size % BLOCK_PART_DATA_SIZE) != 0) {
@@ -737,7 +744,7 @@ static bool getDataBlock(const uint16_t blockSize)
       if(blockComplete) {
          BLOCK_LOG("blk complete\n");
          if(gBlockData.checksum != gBlockChecksum) {
-            PROTO_LOG("blk failed validation!\n");
+            LOGE("blk failed validation!\n");
             break;
          }
          else {
@@ -825,7 +832,7 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
       && (xferDataInfo.dataTypeArgument == avail->dataTypeArgument) 
       && xferDataInfo.dataSize) 
    {  // looks like we did. We'll carry on where we left off.
-      PROTO_LOG("restarting img dl\n");
+      LOGA("restarting img dl\n");
    }
    else {
    // new transfer
@@ -847,7 +854,7 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
          }
          if(nextImgSlot == startingSlot) {
             powerDown(INIT_EEPROM);
-            PROTO_LOG("No slots\n");
+            LOGE("No slots\n");
             return true;
          }
          eepromRead(getAddressForSlot(nextImgSlot), eih, sizeof(struct EepromImageHeader));
@@ -880,7 +887,7 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
       wdtDeviceReset();
 eraseSuccess:
       powerDown(INIT_EEPROM);
-      PROTO_LOG("new dl to %d\n", xferImgSlot);
+      LOGA("new dl to %d\n", xferImgSlot);
    // start, or restart the transfer. Copy data from the AvailDataInfo struct, 
    // theand the struct intself. This forces a new transfer
       curBlock.blockId = 0;
@@ -974,9 +981,9 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
       }
    }
    else {
-      // check if we're currently displaying this data payload
+   // check if we're currently displaying this data payload
       if(xMemEqual((const void *__xdata) & avail->dataVer, (const void *__xdata)curDispDataVer, 8)) {
-         // currently displayed, not doing anything except for sending an XFC
+      // currently displayed, not doing anything except for sending an XFC
          PROTO_LOG("current img, send xfc\n");
          powerUp(INIT_RADIO);
          sendXferComplete();
@@ -993,12 +1000,12 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
 
          // Is this image already in a slot somewhere
          if(findImgSlot != 0xFF) {
-            // found a (complete)valid image slot for this version
+          // found a (complete)valid image slot for this version
             powerUp(INIT_RADIO);
             sendXferComplete();
             powerDown(INIT_RADIO);
 
-            // mark as completed and draw from EEPROM
+          // mark as completed and draw from EEPROM
             xMemCopyShort(&xferDataInfo, (void *)avail, sizeof(struct AvailDataInfo));
             xferDataInfo.dataSize = 0;  // mark as transfer not pending
 
@@ -1007,16 +1014,16 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
             drawImageFromEeprom(findImgSlot, arg.lut);
          }
          else {
-// not found in cache, prepare to download
-            PROTO_LOG("dl img\n");
+         // not found in cache, prepare to download
+            LOGA("dl img\n");
             if(downloadImageDataToEEPROM(avail)) {
-// sets xferImgSlot to the right slot
+            // sets xferImgSlot to the right slot
                PROTO_LOG("dl done\n");
                powerUp(INIT_RADIO);
                sendXferComplete();
                powerDown(INIT_RADIO);
 
-               // not preload, draw now
+            // not preload, draw now
                wdt60s();
                curImgSlot = xferImgSlot;
                drawImageFromEeprom(xferImgSlot, arg.lut);
@@ -1025,8 +1032,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
                return false;
             }
          }
-
-         // keep track on what is currently displayed
+      // keep track on what is currently displayed
          xMemCopy8(curDispDataVer, xferDataInfo.dataVer);
          return true;
       }
@@ -1143,8 +1149,6 @@ void DumpCurBlock()
          }
       }
       pr("]\n");
-#else
-      LOG("REQ %d\n",curBlock.blockId);
 #endif
 }
 

@@ -209,10 +209,10 @@ void TagAssociated()
       nextCheckInFromAP = 0;  // let the power-saving algorithm determine the next sleep period
    }
    else {
-      nextCheckInFromAP = avail->nextCheckIn;
    // got some data from the AP!
+      nextCheckInFromAP = avail->nextCheckIn;
       if(avail->dataType != DATATYPE_NOUPDATE) {
-   // data transfer
+      // data transfer
          BLOCK_LOG("Update available\n");
          if(processAvailDataInfo(avail)) {
          // succesful transfer, next wake time is determined by the NextCheckin;
@@ -224,8 +224,8 @@ void TagAssociated()
          }
       } 
       else {
-         // no data transfer, just sleep.
-         BLOCK_LOG("No update\n");
+      // no data transfer, just sleep.
+         LOGA("No update\n");
       }
    }
 
@@ -364,7 +364,7 @@ void main()
 #endif
    powerUp(INIT_BASE);
 
-   LOG("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
+   LOGA("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
    boardInitStage2();
 
 #ifdef DEBUGGUI

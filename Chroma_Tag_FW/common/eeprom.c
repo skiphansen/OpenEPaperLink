@@ -146,8 +146,6 @@ void eepromDeepPowerDown(void)
 }
 #endif
 
-
-
 void eepromWakeFromPowerdown(void) 
 {
    eepromPrvSimpleCmd(0xab);
@@ -164,6 +162,8 @@ void eepromWakeFromPowerdown(void)
    LOG_CONFIG("EEPROM wake");
 }
 
+#ifndef SFDP_DISABLED
+
 #pragma callee_saves eepromPrvSfdpRead
 static void eepromPrvSfdpRead(uint16_t ofst, uint8_t __xdata *dst, uint8_t len) 
 {
@@ -179,7 +179,6 @@ static void eepromPrvSfdpRead(uint16_t ofst, uint8_t __xdata *dst, uint8_t len)
    eepromPrvDeselect();
 }
 
-#ifndef SFDP_DISABLED
 __bit eepromInit(void) 
 {
    uint8_t __xdata buf[8];
@@ -357,12 +356,3 @@ bool eepromErase(uint32_t addr, uint16_t nSec) __reentrant
    return true;
 }
 
-void eepromOtpModeEnter(void) 
-{
-   eepromPrvSimpleCmd(0xb1);
-}
-
-void eepromOtpModeExit(void) 
-{
-   eepromPrvSimpleCmd(0xc1);
-}

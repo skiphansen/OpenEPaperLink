@@ -69,13 +69,6 @@ void powerUp(const uint8_t parts)
       u1init();
    }
 
-#if 0
-   if(parts & INIT_EPD) {
-      configSPI(true);
-      epdConfigGPIO(true);
-      epdSetup();
-   }
-#endif
    if(parts & INIT_EPD_VOLTREADING) {
       batteryVoltage = adcSampleBattery();
    }
@@ -92,12 +85,6 @@ void powerUp(const uint8_t parts)
          EEPROM_LOG("EEPROM selected\n");
       }
    } 
-#if 0
-// never set Uart mode here...  maybe for now anyway
-   else if((parts & INIT_UART) && !gUartActive) {
-      u1setUartMode();
-   }
-#endif
 
    if(parts & INIT_RADIO) {
       radioInit();
@@ -108,31 +95,10 @@ void powerUp(const uint8_t parts)
 
 void powerDown(const uint8_t parts) 
 {
-#if 0
-   if(parts & INIT_UART) {
-      configUART(false);
-   }
-   if(parts & INIT_RADIO) {  // warning; this also touches some stuff about the EEPROM, apparently. Re-init EEPROM afterwards
-      radioRxEnable(false, true);
-      RADIO_IRQ4_pending = 0;
-      UNK_C1 &= ~0x81;
-      TCON &= ~0x20;
-      uint8_t __xdata cfgPg = CFGPAGE;
-      CFGPAGE = 4;
-      RADIO_command = 0xCA;
-      RADIO_command = 0xC5;
-      CFGPAGE = cfgPg;
-   }
-#endif
    if((parts & INIT_EEPROM) && gEEPROM_PoweredUp) {
       EEPROM_LOG("Power down EEPROM\n");
       eepromDeepPowerDown();
    }
-#if 0
-   if(!gEepromActive && !epdGPIOActive) {
-      configSPI(false);
-   }
-#endif
 }
 
 // t = sleep time in milliseconds

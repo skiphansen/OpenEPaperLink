@@ -3,6 +3,13 @@
 
 extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
 
+// LOGA always logs
+#define LOGA(format, ... ) pr(format,## __VA_ARGS__)
+
+// LOGE always logs
+#define LOGE(format, ... ) pr(format,## __VA_ARGS__)
+
+// LOG logs only when debugging is enable
 #define LOG(format, ... ) pr(format,## __VA_ARGS__)
 
 #ifdef DEBUGEEPROM
