@@ -30,17 +30,19 @@ void sleepTillInt(void)
 
 #define SET_PM0   (SLEEP_MODE_PM0 | SLEEP_OSC_PD)
 #define SET_PM2   (SLEEP_MODE_PM2 | SLEEP_OSC_PD)
+#define SET_PM3   (SLEEP_MODE_PM3 | SLEEP_OSC_PD)
 // Defining this here rather than locally in sleepForMsec saves 25 bytes of flash
 uint8_t static __xdata PM2_BUF[7] = {
    SET_PM2,SET_PM2,SET_PM2,SET_PM2,SET_PM2,SET_PM2,SET_PM0
 };
 
+uint8_t static __xdata PM3_BUF[7] = {
+   SET_PM3,SET_PM3,SET_PM3,SET_PM3,SET_PM3,SET_PM3,SET_PM0
+};
 
 void sleepForMsec(uint32_t units)
 {
    struct DmaDescr __xdata dmaDesc = {
-      .srcAddrHi = ((uint16_t)PM2_BUF) >> 8,
-      .srcAddrLo = (uint8_t)PM2_BUF,
       .dstAddrHi = 0xdf,
       .dstAddrLo = 0xbe,   //SLEEP REG
       .vlen = 0,           //tranfer given number of bytes
@@ -53,15 +55,21 @@ void sleepForMsec(uint32_t units)
       .dstinc = 0,         //do not increment DST (write SLEEP reg repeatedly)
       .srcinc = 1,         //increment source
    };
-   __bit forever;
-   
+   uint8_t forever;
+      
 // our units are 31.25msec, caller used msec
    units = mathPrvDiv32x16(units,31);
 
-   forever = units == 0 ? 1 : 0;
-   
-// we are now running at 13MHz from the RC osc
-
+   if(units == 0) {
+      forever = 1;
+      dmaDesc.srcAddrHi = ((uint16_t)PM3_BUF) >> 8;
+      dmaDesc.srcAddrLo = (uint8_t)PM3_BUF;
+   }
+   else {
+      forever = 0;
+      dmaDesc.srcAddrHi = ((uint16_t)PM2_BUF) >> 8;
+      dmaDesc.srcAddrLo = (uint8_t)PM2_BUF;
+   }
 // disable non-wake irqs
    IRCON &= (uint8_t)~IRCON_STIE;
 // Clear Sleep Timer Module Interrupt Flag (WORIRQ.EVENT0_FLAG = 0)
@@ -77,6 +85,7 @@ void sleepForMsec(uint32_t units)
    // Switch system clock source to HS RCOSC and max CPU speed:
       SLEEP &= ~SLEEP_OSC_PD;
       while(!(SLEEP & SLEEP_HFRC_S));
+   // we are now running at 13MHz from the RC osc
       CLKCON = (CLKCON & CLKCON_TICKSPD_MASK) | CLKCON_OSC | CLKSPD_DIV_2;
       while(!(CLKCON & CLKCON_OSC));
       SLEEP |= SLEEP_OSC_PD;
@@ -119,7 +128,13 @@ void sleepForMsec(uint32_t units)
       while(tmp == WORTIME0); 
       
       MEMCTR |= MEMCTR_CACHD;
-      SLEEP = SET_PM2;
+      if(forever) {
+         forever = 0;   // exit loop if entry to PM3 fails !
+         SLEEP = SET_PM3;
+      }
+      else {
+         SLEEP = SET_PM2;
+      }
       
    // Enter power mode as described in chapter "Power Management Control"
    // in the data sheet. Make sure DMA channel 0 is triggered just before
@@ -132,7 +147,7 @@ void sleepForMsec(uint32_t units)
       if(SLEEP & 0x03) {
          __asm__("MOV 0xD7,#0x01"); // DMAREQ = 0x01;
          __asm__("NOP");            // Needed to perfectly align the DMA transfer.
-         __asm__("ORL 0x87,#0x01"); // PCON |= 0x01 -- Now in PM2;
+         __asm__("ORL 0x87,#0x01"); // PCON |= 0x01 -- Now in PM3;
          __asm__("NOP");            // First call when awake
       }
 // ** End of timing critical code **
@@ -159,7 +174,7 @@ void sleepForMsec(uint32_t units)
       CLKCON = 0x39;          //switch to HFXO
       while (CLKCON & 0x40);     //wait for the switch
       CLKCON = 0x38;          //go to 26MHz system and timer speed,  timer clock is Fosc / 128 = 203.125KHz
-      SLEEP = 4;              //power down the unused (HFRC oscillator)
+      SLEEP = SLEEP_OSC_PD;   // power down the unused (HFRC oscillator)
 #endif
    }
 
