@@ -313,6 +313,7 @@ void executeCommand(uint8_t cmd)
          break;
 
       case CMD_DO_RESET_SETTINGS:
+         LOGA("Reset settings\n");
          powerUp(INIT_EEPROM);
          loadDefaultSettings();
          writeSettings();
@@ -320,16 +321,20 @@ void executeCommand(uint8_t cmd)
          break;
 
       case CMD_DO_DEEPSLEEP:
+         LOGA("Deep sleep\n");
          afterFlashScreenSaver();
-         while(1) {
-            doSleep(-1);
-         }
+         doSleep(0);
          break;
 
       case CMD_ERASE_EEPROM_IMAGES:
+         LOGA("Erasing images\n");
          powerUp(INIT_EEPROM);
          eraseImageBlocks();
          powerDown(INIT_EEPROM);
+         break;
+
+      default:
+         LOGA("Cmd 0x%x ignored\n",cmd);
          break;
    }
 }

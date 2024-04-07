@@ -1148,6 +1148,7 @@ void screenByteTx(uint8_t byte)
 
 void drawWithSleep() 
 {
+   LOGA("Updating screen\n");
    einkDeselect();
    einkSelect();
    screenPrvSendCommand(CMD_DISPLAY_REFRESH);
@@ -1186,8 +1187,9 @@ void drawWithSleep()
    powerUp(INIT_BASE);
 
 // just in case we're not done...
-   while(!EPD_BUSY());
+   LOGA("Screen update complete\n");
 
+   while(!EPD_BUSY());
    screenShutdown();
 }
 

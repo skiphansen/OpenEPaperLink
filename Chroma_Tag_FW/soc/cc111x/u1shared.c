@@ -4,6 +4,7 @@
 #include "u1.h"
 #include "board.h"
 #include "powermgt.h"
+#include "settings.h"
 
 void u1init(void)
 {
