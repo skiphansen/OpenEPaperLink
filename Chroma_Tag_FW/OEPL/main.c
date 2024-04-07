@@ -117,7 +117,6 @@ uint8_t channelSelect(uint8_t rounds)
    uint8_t __xdata result[sizeof(channelList)];
 
    memset(result, 0, sizeof(result));
-   powerUp(INIT_RADIO);
 
    for(uint8_t i = 0; i < rounds; i++) {
       for(uint8_t c = 0; c < sizeof(channelList); c++) {
@@ -130,7 +129,6 @@ uint8_t channelSelect(uint8_t rounds)
          }
       }
    }
-   powerDown(INIT_RADIO);
    uint8_t __xdata highestLqi = 0;
    uint8_t __xdata highestSlot = 0;
    for(uint8_t c = 0; c < sizeof(result); c++) {
@@ -176,10 +174,7 @@ void TagAssociated()
          }
       }
 
-      powerUp(INIT_RADIO);
       avail = getAvailDataInfo();
-      powerDown(INIT_RADIO);
-
       if(avail != NULL) {
       // we got some data!
          longDataReqCounter = 0;
@@ -197,9 +192,7 @@ void TagAssociated()
       }
    }
    else {
-      powerUp(INIT_RADIO);
       avail = getShortAvailDataInfo();
-      powerDown(INIT_RADIO);
    }
 
    addAverageValue();
@@ -261,7 +254,6 @@ void TagAssociated()
          doSleep(getNextSleep() * 1000UL);
       }
    }
-   powerUp(INIT_UART);
 }
 
 void TagChanSearch() 
@@ -329,7 +321,6 @@ void executeCommand(uint8_t cmd)
 
       case CMD_DO_DEEPSLEEP:
          afterFlashScreenSaver();
-         powerDown(INIT_UART);
          while(1) {
             doSleep(-1);
          }
@@ -388,7 +379,7 @@ void main()
 
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
-   powerUp(INIT_EEPROM | INIT_UART);
+   powerUp(INIT_EEPROM);
 
    loadSettings();
 
@@ -444,7 +435,7 @@ void main()
    }
 
    if(currentChannel) {
-      MAIN_LOG("MAIN: Ap Found!\n");
+      MAIN_LOG("AP Found\n");
       showAPFound();
 #if 0
 // Why ??? 
@@ -458,7 +449,7 @@ void main()
       doSleep(5000UL);
    }
    else {
-      MAIN_LOG("MAIN: No AP found...\n");
+      MAIN_LOG("No AP found\n");
       showNoAP();
 #if 0
 // Why ??? 
@@ -474,7 +465,6 @@ void main()
 
    // this is the loop we'll stay in forever, basically.
    while(1) {
-      powerUp(INIT_UART);
       wdt10s();
 
       if(currentTagMode == TAG_MODE_ASSOCIATED) {

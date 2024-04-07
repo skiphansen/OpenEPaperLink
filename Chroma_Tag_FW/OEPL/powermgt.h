@@ -3,9 +3,9 @@
 #include <stdint.h>
 
 #define INIT_EPD_VOLTREADING  0x80  // Not used by Chroma port
-#define INIT_RADIO            0x40
+#define INIT_RADIO            0x40  // Not used by Chroma port
 #define INIT_I2C              0x20  // Not used by Chroma port
-#define INIT_UART             0x10
+#define INIT_UART             0x10  // Handled dynamically by Chroma port
 #define INIT_EPD              0x08
 #define INIT_EEPROM           0x04
 #define INIT_TEMPREADING      0x02

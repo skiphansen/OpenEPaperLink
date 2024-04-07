@@ -67,6 +67,9 @@ void powerUp(const uint8_t parts)
       wdt10s();
       PortInit();
       u1init();
+      radioInit();
+      radioSetTxPower(10);
+      radioSetChannel(currentChannel);
    }
 
    if(parts & INIT_EPD_VOLTREADING) {
@@ -85,12 +88,6 @@ void powerUp(const uint8_t parts)
          EEPROM_LOG("EEPROM selected\n");
       }
    } 
-
-   if(parts & INIT_RADIO) {
-      radioInit();
-      radioSetTxPower(10);
-      radioSetChannel(currentChannel);
-   }
 }
 
 void powerDown(const uint8_t parts) 
@@ -137,9 +134,7 @@ void doSleep(uint32_t __xdata t)
 
 void doVoltageReading() 
 {
-   powerUp(INIT_RADIO);  // load down the battery using the radio to get a good voltage reading
    temperature = adcSampleTemperature();
-   powerDown(INIT_RADIO);
 }
 
 uint32_t getNextScanSleep(const bool increment) 

@@ -163,7 +163,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
    radioRxFlush();
    radioRxEnable(true);
    for(uint8_t c = 1; c <= MAXIMUM_PING_ATTEMPTS; c++) {
-      LOGA("Trying ch %d %d\n",channel,c);
+      LOGA("Trying ch %d",channel);
       sendPing();
       t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW);
       while(timerGet() < t) {
@@ -176,11 +176,13 @@ uint8_t detectAP(const uint8_t channel) __reentrant
             xMemCopyShort(APmac,f->src,8);
             APsrcPan = f->pan;
             #undef f
+            LOGA(" AP answered\n",channel);
             return c;
          }
       }
+      LOGA(".");
    }
-
+   LOGA("\n");
    return 0;
 }
 
@@ -580,6 +582,8 @@ void eraseImageBlocks()
 void drawImageFromEeprom(const uint8_t imgSlot, uint8_t lut) 
 {
    lut;
+
+   LOGA("Drawing image in slot %d\n",imgSlot);
    drawImageAtAddress(getAddressForSlot(imgSlot));
 }
 
@@ -658,7 +662,6 @@ static bool getDataBlock(const uint16_t blockSize)
       }
       BLOCK_LOG("Tx ");
       DumpCurBlock();
-      powerUp(INIT_RADIO);
       struct blockRequestAck *__xdata ack = performBlockRequest();
 
       if(ack == NULL) {
@@ -673,13 +676,11 @@ static bool getDataBlock(const uint16_t blockSize)
          }
          else {
             doSleep(ack->pleaseWaitMs - 10);
-            powerUp(INIT_UART | INIT_RADIO);
             radioRxEnable(true);
          }
       }
    // BLOCK RX LOOP - receive a block, until the timeout has passed
       blockRxLoop(290);  
-      powerDown(INIT_RADIO);
       BLOCK_LOG("Rx ");
       DumpCurBlock();
 
@@ -880,7 +881,6 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
             goto eraseSuccess;
          }
       }
-      powerDown(INIT_RADIO);
       showNoEEPROM();
       powerDown(INIT_EEPROM);
       doSleep(-1);
@@ -957,9 +957,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
                // check if a version of this already exists
                uint8_t slot = findSlotVer(&(avail->dataVer));
                if(slot != 0xFF) {
-                  powerUp(INIT_RADIO);
                   sendXferComplete();
-                  powerDown(INIT_RADIO);
                   return true;
                }
             } break;
@@ -971,9 +969,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
       if(downloadImageDataToEEPROM(avail)) {
       // sets xferImgSlot to the right slot
          PROTO_LOG("preload done\n");
-         powerUp(INIT_RADIO);
          sendXferComplete();
-         powerDown(INIT_RADIO);
          return true;
       }
       else {
@@ -985,9 +981,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
       if(xMemEqual((const void *__xdata) & avail->dataVer, (const void *__xdata)curDispDataVer, 8)) {
       // currently displayed, not doing anything except for sending an XFC
          PROTO_LOG("current img, send xfc\n");
-         powerUp(INIT_RADIO);
          sendXferComplete();
-         powerDown(INIT_RADIO);
          return true;
       }
       else {
@@ -1001,9 +995,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
          // Is this image already in a slot somewhere
          if(findImgSlot != 0xFF) {
           // found a (complete)valid image slot for this version
-            powerUp(INIT_RADIO);
             sendXferComplete();
-            powerDown(INIT_RADIO);
 
           // mark as completed and draw from EEPROM
             xMemCopyShort(&xferDataInfo, (void *)avail, sizeof(struct AvailDataInfo));
@@ -1019,9 +1011,7 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
             if(downloadImageDataToEEPROM(avail)) {
             // sets xferImgSlot to the right slot
                PROTO_LOG("dl done\n");
-               powerUp(INIT_RADIO);
                sendXferComplete();
-               powerDown(INIT_RADIO);
 
             // not preload, draw now
                wdt60s();
@@ -1051,9 +1041,7 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
       case DATATYPE_TAG_CONFIG_DATA:
          if(xferDataInfo.dataSize == 0 && xMemEqual((const void *__xdata) & avail->dataVer, (const void *__xdata) & xferDataInfo.dataVer, 8)) {
             PROTO_LOG("same as last ignored\n");
-            powerUp(INIT_RADIO);
             sendXferComplete();
-            powerDown(INIT_RADIO);
             return true;
          }
          curBlock.blockId = 0;
@@ -1066,18 +1054,14 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
             powerUp(INIT_EEPROM);
             loadSettingsFromBuffer(sizeof(struct blockData) + blockbuffer);
             powerDown(INIT_EEPROM);
-            powerUp(INIT_RADIO);
             sendXferComplete();
-            powerDown(INIT_RADIO);
             return true;
          }
          return false;
 
       case DATATYPE_COMMAND_DATA:
          PROTO_LOG("CMD rx\n");
-         powerUp(INIT_RADIO);
          sendXferComplete();
-         powerDown(INIT_RADIO);
          executeCommand(avail->dataTypeArgument);
          return true;
 
