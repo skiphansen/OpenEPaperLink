@@ -180,8 +180,7 @@ void APTagReset() {
 // Send data to the AP
 uint16_t sendBlock(const void* data, const uint16_t len) {
     time_t timeCanary = millis();
-    if(apInfo.state == AP_STATE_NORADIO)return true;
-    if (!apInfo.isOnline) return false;    
+    if (!apInfo.isOnline) return false;
     if (!txStart()) return 0;
     // don't retry now, as it collides with communication from the tag
     for (uint8_t attempt = 0; attempt < 1; attempt++) {
@@ -249,7 +248,6 @@ blksend:
 }
 
 bool sendDataAvail(struct pendingData* pending) {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (!apInfo.isOnline) return false;
     if (!txStart()) return false;
     addCRC(pending, sizeof(struct pendingData));
@@ -271,7 +269,6 @@ bool sendDataAvail(struct pendingData* pending) {
     return false;
 }
 bool sendCancelPending(struct pendingData* pending) {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (!apInfo.isOnline) return false;
     if (!txStart()) return false;
     addCRC(pending, sizeof(struct pendingData));
@@ -292,7 +289,6 @@ bool sendCancelPending(struct pendingData* pending) {
     return false;
 }
 bool sendChannelPower(struct espSetChannelPower* scp) {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if ((apInfo.state != AP_STATE_ONLINE) && (apInfo.state != AP_STATE_COMING_ONLINE)) return false;
     if (!txStart()) return false;
     addCRC(scp, sizeof(struct espSetChannelPower));
@@ -315,7 +311,6 @@ bool sendChannelPower(struct espSetChannelPower* scp) {
     return false;
 }
 bool sendPing() {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (apInfo.state == AP_STATE_FLASHING) return false;
     Serial.print("ping");
     int t = millis();
@@ -334,7 +329,6 @@ bool sendPing() {
     return false;
 }
 bool sendGetInfo() {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (!txStart()) return false;
     for (uint8_t attempt = 0; attempt < 5; attempt++) {
         cmdReplyValue = CMD_REPLY_WAIT;
@@ -348,7 +342,6 @@ bool sendGetInfo() {
     return false;
 }
 bool sendHighspeed() {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (!txStart()) return false;
     for (uint8_t attempt = 0; attempt < 5; attempt++) {
         cmdReplyValue = CMD_REPLY_WAIT;
@@ -628,7 +621,7 @@ void rxSerialTask(void* parameter) {
                     }
                     break;
 #endif
-                case ZBS_RX_WAIT_POWER:
+                 case ZBS_RX_WAIT_POWER:
                     cmdbuffer[charindex] = lastchar;
                     charindex++;
                     if (charindex == 2) {
@@ -745,7 +738,6 @@ void segmentedShowIp() {
 }
 
 bool bringAPOnline() {
-    if(apInfo.state == AP_STATE_NORADIO)return true;
     if (apInfo.state == AP_STATE_FLASHING) return false;
     setAPstate(false, AP_STATE_OFFLINE);
     // try without rebooting

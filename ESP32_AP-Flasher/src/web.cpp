@@ -110,22 +110,7 @@ void wsSendSysteminfo() {
         setVarDB("ap_date", timeBuffer);
     }
     setVarDB("ap_ip", WiFi.localIP().toString());
-
-#ifdef HAS_SUBGHZ
-    String ApChanString = String(apInfo.channel);
-    if(apInfo.hasSubGhz) {
-       ApChanString += ", SubGhz ";
-       if(apInfo.SubGhzChannel == 0) {
-          ApChanString += "disabled";
-       }
-       else {
-          ApChanString += "Ch " + String(apInfo.SubGhzChannel);
-       }
-    }
-    setVarDB("ap_ch", ApChanString);
-#else
     setVarDB("ap_ch", String(apInfo.channel));
-#endif
 
     // reboot once at night
     if (timeinfo.tm_hour == 4 && timeinfo.tm_min == 0 && millis() > 2 * 3600 * 1000) {
@@ -265,7 +250,7 @@ void init_web() {
     });
 
     server.serveStatic("/current", *contentFS, "/current/").setCacheControl("max-age=604800");
-    server.serveStatic("/tagtypes", *contentFS, "/tagtypes/").setCacheControl("max-age=300");
+    server.serveStatic("/tagtypes", *contentFS, "/tagtypes/").setCacheControl("max-age=600");
 
     server.on(
         "/imgupload", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -305,11 +290,6 @@ void init_web() {
                         uint8_t md5[8];
                         if (hex2mac(request->getParam("md5")->value(), md5)) {
                             PendingItem *queueItem = getQueueItem(mac, *reinterpret_cast<uint64_t *>(md5));
-                            if (queueItem == nullptr) {
-                                Serial.println("getQueueItem: no queue item");
-                                request->send(404, "text/plain", "File not found");
-                                return;
-                            } 
                             if (queueItem->data == nullptr) {
                                 fs::File file = contentFS->open(queueItem->filename);
                                 if (file) {
@@ -671,7 +651,6 @@ void init_web() {
         for (size_t i = 0; i < numKeys; i++) {
             doc[keys[i]] = preferences.getString(keys[i], "");
         }
-        doc["mac"] = WiFi.macAddress();
         serializeJson(doc, *response);
         request->send(response);
     });

@@ -10,7 +10,6 @@ window.addEventListener("load", function () {
             $('#mask').value = data.mask || "";
             $('#gw').value = data.gw || "";
             $('#dns').value = data.dns || "";
-            $('#mac').innerHTML = data.mac || "";
         });
 });
 

@@ -13,5 +13,4 @@
 // flasher options
 #define CUSTOM_MAC_HDR 0x0000
 
-#define MAX_XFER_ATTEMPTS 20
 #define MAX_WRITE_ATTEMPTS 5

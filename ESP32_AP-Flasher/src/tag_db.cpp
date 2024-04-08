@@ -119,8 +119,6 @@ void fillNode(JsonObject& tag, const tagRecord* taginfo) {
     tag["rotate"] = taginfo->rotate;
     tag["lut"] = taginfo->lut;
     tag["invert"] = taginfo->invert;
-    tag["updatecount"] = taginfo->updateCount;
-    tag["updatelast"] = taginfo->updateLast;
     tag["ch"] = taginfo->currentChannel;
     tag["ver"] = taginfo->tagSoftwareVersion;
 }
@@ -228,8 +226,6 @@ bool loadDB(const String& filename) {
                     taginfo->rotate = tag["rotate"] | 0;
                     taginfo->lut = tag["lut"] | 0;
                     taginfo->invert = tag["invert"] | 0;
-                    taginfo->updateCount = tag["updatecount"] | 0;
-                    taginfo->updateLast = tag["updatelast"] | 0;
                     taginfo->currentChannel = tag["ch"] | 0;
                     taginfo->tagSoftwareVersion = tag["ver"] | 0;
                 }
@@ -253,7 +249,7 @@ bool loadDB(const String& filename) {
 }
 
 void destroyDB() {
-    Serial.println("destroying DB");
+    Serial.println("destoying DB");
     util::printHeap();
     for (tagRecord*& tag : tagDB) {
         if (tag->data != nullptr) {
@@ -388,7 +384,6 @@ HwType getHwType(const uint8_t id) {
             filter["shortlut"] = true;
             filter["zlib_compression"] = true;
             filter["highlight_color"] = true;
-            filter["colortable"] = true;
             StaticJsonDocument<1000> doc;
             DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
             jsonFile.close();
@@ -396,28 +391,17 @@ HwType getHwType(const uint8_t id) {
                 Serial.println("json error in " + String(filename));
                 Serial.println(error.c_str());
             } else {
-                HwType& hwType = hwdata[id];
-                hwType.id = id;
-                hwType.width = doc["width"];
-                hwType.height = doc["height"];
-                hwType.rotatebuffer = doc["rotatebuffer"];
-                hwType.bpp = doc["bpp"];
-                hwType.shortlut = doc["shortlut"];
+                hwdata[id].width = doc["width"];
+                hwdata[id].height = doc["height"];
+                hwdata[id].rotatebuffer = doc["rotatebuffer"];
+                hwdata[id].bpp = doc["bpp"];
+                hwdata[id].shortlut = doc["shortlut"];
                 if (doc.containsKey("zlib_compression")) {
-                    hwType.zlib = strtol(doc["zlib_compression"], nullptr, 16);
+                    hwdata[id].zlib = strtol(doc["zlib_compression"], nullptr, 16);
                 } else {
-                    hwType.zlib = 0;
+                    hwdata[id].zlib = 0;
                 }
-                hwType.highlightColor = doc.containsKey("highlight_color") ? doc["highlight_color"].as<uint16_t>() : 2;
-                JsonObject colorTable = doc["colortable"];
-                for (auto kv : colorTable) {
-                    JsonArray color = kv.value();
-                    Color c;
-                    c.r = color[0];
-                    c.g = color[1];
-                    c.b = color[2];
-                    hwType.colortable.push_back(c);
-                }
+                hwdata[id].highlightColor = doc.containsKey("highlight_color") ? doc["highlight_color"].as<uint16_t>() : 2;
                 return hwdata.at(id);
             }
         }

@@ -13,9 +13,10 @@
 #define RUNSTATUS_INIT 3
 
 #define NO_SUBGHZ_CHANNEL  255
+
 class tagRecord {
    public:
-    tagRecord() : mac{0}, version(0), alias(""), lastseen(0), nextupdate(0), contentMode(0), pendingCount(0), md5{0}, expectedNextCheckin(0), modeConfigJson(""), LQI(0), RSSI(0), temperature(0), batteryMv(0), hwType(0), wakeupReason(0), capabilities(0), lastfullupdate(0), isExternal(false), apIp(IPAddress(0, 0, 0, 0)), pendingIdle(0), hasCustomLUT(false), rotate(0), lut(0), tagSoftwareVersion(0), currentChannel(0), dataType(0), filename(""), data(nullptr), len(0), invert(0), updateCount(0), updateLast(0) {}
+    tagRecord() : mac{0}, version(0), alias(""), lastseen(0), nextupdate(0), contentMode(0), pendingCount(0), md5{0}, expectedNextCheckin(0), modeConfigJson(""), LQI(0), RSSI(0), temperature(0), batteryMv(0), hwType(0), wakeupReason(0), capabilities(0), lastfullupdate(0), isExternal(false), apIp(IPAddress(0, 0, 0, 0)), pendingIdle(0), hasCustomLUT(false), rotate(0), lut(0), tagSoftwareVersion(0), currentChannel(0), dataType(0), filename(""), data(nullptr), len(0), invert(0) {}
 
     uint8_t mac[8];
     uint8_t version;
@@ -44,8 +45,6 @@ class tagRecord {
     uint16_t tagSoftwareVersion;
     uint8_t currentChannel;
     uint8_t invert;
-    uint32_t updateCount;
-    uint32_t updateLast;
 
     uint8_t dataType;
     String filename;
@@ -76,15 +75,7 @@ struct Config {
     String env;
 };
 
-struct Color {
-    uint8_t r, g, b;
-    Color() : r(0), g(0), b(0) {}
-    Color(uint16_t value_) : r((value_ >> 8) & 0xF8 | (value_ >> 13) & 0x07), g((value_ >> 3) & 0xFC | (value_ >> 9) & 0x03), b((value_ << 3) & 0xF8 | (value_ >> 2) & 0x07) {}
-    Color(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
-};
-
 struct HwType {
-    uint8_t id;
     uint16_t width;
     uint16_t height;
     uint8_t rotatebuffer;
@@ -92,7 +83,6 @@ struct HwType {
     uint8_t shortlut;
     uint8_t zlib;
     uint16_t highlightColor;
-    std::vector<Color> colortable;
 };
 
 struct varStruct {
@@ -118,7 +108,6 @@ extern void clearPending(tagRecord* taginfo);
 extern void initAPconfig();
 extern void saveAPconfig();
 extern HwType getHwType(const uint8_t id);
-
 /// @brief Update a variable with the given key and value
 ///
 /// @param key Variable key
@@ -127,7 +116,6 @@ extern HwType getHwType(const uint8_t id);
 /// @return true If variable was created/updated
 /// @return false If not
 extern bool setVarDB(const std::string& key, const String& value, const bool notify = true);
-
 extern void cleanupCurrent();
 extern void pushTagInfo(tagRecord* taginfo);
 extern void popTagInfo(const uint8_t mac[8] = nullptr);
