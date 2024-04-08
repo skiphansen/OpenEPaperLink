@@ -761,7 +761,7 @@ void app_main(void) {
 
     radio_init(curChannel);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
-    if(!SubGig_radio_init(curSubGhzChannel)) {
+    if(SubGig_radio_init(curSubGhzChannel)) {
     // Ether we don't have a cc1101 or it's not working
        curSubGhzChannel = NO_SUBGHZ_CHANNEL; 
        ESP_LOGI(TAG,"CC1101 NOT detected.");
