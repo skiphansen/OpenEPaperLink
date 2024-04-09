@@ -29,3 +29,10 @@ sdcc/sdcc
 *.vpw
 *.vpwhist
 *.vtg
+*.bin
+
+ESP32_AP-Flasher/.vscode/extensions.json
+ARM_Tag_FW\Newton_M3_nRF52811\$PROJECT_DIR
+
+# OS generated files
+.DS_Store
