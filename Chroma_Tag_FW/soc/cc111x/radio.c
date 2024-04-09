@@ -7,6 +7,7 @@
 #include "printf.h"
 #include "settings.h"
 #include "timer.h"
+#include "adc.h"
 #include "logging.h"
 #define __packed
 #include "../../oepl-definitions.h"
@@ -306,12 +307,12 @@ static void radioRxStopIfRunning(void)
    IRCON &= (uint8_t)~(1 << 0);     //clear global dma irq flag
 }
 
-bool radioTx(const void __xdata *packet)
+void radioTx(const void __xdata *packet)
 {
-#ifdef DEBUG_TX_DATA
-   uint8_t Len = ((uint8_t __xdata*) packet)[0];
+   uint16_t Lowest = 0xffff;
 
-   TX_DATA_LOG("Sending %d bytes\n",Len);
+#ifdef DEBUG_TX_DATA
+   TX_DATA_LOG("Sending %d bytes\n",packet[0]);
    DumpHex((void *) packet + 1,Len);
 #endif
    radioRxStopIfRunning();
@@ -320,12 +321,17 @@ bool radioTx(const void __xdata *packet)
    
    RFST = 3;   //TX
    
-   while (!(RFIF & (1 << 4)));
-   
+   while(!(RFIF & (1 << 4))) {
+      ADCRead(ADC_CHAN_VDD_3);
+
+      if(Lowest > gRawA2DValue) {
+         Lowest = gRawA2DValue;
+      }
+   }
    radioPrvDmaAbort();                 //abort DMA just in case
-   
    radioPrvRxStartListenIfNeeded();
-   return true;
+// Update lowest battery voltage seen while transmitting
+   gTxBattV = ADCScaleVDD(Lowest);
 }
 
 void DMA_ISR(void) __interrupt (8)

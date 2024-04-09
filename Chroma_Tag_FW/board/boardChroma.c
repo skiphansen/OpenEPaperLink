@@ -186,10 +186,10 @@ void powerPortsDownForSleep(void)
    P2INP = P2_DBG_DAT | P2_DBG_CLK | P2_XOSC32_Q1 | P2_XOSC32_Q2;
 
 // Tristate all P0 pins except P0_EEPROM_MOSI and P0_EPD_nENABLE
-   P0INP = ~(P0_EEPROM_MOSI | P0_EPD_nENABLE);
+   P0INP = (uint8_t) ~(P0_EEPROM_MOSI | P0_EPD_nENABLE);
 
 // Tristate all P1 pins except P1_SERIAL_OUT
-   P1INP = ~P1_SERIAL_OUT;
+   P1INP = (uint8_t) ~P1_SERIAL_OUT;
 
 // Set all GPIO ports to input mode
    P0DIR = 0;

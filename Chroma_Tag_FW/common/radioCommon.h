@@ -26,10 +26,12 @@
 #define SHORT_MAC_UNUSED            (0x10000000UL) //for radioRxFilterCfg's myShortMac
 
 extern uint8_t __xdata inBuffer[128];
+// Lowest reading of battery voltage while transmitting
+extern uint16_t __xdata gTxBattV;
 
 void radioInit(void);
 //waits for tx end
-bool radioTx(const void __xdata *packet);
+void radioTx(const void __xdata *packet);
 
 void radioRxEnable(__bit on);
 

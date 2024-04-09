@@ -24,6 +24,7 @@
 #include "timer.h"
 #include "userinterface.h"
 #include "wdt.h"
+#include "adc.h"
 #include "logging.h"
 
 // Kludge to save a few bytes of xcata and code
@@ -145,15 +146,6 @@ static void addCRC(void *p, const uint8_t len)
    ((uint8_t *)p)[0] = total;
 }
 
-// radio stuff
-static void sendPing() 
-{
-   outBuffer[0] = sizeof(struct MacFrameBcast) + 1 + 2;
-   UpdateBcastFrame();
-   outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_PING;
-   radioTx(outBuffer);
-}
-
 uint8_t detectAP(const uint8_t channel) __reentrant 
 {
    static uint32_t __xdata t;
@@ -162,9 +154,12 @@ uint8_t detectAP(const uint8_t channel) __reentrant
    radioSetChannel(channel);
    radioRxFlush();
    radioRxEnable(true);
+   LOGA("Trying ch %d",channel);
    for(uint8_t c = 1; c <= MAXIMUM_PING_ATTEMPTS; c++) {
-      LOGA("Trying ch %d",channel);
-      sendPing();
+      outBuffer[0] = sizeof(struct MacFrameBcast) + 1 + 2;
+      UpdateBcastFrame();
+      outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_PING;
+      radioTx(outBuffer);
       t = timerGet() + (TIMER_TICKS_PER_MS * PING_REPLY_WINDOW);
       while(timerGet() < t) {
          if(radioRx() > 1
@@ -176,7 +171,7 @@ uint8_t detectAP(const uint8_t channel) __reentrant
             xMemCopyShort(APmac,f->src,8);
             APsrcPan = f->pan;
             #undef f
-            LOGA(" AP answered\n",channel);
+            LOGA(" AP found\n");
             return c;
          }
       }
@@ -184,15 +179,6 @@ uint8_t detectAP(const uint8_t channel) __reentrant
    }
    LOGA("\n");
    return 0;
-}
-
-// data xfer stuff
-static void sendShortAvailDataReq() 
-{
-   outBuffer[0] = sizeof(struct MacFrameBcast) + 1 + 2;
-   outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_AVAIL_DATA_SHORTREQ;
-   UpdateBcastFrame();
-   radioTx(outBuffer);
 }
 
 // outBuffer: 
@@ -208,19 +194,23 @@ static void sendAvailDataReq()
 {
    outBuffer[0] = sizeof(struct MacFrameBcast) + sizeof(struct AvailDataReq) + 2 + 2;
    UpdateBcastFrame();
+
    outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_AVAIL_DATA_REQ;
 // TODO: send some (more) meaningful data
    availreq->hwType = HW_TYPE;
    availreq->wakeupReason = wakeUpReason;
    availreq->lastPacketRSSI = mLastRSSI;
    availreq->lastPacketLQI = mLastLqi;
-   availreq->temperature = temperature;
-   availreq->batteryMv = batteryVoltage;
+   ADCRead(ADC_CHAN_TEMP);
+   ADCScaleTemperature();
+   availreq->temperature = gTemperature;
+   availreq->batteryMv = gBattV;
    availreq->capabilities = 0;
    availreq->tagSoftwareVersion = fwVersion;
    availreq->currentChannel = currentChannel;
    availreq->customMode = tagSettings.customMode;
    addCRC(availreq, sizeof(struct AvailDataReq));
+   LogSummary();
    radioTx(outBuffer);
 }
 #undef AvailDataReq
@@ -254,12 +244,15 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
 
 struct AvailDataInfo *__xdata getShortAvailDataInfo() 
 {
-   PROTO_LOG("Short AvlData\n");
-   radioRxEnable(true);
    uint32_t __xdata t;
+   PROTO_LOG("Get Short AvlData\n");
+   radioRxEnable(true);
+
    for(uint8_t c = 0; c < DATA_REQ_MAX_ATTEMPTS; c++) {
-      sendShortAvailDataReq();
-      // sendAvailDataReq();
+      outBuffer[0] = sizeof(struct MacFrameBcast) + 1 + 2;
+      outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_AVAIL_DATA_SHORTREQ;
+      UpdateBcastFrame();
+      radioTx(outBuffer);
       t = timerGet() + (TIMER_TICKS_PER_MS * DATA_REQ_RX_WINDOW_SIZE);
       while(timerGet() < t) {
          int8_t __xdata ret = radioRx();

@@ -28,7 +28,7 @@ void addOverlay()
 {
 #ifdef DEBUG_FORCE_OVERLAY
 // force icons to be display for testing
-   batteryVoltage = 0;
+   gBattV = 0;
    currentChannel = 0;
 #endif
 
@@ -40,7 +40,7 @@ void addOverlay()
    else {
       noAPShown = false;
    }
-   if(batteryVoltage < tagSettings.batLowVoltage 
+   if(gBattV < tagSettings.batLowVoltage 
       && tagSettings.enableLowBatSymbol)
    {
       loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
@@ -191,8 +191,7 @@ void DrawAPFound()
 
 void showAPFound() 
 {
-   if(displayCustomImage(CUSTOM_IMAGE_APFOUND)) 
-   {
+   if(displayCustomImage(CUSTOM_IMAGE_APFOUND)) {
       return;
    }
    DrawScreen(DrawAPFound);

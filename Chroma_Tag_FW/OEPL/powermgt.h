@@ -44,10 +44,6 @@
 // How often (in seconds, approximately) the tag should do a long datareq (including temperature)
 #define LONG_DATAREQ_INTERVAL 300
 
-// How often the tag should do a battery voltage check 
-// (multiplied by LONG_DATAREQ_INTERVAL)
-#define VOLTAGE_CHECK_INTERVAL 288    
-
 // 2600 or below is the best we can do on the EPD
 #define BATTERY_VOLTAGE_MINIMUM 2450  
 
@@ -78,21 +74,30 @@ extern void powerDown(const uint8_t parts);
 extern void initAfterWake();
 extern void doSleep(uint32_t __xdata t);
 
-void doVoltageReading();
-
 extern void addAverageValue();
 extern uint16_t getNextSleep();
 
 extern uint32_t getNextScanSleep(const bool increment);
 extern void initPowerSaving(const uint16_t initialValue);
 void clearScreen(void);
+void LogSummary();
 
 extern uint8_t __xdata wakeUpReason;
 
 extern uint16_t __xdata nextCheckInFromAP;
 extern uint8_t __xdata dataReqLastAttempt;
 extern int8_t __xdata temperature;
-extern uint16_t __xdata batteryVoltage;
+extern uint16_t __xdata gBattV;
+
+// Battery voltage immediately after last boot
+extern uint16_t __xdata gBootBattV;
+
+// Minimum battery voltage seen while transmitting
+extern uint16_t __xdata gTxBattV;
+
+// Minimum battery voltage seen while updating display
+extern uint16_t __xdata gRefreshBattV;
+
 extern __bit lowBattery;
 extern __bit gU1Init;
 extern __bit gUartSelected;

@@ -7,6 +7,7 @@
 #include "sleep.h"
 #include "board.h"
 #include "powermgt.h"
+#include "adc.h"
 #include "settings.h"
 #include "logging.h"
 
@@ -1148,48 +1149,25 @@ void screenByteTx(uint8_t byte)
 
 void drawWithSleep() 
 {
-   LOGA("Updating screen\n");
+   uint16_t Lowest = 0xffff;
+
+   LOGA("Updating display\n");
    einkDeselect();
    einkSelect();
    screenPrvSendCommand(CMD_DISPLAY_REFRESH);
    einkDeselect();
    
-   uint8_t ien0, ien1, ien2;
-
-   PICTL &= (uint8_t)~(1 << 1);  //port 1 interupts on rising edge
-   P1IEN |= P1_EPD_BUSY;         // port 1 pin 0 interrupts
-   
-   (void)P1;                  //read port;
-   P1IFG &= (uint8_t)~P1_EPD_BUSY;  //clear int flag in port
-   (void)P1IFG;
-   IRCON2 &= (uint8_t)~(1 << 3); //clear P1 int flag in int controller
-   
-   ien0 = IEN0;
-   IEN0 = 0;
-   ien1 = IEN1;
-   IEN1 = 0;
-   ien2 = IEN2;
-   IEN2 = IEN2_P1IE;       // p1 int only
-   EA   = 1;               // ints in general are on
-   
-   SLEEP = (SLEEP & (uint8_t)~(3 << 0)) | (0 << 0);   //sleep in pm0
-   
-   sleepTillInt();
-   
-   P1IEN &= (uint8_t)~(1 << 0);  //port 1 pin 0 interrupts
-   P1IFG &=(uint8_t)~P1_EPD_BUSY;      //clear int flag in port
-   IRCON2 &=(uint8_t)~(1 << 3);  //clear P1 int flag in int controller
-   
-   IEN2 = ien2;
-   IEN1 = ien1;
-   IEN0 = ien0;
-
-   powerUp(INIT_BASE);
-
-// just in case we're not done...
-   LOGA("Screen update complete\n");
-
-   while(!EPD_BUSY());
+   while(!EPD_BUSY()) {
+   // Wake up every 50 milliseconds to check BattV and EPD_BUSY
+      sleepForMsec(50UL);
+      clockingAndIntsInit();  // restart clocks
+      ADCRead(ADC_CHAN_VDD_3);
+      if(Lowest > gRawA2DValue) {
+         Lowest = gRawA2DValue;
+      }
+   }
+   gRefreshBattV = ADCScaleVDD(Lowest);
+   LOGA("Update complete\n");
    screenShutdown();
 }
 

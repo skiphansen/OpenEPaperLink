@@ -22,6 +22,7 @@
 #include "../../oepl-definitions.h"
 #include "../../oepl-proto.h"
 #include "syncedproto.h"
+#include "adc.h"
 
 // #define DEBUG_MODE
 
@@ -37,7 +38,7 @@ uint8_t __xdata slideShowRefreshCount = 1;
 
 extern uint8_t *__idata blockp;
 
-static bool __xdata secondLongCheckIn;  // send another full request if the previous was a special reason
+__bit secondLongCheckIn;  // send another full request if the previous was a special reason
 
 const uint8_t __code channelList[] = {
    200,100,201,101,202,102,203,103,204,104,205,105
@@ -51,64 +52,6 @@ const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
 __bit lowBatteryShown;
 __bit noAPShown;
 
-#ifdef DEBUGGUI
-void displayLoop() 
-{
-   powerUp(INIT_BASE | INIT_UART);
-
-   pr("Splash screen\n");
-   powerUp(INIT_EPD);
-   showSplashScreen();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   pr("Update screen\n");
-   powerUp(INIT_EPD);
-   showApplyUpdate();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   wdt30s();
-
-   pr("Failed update screen\n");
-   powerUp(INIT_EPD);
-   showFailedUpdate();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-   wdt30s();
-
-   pr("AP Found\n");
-   powerUp(INIT_EPD);
-   showAPFound();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   wdt30s();
-
-   pr("AP NOT Found\n");
-   powerUp(INIT_EPD);
-   showNoAP();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   wdt30s();
-
-   pr("Longterm sleep screen\n");
-   powerUp(INIT_EPD);
-   showLongTermSleep();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   wdt30s();
-
-   pr("NO EEPROM\n");
-   powerUp(INIT_EPD);
-   showNoEEPROM();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-
-   wdt30s();
-
-   pr("NO MAC\n");
-   powerUp(INIT_EPD);
-   showNoMAC();
-   timerDelay(TIMER_TICKS_PER_SECOND * 4);
-   wdtDeviceReset();
-}
-#endif
 
 
 // returns 0 if no accesspoints were found
@@ -147,20 +90,11 @@ void TagAssociated()
    // associated
    struct AvailDataInfo *__xdata avail;
    // Is there any reason why we should do a long (full) get data request (including reason, status)?
-   if((longDataReqCounter > LONG_DATAREQ_INTERVAL) 
+   if(longDataReqCounter > LONG_DATAREQ_INTERVAL 
       || wakeUpReason != WAKEUP_REASON_TIMED 
       || secondLongCheckIn) 
-   { // check if we should do a voltage measurement (those are pretty expensive)
-      if(voltageCheckCounter == VOLTAGE_CHECK_INTERVAL) {
-         doVoltageReading();
-         voltageCheckCounter = 0;
-      }
-      else {
-         temperature = adcSampleTemperature();
-      }
-      voltageCheckCounter++;
-
-   // check if the battery level is below minimum, and force a redraw of the screen
+   {
+// check if the battery level is below minimum, and force a redraw of the screen
       if((lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol)
           || (noAPShown && tagSettings.enableNoRFSymbol)) 
       {
@@ -179,7 +113,7 @@ void TagAssociated()
       // we got some data!
          longDataReqCounter = 0;
 
-         if(secondLongCheckIn == true) {
+         if(secondLongCheckIn) {
             secondLongCheckIn = false;
          }
 
@@ -259,11 +193,6 @@ void TagAssociated()
 void TagChanSearch() 
 {
 // not associated
-   if((scanAttempts != 0 && (scanAttempts % VOLTAGEREADING_DURING_SCAN_INTERVAL == 0))
-      || scanAttempts > (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS))
-   {
-      doVoltageReading();
-   }
 
 // try to find a working channel
    currentChannel = channelSelect(2);
@@ -339,148 +268,6 @@ void executeCommand(uint8_t cmd)
    }
 }
 
-void main() 
-{  
-#ifdef DEBUG_CHIP_CFG
-   CopyCfg();
-   doSleep(3000UL);
-   powerUp(INIT_BASE);
-   LOG("At startup before init:\n");
-   PrintCfg();
-   CopyCfg();
-   LOG("At after powerUp:\n");
-   PrintCfg();
-   powerPortsDownForSleep();
-   CopyCfg();
-   doSleep(3000UL);
-   LOG("At after sleep:\n");
-   PrintCfg();
-   P0DIR = 0;
-   doSleep(3000UL);
-#endif
-   powerUp(INIT_BASE);
-
-   LOGA("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
-   boardInitStage2();
-
-#ifdef DEBUGGUI
-   displayLoop();  // remove me
-#endif
-
-// Find the reason why we're booting; is this a WDT?
-   wakeUpReason = WAKEUP_REASON_FIRSTBOOT;
-   SLEEP_LOG("SLEEP reg %02x\n",SLEEP);
-   if((SLEEP & SLEEP_RST) == SLEEP_RST_WDT) {
-      wakeUpReason = WAKEUP_REASON_WDT_RESET;
-   }
-
-// dump(blockbuffer, 1024);
-   InitBcastFrame();
-
-   MAIN_LOG("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
-   MAIN_LOG("%02X%02X", mSelfMac[2], mSelfMac[3]);
-   MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
-   MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
-
-// do a little sleep, this prevents a partial boot during battery insertion
-   doSleep(400UL);
-   powerUp(INIT_EEPROM);
-
-   loadSettings();
-
-// get the highest slot number, number of slots
-   initializeProto();
-
-#if 0
-   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
-   showSplashScreen();
-   showAPFound();
-   showNoAP();
-   showLongTermSleep();
-   afterFlashScreenSaver();
-   MAIN_LOG("drawing image\n");
-   powerDown(INIT_EEPROM);
-   showSplashScreen();
-   MAIN_LOG("image drawn\n");
-   powerUp(INIT_EEPROM);
-   doSleep(20000L);
-   powerUp(INIT_EEPROM);
-   MAIN_LOG("drawing slot 1\n");
-   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
-   MAIN_LOG("image drawn\n");
-   powerUp(INIT_EEPROM);
-   doSleep(20000L);
-   MAIN_LOG("done!\n");
-   while(true);
-#endif
-
-   if(tagSettings.enableFastBoot) {
-   // Fastboot
-      MAIN_LOG("Doing fast boot\n");
-   }
-   else {
-   // Normal boot/startup
-      MAIN_LOG("Normal boot\n");
-
-   // Get a voltage reading on the tag, loading down the battery with the radio
-      doVoltageReading();
-
-   // show the splashscreen
-      showSplashScreen();
-   }
-
-   wdt10s();
-
-// Try the saved channel before scanning for an AP to avoid
-// out of band transmissions as much as possible
-   if(currentChannel) {
-      if(!detectAP(currentChannel)) {
-         currentChannel = 0;
-      }
-   }
-
-   if(currentChannel) {
-      MAIN_LOG("AP Found\n");
-      showAPFound();
-#if 0
-// Why ??? 
-   // write the settings to the eeprom
-      powerUp(INIT_EEPROM);
-      writeSettings();
-      powerDown(INIT_EEPROM);
-#endif
-      initPowerSaving(INTERVAL_BASE);
-      currentTagMode = TAG_MODE_ASSOCIATED;
-      doSleep(5000UL);
-   }
-   else {
-      MAIN_LOG("No AP found\n");
-      showNoAP();
-#if 0
-// Why ??? 
-      // write the settings to the eeprom
-      powerUp(INIT_EEPROM);
-      writeSettings();
-      powerDown(INIT_EEPROM);
-#endif
-      initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
-      currentTagMode = TAG_MODE_CHANSEARCH;
-      doSleep(120000UL);
-   }
-
-   // this is the loop we'll stay in forever, basically.
-   while(1) {
-      wdt10s();
-
-      if(currentTagMode == TAG_MODE_ASSOCIATED) {
-         TagAssociated();
-      }
-      else {
-         TagChanSearch();
-      }
-   }
-}
-
 uint16_t __xdata MallocCaller;
 void free(void *p)
 {
@@ -537,4 +324,138 @@ void __xdata *malloc (size_t size)
    }
    return &mScreenRow;
 }
+
+void main() 
+{  
+   powerUp(INIT_BASE);
+// Save initial battery voltage
+   ADCRead(ADC_CHAN_VDD_3);
+   gBootBattV = ADCScaleVDD(gRawA2DValue);
+   gBattV = gBootBattV;
+
+   LOGA("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
+   boardInitStage2();
+
+   ADCRead(ADC_CHAN_TEMP);
+   ADCScaleTemperature();
+// Log initial battery voltage and temperature
+   LogSummary();
+
+// Find the reason why we're booting; is this a WDT?
+   wakeUpReason = WAKEUP_REASON_FIRSTBOOT;
+   SLEEP_LOG("SLEEP reg %02x\n",SLEEP);
+   if((SLEEP & SLEEP_RST) == SLEEP_RST_WDT) {
+      wakeUpReason = WAKEUP_REASON_WDT_RESET;
+   }
+
+   InitBcastFrame();
+
+   MAIN_LOG("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
+   MAIN_LOG("%02X%02X", mSelfMac[2], mSelfMac[3]);
+   MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
+   MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
+
+// do a little sleep, this prevents a partial boot during battery insertion
+   doSleep(400UL);
+   powerUp(INIT_EEPROM);
+
+   loadSettings();
+
+// get the highest slot number, number of slots
+   initializeProto();
+
+#if 0
+   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
+   showSplashScreen();
+   showAPFound();
+   showNoAP();
+   showLongTermSleep();
+   afterFlashScreenSaver();
+   MAIN_LOG("drawing image\n");
+   powerDown(INIT_EEPROM);
+   showSplashScreen();
+   MAIN_LOG("image drawn\n");
+   powerUp(INIT_EEPROM);
+   doSleep(20000L);
+   powerUp(INIT_EEPROM);
+   MAIN_LOG("drawing slot 1\n");
+   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
+   MAIN_LOG("image drawn\n");
+   powerUp(INIT_EEPROM);
+   doSleep(20000L);
+   MAIN_LOG("done!\n");
+   while(true);
+#endif
+
+   if(tagSettings.enableFastBoot) {
+   // Fastboot
+      MAIN_LOG("Doing fast boot\n");
+   }
+   else {
+   // Normal boot/startup
+      MAIN_LOG("Normal boot\n");
+
+   // show the splashscreen
+      showSplashScreen();
+   }
+
+   wdt10s();
+
+// Try the saved channel before scanning for an AP to avoid
+// out of band transmissions as much as possible
+   if(currentChannel) {
+      if(!detectAP(currentChannel)) {
+         currentChannel = 0;
+      }
+   }
+
+   if(currentChannel) {
+      MAIN_LOG("AP Found\n");
+      showAPFound();
+#if 0
+// Why ??? 
+   // write the settings to the eeprom
+      powerUp(INIT_EEPROM);
+      writeSettings();
+      powerDown(INIT_EEPROM);
+#endif
+      initPowerSaving(INTERVAL_BASE);
+      currentTagMode = TAG_MODE_ASSOCIATED;
+      doSleep(5000UL);
+   }
+   else {
+      MAIN_LOG("No AP found\n");
+      showNoAP();
+#if 0
+// Why ??? 
+      // write the settings to the eeprom
+      powerUp(INIT_EEPROM);
+      writeSettings();
+      powerDown(INIT_EEPROM);
+#endif
+      initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
+      currentTagMode = TAG_MODE_CHANSEARCH;
+      doSleep(120000UL);
+   }
+
+// this is the loop we'll stay in forever, basically.
+   while(1) {
+      wdt10s();
+   // refresh gBattV
+      if(gTxBattV != 0 && gBattV > gTxBattV) {
+         gBattV = gTxBattV;
+      }
+
+      if(gRefreshBattV != 0 && gBattV > gRefreshBattV) {
+         gBattV = gRefreshBattV;
+      }
+      if(currentTagMode == TAG_MODE_ASSOCIATED) {
+         TagAssociated();
+      }
+      else {
+         TagChanSearch();
+      }
+   }
+}
+
 

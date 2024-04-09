@@ -48,6 +48,8 @@ void powerPortsDownForSleep(void);
 #pragma callee_saves boardInitStage2
 void boardInitStage2(void);
 
+void PortInit(void);
+
 //late, after eeprom
 void boardGetOwnMac(uint8_t __xdata *mac);
 void InitBcastFrame(void);
@@ -84,10 +86,5 @@ void UpdateBcastFrame(void);
 #if (EEPROM_UPDATA_AREA_START % EEPROM_ERZ_SECTOR_SZ) != 0
    #error "images must begin at an integer number of eeprom blocks"
 #endif
-
-
-
-
-
 
 #endif

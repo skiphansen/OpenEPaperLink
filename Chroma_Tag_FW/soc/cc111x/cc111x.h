@@ -22,6 +22,25 @@
 #define  RF_VECTOR      16   // RF General Interrupts
 #define  WDT_VECTOR     17   // Watchdog Overflow in Timer Mode
 
+// ADC input channels
+
+#define ADC_CHAN_AIN0   0
+#define ADC_CHAN_AIN1   1
+#define ADC_CHAN_AIN2   2
+#define ADC_CHAN_AIN3   3
+#define ADC_CHAN_AIN4   4
+#define ADC_CHAN_AIN5   5
+#define ADC_CHAN_AIN6   6
+#define ADC_CHAN_AIN7   7
+#define ADC_CHAN_AIN0_1 8
+#define ADC_CHAN_AIN2_3 9
+#define ADC_CHAN_AIN4_5 10
+#define ADC_CHAN_AIN6_7 11
+#define ADC_CHAN_GND    12
+#define ADC_CHAN_VREF   13
+#define ADC_CHAN_TEMP   14
+#define ADC_CHAN_VDD_3  15
+
 static __idata __at (0x00) unsigned char R0;
 static __idata __at (0x01) unsigned char R1;
 static __idata __at (0x02) unsigned char R2;

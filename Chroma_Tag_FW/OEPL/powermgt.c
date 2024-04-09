@@ -26,6 +26,7 @@
 #include "timer.h"
 #include "userinterface.h"
 #include "wdt.h"
+#include "adc.h"
 #include "logging.h"
 
 // Holds the amount of attempts required per data_req/check-in
@@ -37,10 +38,22 @@ uint8_t __xdata wakeUpReason;
 uint8_t __xdata scanAttempts;
 
 int8_t __xdata temperature;
-uint16_t __xdata batteryVoltage = 2600;   //in mV
+
+
+// Battery voltage immediately after last boot
+uint16_t __xdata gBootBattV;
+
+// Minimum battery voltage seen while transmitting
+uint16_t __xdata gTxBattV;
+
+// Minimum battery voltage seen while updating display
+uint16_t __xdata gRefreshBattV;
+
+//in mV
+uint16_t __xdata gBattV;
+
 __bit lowBattery;
 uint16_t __xdata longDataReqCounter;
-uint16_t __xdata voltageCheckCounter;
 
 // True if SPI port configured for UART, False when configured for EEPROM
 __bit gUartSelected;
@@ -70,10 +83,6 @@ void powerUp(const uint8_t parts)
       radioInit();
       radioSetTxPower(10);
       radioSetChannel(currentChannel);
-   }
-
-   if(parts & INIT_EPD_VOLTREADING) {
-      batteryVoltage = adcSampleBattery();
    }
 
 // The debug UART and the EEPROM both use USART1 on Chroma devices
@@ -132,11 +141,6 @@ void doSleep(uint32_t __xdata t)
    SLEEP_LOG("\nAwake\n");
 }
 
-void doVoltageReading() 
-{
-   temperature = adcSampleTemperature();
-}
-
 uint32_t getNextScanSleep(const bool increment) 
 {
    if(increment) {
@@ -178,3 +182,12 @@ uint16_t getNextSleep()
    }
    return avg;
 }
+
+void LogSummary(void)
+{
+   LOGA("BattV Boot %d, Tx %d, update %d\n",gBootBattV,gTxBattV,gRefreshBattV);
+   LOGA("Temp %d C\n",gTemperature);
+   LOGA("RSSI %d, LQI %d\n",mLastRSSI,mLastLqi);
+}
+
+
