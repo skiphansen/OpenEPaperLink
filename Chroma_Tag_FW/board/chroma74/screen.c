@@ -963,10 +963,6 @@ void P1INT_ISR(void) __interrupt (15)
    SLEEP &= (uint8_t)~(3 << 0);  //wake up
 }
 
-static void screenPrvSleepTillDone(void)
-{
-}
-
 static void screenInitIfNeeded(__bit forPartial)
 {
    if(gScreenPowered) {
@@ -1167,6 +1163,7 @@ void drawWithSleep()
       }
    }
    gRefreshBattV = ADCScaleVDD(Lowest);
+   powerUp(INIT_BASE);
    LOGA("Update complete\n");
    screenShutdown();
 }
