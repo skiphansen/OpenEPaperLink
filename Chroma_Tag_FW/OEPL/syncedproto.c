@@ -50,6 +50,7 @@ uint16_t __xdata APsrcPan;
 uint8_t __xdata mSelfMac[8];
 static uint8_t __xdata seq;
 uint8_t __xdata currentChannel;
+__bit gOTA;
 
 // buffer we use to prepare/read packets
 uint8_t __xdata inBuffer[128];
@@ -473,7 +474,7 @@ static void sendXferComplete()
    for(uint8_t c = 0; c < 16; c++) {
       sendXferCompletePacket();
       uint32_t __xdata start = timerGet();
-      while((timerGet() - start) < (TIMER_TICKS_PER_MS * 6UL)) {
+      while((timerGet() - start) < (TIMER_TICKS_PER_MS * XFER_COMPLETE_REPLY_WINDOW)) {
          if(radioRx() > 1) {
             if(getPacketType() == PKT_XFER_COMPLETE_ACK) {
                PROTO_LOG("ACK\n");
@@ -550,19 +551,9 @@ uint8_t __xdata findNextSlideshowImage(uint8_t start) __reentrant
    }
 }
 
-static void eraseUpdateBlock() 
-{
-   eepromErase(EEPROM_SIZE - OTA_UPDATE_SIZE, OTA_UPDATE_SIZE / EEPROM_ERZ_SECTOR_SZ);
-}
-
 static void eraseImageBlock(const uint8_t c) 
 {
-   eepromErase(getAddressForSlot(c), EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ);
-}
-
-static void saveUpdateBlockData(uint8_t blockId) 
-{
-   eepromWrite(EEPROM_SIZE - OTA_UPDATE_SIZE + (blockId * BLOCK_DATA_SIZE), blockbuffer + sizeof(struct blockData), BLOCK_DATA_SIZE);
+   eepromErase(getAddressForSlot(c),EEPROM_IMG_SECTORS);
 }
 
 void eraseImageBlocks() 
@@ -624,8 +615,15 @@ static bool getDataBlock(const uint16_t blockSize)
    uint8_t *__xdata pData;
    __bit NewSubBlock = true;
 
-   Adr = getAddressForSlot(xferImgSlot) + sizeof(struct EepromImageHeader) 
-         + (curBlock.blockId * BLOCK_DATA_SIZE);
+   Adr = curBlock.blockId * BLOCK_DATA_SIZE;
+   if(gOTA) {
+      BLOCK_LOG("ota ");
+      Adr += EEPROM_UPDATA_AREA_START;
+   }
+   else {
+      Adr += getAddressForSlot(xferImgSlot) + sizeof(struct EepromImageHeader); 
+   }
+   BLOCK_LOG("blk adr 0x%lx\n",Adr);
 
    blockAttempts = BLOCK_TRANSFER_ATTEMPTS;
    gSubBlockID = 0;  // new block starting
@@ -757,23 +755,24 @@ static bool getDataBlock(const uint16_t blockSize)
 static uint16_t __xdata dataRequestSize;
 static uint16_t __xdata otaSize;
 
-#if 0
 static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail) 
 {
-   return false;
-   // check if we already started the transfer of this information & haven't completed it
-   if(xMemEqual((const void *__xdata) & avail->dataVer, (const void *__xdata) & xferDataInfo.dataVer, 8) && xferDataInfo.dataSize) {
+// check if we already started the transfer of this information & haven't completed it
+   if(xMemEqual((const void *__xdata) &avail->dataVer,(const void *__xdata) &xferDataInfo.dataVer,8)
+      && xferDataInfo.dataSize) 
+   {
       // looks like we did. We'll carry on where we left off.
-   } else {
-#if defined(DEBUGOTA)
-      pr("OTA: Start update!\n");
-#endif
-      // start, or restart the transfer from 0. Copy data from the AvailDataInfo struct, and the struct intself. This forces a new transfer
+   }
+   else {
+      OTA_LOG("Start OTA\n");
+   // start, or restart the transfer from 0. Copy data from the 
+   // AvailDataInfo struct, and the struct intself. 
+   // This forces a new transfer
       curBlock.blockId = 0;
-      xMemCopy8(&(curBlock.ver), &(avail->dataVer));
+      xMemCopy8(&curBlock.ver,&avail->dataVer);
       curBlock.type = avail->dataType;
-      xMemCopyShort(&xferDataInfo, (void *)avail, sizeof(struct AvailDataInfo));
-      eraseUpdateBlock();
+      xMemCopyShort(&xferDataInfo,(void *)avail,sizeof(struct AvailDataInfo));
+      eepromErase(EEPROM_UPDATA_AREA_START,OTA_UPDATE_SIZE / EEPROM_ERZ_SECTOR_SZ);
       otaSize = xferDataInfo.dataSize;
    }
 
@@ -786,20 +785,21 @@ static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail)
          // only one block remains
          dataRequestSize = xferDataInfo.dataSize;
       }
+
+      gOTA = true;
       if(getDataBlock(dataRequestSize)) {
-         // succesfully downloaded datablock, save to eeprom
-         powerUp(INIT_EEPROM);
-         saveUpdateBlockData(curBlock.blockId);
-         powerDown(INIT_EEPROM);
+      // succesfully downloaded datablock, save to eeprom
          curBlock.blockId++;
          xferDataInfo.dataSize -= dataRequestSize;
-      } else {
+      }
+      else {
          // failed to get the block we wanted, we'll stop for now, maybe resume later
          return false;
       }
    }
    wdt60s();
    powerUp(INIT_EEPROM);
+#if 0
    if(!validateMD5(EEPROM_SIZE - OTA_UPDATE_SIZE, otaSize)) {
 #if defined(DEBUGOTA)
       pr("OTA: MD5 verification failed!\n");
@@ -812,11 +812,11 @@ static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail)
 #if defined(DEBUGOTA)
    pr("OTA: MD5 pass!\n");
 #endif
+#endif
 
    // no more data, download complete
    return true;
 }
-#endif
 
 uint16_t __xdata imageSize;
 static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail) 
@@ -835,9 +835,14 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
    // go to the next image slot
       uint8_t startingSlot = nextImgSlot;
 
-   // if we encounter a special image type, start looking from slot 0, to 
-   // prevent the image being overwritten when we do an OTA update
-      if(avail->dataTypeArgument & 0xFC != 0x00) {
+   // if we encounter a special image type (preloadImage or specialType is 
+   // non zero) then start looking from slot 0, to prevent the image being 
+   // overwritten when we do an OTA update.
+   // sh: I think there's a bug here which only occurs when the next if
+   // is trun and nextImgSlot is the last slot
+      if((avail->dataTypeArgument & 0xFC) != 0x00) {
+         LOG("Changing startingSlot from %d to 0\n",startingSlot);
+         DumpHex((const uint8_t *__xdata)avail,sizeof(struct AvailDataInfo));
          startingSlot = 0;
       }
 
@@ -868,17 +873,7 @@ static bool downloadImageDataToEEPROM(const struct AvailDataInfo *__xdata avail)
 
       xferImgSlot = nextImgSlot;
 
-      uint8_t __xdata attempt = 5;
-      while(attempt--) {
-         if(eepromErase(getAddressForSlot(xferImgSlot), EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ)) {
-            goto eraseSuccess;
-         }
-      }
-      showNoEEPROM();
-      powerDown(INIT_EEPROM);
-      doSleep(-1);
-      wdtDeviceReset();
-eraseSuccess:
+      eepromErase(getAddressForSlot(xferImgSlot),EEPROM_IMG_SECTORS);
       powerDown(INIT_EEPROM);
       LOGA("new dl to %d\n", xferImgSlot);
    // start, or restart the transfer. Copy data from the AvailDataInfo struct, 
@@ -938,11 +933,12 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
                 arg.specialType,avail->dataTypeArgument);
       powerUp(INIT_EEPROM);
       switch(arg.specialType) {
-      // check if a slot with this argument is already set; if so, erase. Only one of each arg type should exist
+      // check if a slot with this argument is already set; if so, erase. 
+      // Only one of each arg type should exist
          default: {
                uint8_t slot = findSlotDataTypeArg(avail->dataTypeArgument);
                if(slot != 0xFF) {
-                  eepromErase(getAddressForSlot(slot), EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ);
+                  eraseImageBlock(slot);
                }
             } break;
             // regular image preload, there can be multiple of this type in the EEPROM
@@ -1024,6 +1020,8 @@ inline bool processImageDataAvail(struct AvailDataInfo *__xdata avail)
 
 bool processAvailDataInfo(struct AvailDataInfo *__xdata avail) 
 {
+   gOTA = false;
+
    switch(avail->dataType) {
       case DATATYPE_IMG_BMP:
       case DATATYPE_IMG_DIFF:
@@ -1058,6 +1056,38 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
          executeCommand(avail->dataTypeArgument);
          return true;
 
+      case DATATYPE_FW_UPDATE:
+         powerUp(INIT_EEPROM);
+         if(downloadFWUpdate(avail)) {
+            OTA_LOG("Download complete\n");
+            sendXferComplete();
+
+            powerUp(INIT_EEPROM);
+            if(validateFWMagic()) {
+               OTA_LOG("Valid magic number\n");
+               showApplyUpdate();
+               wdt60s();
+               powerUp(INIT_EEPROM);
+               eepromRead(EEPROM_UPDATA_AREA_START,mScreenRow,256);
+               DumpHex(mScreenRow,256);
+               eepromReadStart(EEPROM_UPDATA_AREA_START);
+               selfUpdate();
+            // Never returns, ends in WDT reset
+            }
+            else {
+               OTA_LOG("OTA: Invalid magic number!\n");
+               fastNextCheckin = true;
+               powerDown(INIT_EEPROM);
+               wakeUpReason = WAKEUP_REASON_FAILED_OTA_FW;
+               showFailedUpdate();
+               xMemSet(curDispDataVer,0x00,8);
+            }
+         }
+         else {
+            return false;
+         }
+         break;
+
       default:
          pr("dataType 0x%x ignored\n",avail->dataType);
          break;
@@ -1067,21 +1097,16 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
 
 bool validateFWMagic() 
 {
-#if 0
-   flashRead(0x8b, (void *)(blockbuffer + 1024), 256);
-   eepromRead(EEPROM_SIZE - OTA_UPDATE_SIZE, blockbuffer, 256);
-   if(xMemEqual((const void *__xdata)(blockbuffer + 1024), (const void *__xdata)(blockbuffer + 0x8b), 8)) {
-#ifdef DEBUGOTA
-      pr("OTA: magic number matches! good fw\n");
-#endif
-      return true;
-   } else {
-#ifdef DEBUGOTA
-      pr("OTA: this probably isn't a (recent) firmware file\n");
-#endif
-      return false;
-   }
+#if 1
+   return true;
 #else
+   flashRead(0x8b, (void *)(blockbuffer + 1024), 256);
+   eepromRead(EEPROM_SIZE - OTA_UPDATE_SIZE,blockbuffer,256);
+   if(xMemEqual((const void *__xdata)(blockbuffer + 1024), (const void *__xdata)(blockbuffer + 0x8b), 8)) {
+      OTA_LOG("OTA: magic number matches! good fw\n");
+      return true;
+   }
+   OTA_LOG("OTA: this probably isn't a (recent) firmware file\n");
    return false;
 #endif
 }

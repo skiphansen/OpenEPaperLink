@@ -88,6 +88,14 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
    #define DRAW_LOG_HEX(x,y)
 #endif
 
+#if defined(DEBUGOTA)
+   #define OTA_LOG(format, ... ) pr(format,## __VA_ARGS__)
+   #define OTA_LOG_HEX(x,y) DumpHex(x,y)
+#else
+   #define OTA_LOG(format, ... )
+   #define OTA_LOG_HEX(x,y)
+#endif
+
 #ifdef DEBUG_CHIP_CFG
    void CopyCfg(void);
    void PrintCfg(void);

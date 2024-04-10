@@ -27,6 +27,8 @@ void showNoMAC();
 #define showAPFound()
 #define showNoAP()
 #define displayCustomImage(X) false
+#define showFailedUpdate()
+#define showApplyUpdate()
 #endif
 
 extern const uint16_t __code fwVersion;

@@ -404,13 +404,13 @@ void main()
 // Try the saved channel before scanning for an AP to avoid
 // out of band transmissions as much as possible
    if(currentChannel) {
+      LOGA("Checking for AP last ch\n");
       if(!detectAP(currentChannel)) {
          currentChannel = 0;
       }
    }
 
    if(currentChannel) {
-      MAIN_LOG("AP Found\n");
       showAPFound();
 #if 0
 // Why ??? 

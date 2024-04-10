@@ -41,6 +41,9 @@
 // Now long to wait for Ping replies in milliseconds
 #define PING_REPLY_WINDOW        150UL
 
+// Now long to wait for transfer complete acks in milliseconds
+#define XFER_COMPLETE_REPLY_WINDOW        150UL
+
 // How often (in seconds, approximately) the tag should do a long datareq (including temperature)
 #define LONG_DATAREQ_INTERVAL 300
 

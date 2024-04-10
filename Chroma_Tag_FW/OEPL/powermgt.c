@@ -116,6 +116,9 @@ void doSleep(uint32_t __xdata t)
       t = DEBUG_MAX_SLEEP;
       LOG(" to %ld ms\n",t);
    }
+   else {
+      LOG("Sleeping for %ld ms\n",t);
+   }
 #endif
 
 #ifdef DEBUG_SLEEP
@@ -127,7 +130,7 @@ void doSleep(uint32_t __xdata t)
    uint32_t Mins = mathPrvMod32x16(hrs,60);
    hrs = mathPrvDiv32x16(hrs,60);
    SLEEP_LOG("Sleep for %ld (%ld:%02ld:%02ld.%03ld)",t,hrs,Mins,Sec,Ms);
-   SLEEP_LOG("...");
+   SLEEP_LOG("...\n");
 #endif
    if(gEEPROM_PoweredUp) {
       powerDown(INIT_EEPROM);
@@ -138,7 +141,9 @@ void doSleep(uint32_t __xdata t)
 // sleepy time
    sleepForMsec(t);
    powerUp(INIT_BASE);
-   SLEEP_LOG("\nAwake\n");
+#if defined(DEBUG_MAX_SLEEP) | defined(DEBUG_SLEEP)
+   LOG("Awake\n");
+#endif
 }
 
 uint32_t getNextScanSleep(const bool increment) 

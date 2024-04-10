@@ -5,11 +5,11 @@
 
 #define FW_VERSION 0x0001        // version number
 #define FW_VERSION_SUFFIX "-RC1" // suffix, like -RC1 or whatever.
-#define BAUD_115200              // Defaults to 1 megabaud this is not defined
-// #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
+// #define BAUD_115200              // Defaults to 1 megabaud this is not defined
+#define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 // #define FORCE_IMG_DL             // force tag to re-download every upload
-// #define DEBUGPROTO               // debug protocol
-// #define DEBUGOTA                 // debug OTA FW updates
+#define DEBUGPROTO               // debug protocol
+#define DEBUGOTA                 // debug OTA FW updates
 // #define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
@@ -26,7 +26,7 @@
 // #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
 // #define DEBUG_CHIP_CFG   // log chip configuration
 
-// #define DISABLE_UI         // when you need to debug and are out of flash
+#define DISABLE_UI         // when you need to debug and are out of flash
 
 #if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
 #define DEBUG_COMMS
