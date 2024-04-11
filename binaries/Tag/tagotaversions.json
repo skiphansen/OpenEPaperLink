@@ -95,5 +95,15 @@
       "version": "0027",
       "md5": "55541b0f440e041d559c4d72c9dee524"
     }
+    "80": {
+      "type": "chroma74y_ota",
+      "version": "0001",
+      "md5": "55541b0f440e041d559c4d72c9dee524"
+    }
+    "84": {
+      "type": "chroma74r_ota",
+      "version": "0001",
+      "md5": "55541b0f440e041d559c4d72c9dee524"
+    }
   }
 ]

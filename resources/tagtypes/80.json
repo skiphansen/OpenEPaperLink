@@ -1,6 +1,6 @@
 {
  "version": 1,
- "name": "Chroma 7.4\"",
+ "name": "Chroma BWY 7.4\"",
  "width": 640,
  "height": 384,
  "rotatebuffer": 0,
@@ -8,7 +8,7 @@
  "colortable": {
   "white": [ 255, 255, 255 ],
   "black": [ 0, 0, 0 ],
-  "red": [ 255, 0, 0 ]
+  "yellow": [ 255, 0, 0 ]
  },
  "shortlut": 1,
  "options": [ ],
