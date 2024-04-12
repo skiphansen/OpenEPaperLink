@@ -63,18 +63,15 @@ static void upgradeSettings()
 }
 #endif
 
+#define Settings  ((SubGhzSettings *__xdata) gTempBuf320)
 void loadSettings() 
 {
-   SubGhzSettings *__xdata Settings = malloc(sizeof(SubGhzSettings));
 
-   eepromRead(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(*Settings));
+   eepromRead(EEPROM_SETTINGS_AREA_START,gTempBuf320,sizeof(SubGhzSettings));
    SETTINGS_LOG("Read:\n");
-   SETTINGS_LOG_HEX((void *)Settings,sizeof(SubGhzSettings));
+   SETTINGS_LOG_HEX(gTempBuf320,sizeof(SubGhzSettings));
 
    xMemCopyShort((void*)&tagSettings,(void*)&Settings->OeplSettings,sizeof(tagSettings));
-// Free'in here should be ok since we are single threaded and don't malloc
-// from interrupts (to save a few bytes of code space)
-   free(Settings);  
    if(tagSettings.settingsVer == 0xFF || Settings->Magic != SETTINGS_MAGIC) {
    // settings not set. load the defaults
       SETTINGS_LOG("Loaded defaults settingsVer 0x%x Magic 0x%lx\n",
@@ -90,13 +87,8 @@ void loadSettings()
 
 void writeSettings() 
 {
-   SubGhzSettings *__xdata Settings = malloc(sizeof(SubGhzSettings));
-
 // check if the settings match the settings in the eeprom
    eepromRead(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(*Settings));
-// Free'in here should be ok since we are single threaded and don't malloc
-// from interrupts (to save a few bytes of code space)
-   free(Settings);  
    if(Settings->Magic == SETTINGS_MAGIC
       && memcmp((void*)&Settings->OeplSettings,(void*)tagSettings,sizeof(tagSettings)) == 0
       && Settings->CurrentChannel == currentChannel)
@@ -114,6 +106,7 @@ void writeSettings()
    eepromWrite(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(SubGhzSettings));
    SETTINGS_LOG("Saved settings\n");
 }
+#undef Settings
 
 void invalidateSettingsEEPROM() 
 {

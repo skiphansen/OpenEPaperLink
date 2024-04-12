@@ -97,7 +97,7 @@ uint8_t __xdata mScreenVcom;
          }
 */
 
-__xdata __at (0xfda2) uint8_t mScreenRow[320];  //350 bytes here, we use 320 of them
+__xdata __at (0xfda2) uint8_t gTempBuf320[320];  //350 bytes here, we use 320 of them
 
 struct LutCorrectionRange {   //all possible ranges must be covered
    int8_t minTemp;         //inclusive
@@ -1166,5 +1166,6 @@ void drawWithSleep()
    powerUp(INIT_BASE);
    LOGA("Update complete\n");
    screenShutdown();
+   UpdateVBatt();
 }
 

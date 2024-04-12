@@ -5,11 +5,11 @@
 
 #define FW_VERSION 0x0001        // version number
 #define FW_VERSION_SUFFIX "-RC1" // suffix, like -RC1 or whatever.
-// #define BAUD_115200              // Defaults to 1 megabaud this is not defined
-#define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
+#define BAUD_115200              // Defaults to 1 megabaud this is not defined
+// #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 // #define FORCE_IMG_DL             // force tag to re-download every upload
-#define DEBUGPROTO               // debug protocol
-#define DEBUGOTA                 // debug OTA FW updates
+// #define DEBUGPROTO               // debug protocol
+// #define DEBUGOTA                 // debug OTA FW updates
 // #define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
@@ -26,11 +26,13 @@
 // #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
 // #define DEBUG_CHIP_CFG   // log chip configuration
 
-#define DISABLE_UI         // when you need to debug and are out of flash
+#define SFDP_DISABLED         // Disable SFDP to save 1538 bytes.
+// #define DISABLE_UI         // when you need to debug and are out of flash
 
 #if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
 #define DEBUG_COMMS
 #endif
+
 
 // The firmware can validate the image MD5 before displaying it. 
 // This costs about 8mAS (milliamp-second) for a 1.54, 16
@@ -44,6 +46,10 @@
 // #define LEAN_VERSION             // makes a smaller version, leaving extra flash space for other things
 // #define WRITE_MAC_FROM_FLASH     // takes mac address from flash if none is set in the infopage
 
+#if defined(DISABLE_UI) && !defined(LEAN_VERSION)
+#define LEAN_VERSION
+#endif
+
 #if defined(DEBUGSETTINGS) || defined(DEBUGMSG) || defined(DEBUGBLOCKS) \
     || defined(DEBUGPROTO) || defined(DEBUGOTA) || defined(DEBUGNFC) \
     || defined(DEBUGEPD) || defined(DEBUGMAIN) || defined(DEBUGEEPROM)
@@ -55,7 +61,7 @@
 #define DEFAULT_SETTING_FASTBOOT 0
 #define DEFAULT_SETTING_RFWAKE 0
 #define DEFAULT_SETTING_TAGROAMING 0
-#define DEFAULT_SETTING_SCANFORAP 1
+#define DEFAULT_SETTING_SCANFORAP 0
 #define DEFAULT_SETTING_LOWBATSYMBOL 1
 #define DEFAULT_SETTING_NORFSYMBOL 1
 

@@ -40,19 +40,23 @@ void addOverlay()
    else {
       noAPShown = false;
    }
-   if(gBattV < tagSettings.batLowVoltage 
-      && tagSettings.enableLowBatSymbol)
-   {
+   if(gLowBattery && tagSettings.enableLowBatSymbol) {
       loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
-      lowBatteryShown = true;
+      gLowBatteryShown = true;
    }
    else {
-      lowBatteryShown = false;
+      gLowBatteryShown = false;
    }
 #ifdef ISDEBUGBUILD
+   epdPrintBegin(0,SCREEN_HEIGHT - FONT_HEIGHT - 2,
+                 EPD_DIRECTION_X,
+                 EPD_SIZE_SINGLE,
+#ifdef BWY
 // Yellow is very low constrast, make it black for BWY displays
-   epdPrintBegin(0,SCREEN_HEIGHT - FONT_HEIGHT - 2,EPD_DIRECTION_X,
-                 EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+                 EPD_COLOR_BLACK);
+#else
+                 EPD_COLOR_RED);
+#endif
    epdpr("DEBUG");
 #endif
 }
@@ -89,6 +93,7 @@ void afterFlashScreenSaver()
    if(displayCustomImage(CUSTOM_IMAGE_LONGTERMSLEEP)) {
       return;
    }
+   LOGA("Deep sleep\n");
    DrawScreen(DrawAfterFlashScreenSaver);
 }
 
@@ -101,13 +106,23 @@ void DrawTagMac()
    epdpr(":%02X:%02X",mSelfMac[1],mSelfMac[0]);
 }
 
+void DrawFwVer()
+{
+#ifdef FW_VERSION_SUFFIX
+   epdpr(BOARD_NAME " v%04X" FW_VERSION_SUFFIX,fwVersion);
+#else
+   epdpr(BOARD_NAME " v%04X",fwVersion);
+#endif
+}
+
 void DrawSplashScreen()
 {
-   epdPrintBegin(3,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-   epdpr("Starting");
+   epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   epdpr("Starting...");
 
    epdPrintBegin(3,268,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("Chroma74 v%04X%s",fwVersion,fwVersionSuffix);
+   DrawFwVer();
+
    epdPrintBegin(3,284,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_RED);
    DrawTagMac();
 #ifndef LEAN_VERSION
@@ -173,6 +188,8 @@ void DrawAPFound()
    epdPrintBegin(48,128,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("Tag ");
    DrawTagMac();
+   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   DrawFwVer();
 #if 0
    uint8_t __xdata buffer[17];
    spr(buffer,"%02X%02X",mSelfMac[7],mSelfMac[6]);

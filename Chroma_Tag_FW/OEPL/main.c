@@ -47,9 +47,8 @@ const uint8_t __code channelList[] = {
 uint8_t *rebootP;
 
 const uint16_t __code fwVersion = FW_VERSION;
-const char __code fwVersionSuffix[] = FW_VERSION_SUFFIX;
 
-__bit lowBatteryShown;
+__bit gLowBatteryShown;
 __bit noAPShown;
 
 
@@ -95,7 +94,7 @@ void TagAssociated()
       || secondLongCheckIn) 
    {
 // check if the battery level is below minimum, and force a redraw of the screen
-      if((lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol)
+      if((gLowBattery && !gLowBatteryShown && tagSettings.enableLowBatSymbol)
           || (noAPShown && tagSettings.enableNoRFSymbol)) 
       {
          // Check if we were already displaying an image
@@ -199,7 +198,7 @@ void TagChanSearch()
 
 // Check if we should redraw the screen with icons, info screen or screensaver
    if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 
-      || (lowBattery && !lowBatteryShown && tagSettings.enableLowBatSymbol) 
+      || (gLowBattery && !gLowBatteryShown && tagSettings.enableLowBatSymbol) 
       || (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) 
    {
       wdt60s();
@@ -250,7 +249,6 @@ void executeCommand(uint8_t cmd)
          break;
 
       case CMD_DO_DEEPSLEEP:
-         LOGA("Deep sleep\n");
          afterFlashScreenSaver();
          doSleep(0);
          break;
@@ -268,70 +266,13 @@ void executeCommand(uint8_t cmd)
    }
 }
 
-uint16_t __xdata MallocCaller;
-void free(void *p)
-{
-   p;
-   if(MallocCaller == 0) {
-   // Get the caller address
-      __asm__(
-           "mov   dptr,#_MallocCaller\n"
-           "pop   b\n"
-           "pop   acc\n"
-           "movx  @dptr,a\n"
-           "inc   dptr\n"
-           "mov   a,b\n"
-           "movx  @dptr,a\n"
-           "mov   a,sp\n"
-           "inc   a\n"
-           "inc   a\n"
-           "mov   sp,a\n"
-      );
-      pr("\n0x%x: free err\n",MallocCaller);
-   }
-   else {
-      MallocCaller = 0;
-   }
-}
-
-void __xdata *malloc (size_t size)
-{
-   uint16_t LastCaller = MallocCaller;
-
-// Get the caller address for debugging
-   __asm__(
-        "mov   dptr,#_MallocCaller\n"
-        "pop   b\n"
-        "pop   acc\n"
-        "movx  @dptr,a\n"
-        "inc   dptr\n"
-        "mov   a,b\n"
-        "movx  @dptr,a\n"
-        "mov   a,sp\n"
-        "inc   a\n"
-        "inc   a\n"
-        "mov   sp,a\n"
-   );
-
-   if(LastCaller != 0) {
-      pr("\n0x%x Malloc err 0x%x\n",
-         MallocCaller,LastCaller);
-      while(true);
-   }
-   else if(size > sizeof(mScreenRow)) {
-      pr("\nMalloc err %d 0x%x\n",size,MallocCaller);
-      while(true);
-   }
-   return &mScreenRow;
-}
-
 void main() 
 {  
    powerUp(INIT_BASE);
+
 // Save initial battery voltage
    ADCRead(ADC_CHAN_VDD_3);
    gBootBattV = ADCScaleVDD(gRawA2DValue);
-   gBattV = gBootBattV;
 
    LOGA("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
    boardInitStage2();
@@ -404,7 +345,7 @@ void main()
 // Try the saved channel before scanning for an AP to avoid
 // out of band transmissions as much as possible
    if(currentChannel) {
-      LOGA("Checking for AP last ch\n");
+      LOGA("Check last channel\n");
       if(!detectAP(currentChannel)) {
          currentChannel = 0;
       }
@@ -441,14 +382,6 @@ void main()
 // this is the loop we'll stay in forever, basically.
    while(1) {
       wdt10s();
-   // refresh gBattV
-      if(gTxBattV != 0 && gBattV > gTxBattV) {
-         gBattV = gTxBattV;
-      }
-
-      if(gRefreshBattV != 0 && gBattV > gRefreshBattV) {
-         gBattV = gRefreshBattV;
-      }
       if(currentTagMode == TAG_MODE_ASSOCIATED) {
          TagAssociated();
       }

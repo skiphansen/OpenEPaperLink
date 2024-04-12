@@ -32,8 +32,7 @@ void showNoMAC();
 #endif
 
 extern const uint16_t __code fwVersion;
-extern const char __code fwVersionSuffix[];
-extern __bit lowBatteryShown;
+extern __bit gLowBatteryShown;
 extern __bit noAPShown;
 
 #endif

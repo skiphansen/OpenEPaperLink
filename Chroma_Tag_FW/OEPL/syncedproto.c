@@ -71,7 +71,11 @@ extern void executeCommand(uint8_t cmd);  // this is defined in main.c
 
 static bool pktIsUnicast(void);
 static bool pktIsBcast(void);
+#ifdef DEBUGBLOCKS
 void DumpCurBlock(void);
+#else
+#define DumpCurBlock()
+#endif
 
 uint8_t __xdata getPacketType() 
 {
@@ -195,7 +199,6 @@ static void sendAvailDataReq()
 {
    outBuffer[0] = sizeof(struct MacFrameBcast) + sizeof(struct AvailDataReq) + 2 + 2;
    UpdateBcastFrame();
-
    outBuffer[sizeof(struct MacFrameBcast) + 1] = PKT_AVAIL_DATA_REQ;
 // TODO: send some (more) meaningful data
    availreq->hwType = HW_TYPE;
@@ -205,6 +208,7 @@ static void sendAvailDataReq()
    ADCRead(ADC_CHAN_TEMP);
    ADCScaleTemperature();
    availreq->temperature = gTemperature;
+   UpdateVBatt();
    availreq->batteryMv = gBattV;
    availreq->capabilities = 0;
    availreq->tagSoftwareVersion = fwVersion;
@@ -319,7 +323,7 @@ static void processBlockPart(const struct blockPart *bp)
    // we don't need this block anymore, set bit to 0 so we don't request it again
       curBlock.requestedParts[bp->blockPart / 8] &= ~(1 << (bp->blockPart % 8));
 #ifndef DEBUGBLOCKS
-   LOGA(".");
+      LOGA(".");
 #endif
       return;
    }
@@ -332,6 +336,9 @@ static void blockRxLoop(const uint32_t timeout)
    uint32_t __xdata t;
    uint8_t i;
 
+#ifndef DEBUGBLOCKS
+   LOGA("REQ %d part %d",curBlock.blockId,gSubBlockID);
+#endif
    radioRxEnable(true);
    t = timerGet() + (TIMER_TICKS_PER_MS * (timeout + 20));
    while(timerGet() < t) {
@@ -350,14 +357,14 @@ static void blockRxLoop(const uint32_t timeout)
             }
             if(i == BLOCK_REQ_PARTS_BYTES) {
             // got all of the parts we were expecting, bail
-#ifndef DEBUGBLOCKS
-               LOG("\n");
-#endif
                break;
             }
          }
       }
    }
+#ifndef DEBUGBLOCKS
+   LOG("\n");
+#endif
    radioRxEnable(false);
    radioRxFlush();
 }
@@ -634,9 +641,6 @@ static bool getDataBlock(const uint16_t blockSize)
 
    while(blockAttempts--) {
       if(NewSubBlock) {
-#ifndef DEBUGBLOCKS
-         LOGA("REQ %d part %d",curBlock.blockId,gSubBlockID);
-#endif
          NewSubBlock = false;
          gPartsThisBlock = gBlockData.size / BLOCK_PART_DATA_SIZE;
          if((gBlockData.size % BLOCK_PART_DATA_SIZE) != 0) {
@@ -1135,22 +1139,22 @@ void UpdateBcastFrame()
    TX_FRAME_PTR->seq = seq++;
 }
 
+#ifdef DEBUGBLOCKS
 void DumpCurBlock()
 {
-#ifdef DEBUGBLOCKS
       LOG("REQ %d [",curBlock.blockId);
       for(uint8_t c = 0; c < BLOCK_MAX_PARTS; c++) {
          if((c != 0) && (c % 8 == 0)) {
-            pr("][");
+            LOG("][");
          }
          if(curBlock.requestedParts[c / 8] & (1 << (c % 8))) {
-            pr("R");
+            LOG("R");
          }
          else {
-            pr("_");
+            LOG("_");
          }
       }
-      pr("]\n");
-#endif
+      LOG("]\n");
 }
+#endif
 

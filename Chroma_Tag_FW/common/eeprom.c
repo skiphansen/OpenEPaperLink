@@ -183,7 +183,6 @@ __bit eepromInit(void)
 {
    uint8_t __xdata buf[8];
    uint8_t i, nParamHdrs;
-   uint8_t __xdata *tempBufferE = malloc(320);
    __bit Ret = false;
 
 // process SFDP
@@ -210,37 +209,37 @@ __bit eepromInit(void)
          if(buf[0] == 0x00 && buf[2] == 0x01 && buf[3] >= 9) {
             uint8_t j;
 
-            eepromPrvSfdpRead(*(uint16_t __xdata *)(buf + 4),tempBufferE,9 * 4);
-            if((tempBufferE[0] & 3) != 1) {
+            eepromPrvSfdpRead(*(uint16_t __xdata *)(buf + 4),gTempBuf320,9 * 4);
+            if((gTempBuf320[0] & 3) != 1) {
                EEPROM_LOG("SFDP: no 4K ERZ\n");
                break;
             }
-            if(!(tempBufferE[0] & 0x04)) {
+            if(!(gTempBuf320[0] & 0x04)) {
                EEPROM_LOG("SFDP: no large write buf\n");
                break;
             }
-            if((tempBufferE[2] & 0x06)) {
+            if((gTempBuf320[2] & 0x06)) {
                EEPROM_LOG("SFDP: addr.len != 3\n");
                break;
             }
 
-            if(!tempBufferE[1] || tempBufferE[1] == 0xff) {
+            if(!gTempBuf320[1] || gTempBuf320[1] == 0xff) {
                EEPROM_LOG("SFDP: 4K ERZ opcode invalid\n");
                break;
             }
-            mOpcodeErz4K = tempBufferE[1];
+            mOpcodeErz4K = gTempBuf320[1];
 
-            if(tempBufferE[7] & 0x80) {
+            if(gTempBuf320[7] & 0x80) {
                EEPROM_LOG("SFDP: device too big\n");
                break;
             }
             uint8_t __xdata t;
 
-            if(t = tempBufferE[7])
+            if(t = gTempBuf320[7])
                mEepromSize = 0x00200000UL;
-            else if(t = tempBufferE[6])
+            else if(t = gTempBuf320[6])
                mEepromSize = 0x00002000UL;
-            else if(t = tempBufferE[5])
+            else if(t = gTempBuf320[5])
                mEepromSize = 0x00000020UL;
             else {
                EEPROM_LOG("SFDP: device so small?!\n");
@@ -254,12 +253,12 @@ __bit eepromInit(void)
 
             // get erase opcodes
             for(j = 0x1c; j < 0x24; j += 2) {
-               uint8_t instr = tempBufferE[j + 1];
+               uint8_t instr = gTempBuf320[j + 1];
 
                if(!instr || instr == 0xff)
                   continue;
 
-               switch(tempBufferE[j]) {
+               switch(gTempBuf320[j]) {
                   case 0x0c:
                      if(mOpcodeErz4K != instr) {
                         EEPROM_LOG("4K ERZ opcode disagreement\n");
@@ -293,7 +292,6 @@ __bit eepromInit(void)
          }
       }
    } while(false);
-   free(tempBufferE);
    if(!Ret) {
       EEPROM_LOG("SFDP: no JEDEC table of expected version found\n");
    }

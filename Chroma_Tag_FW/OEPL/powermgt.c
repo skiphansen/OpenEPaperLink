@@ -52,7 +52,7 @@ uint16_t __xdata gRefreshBattV;
 //in mV
 uint16_t __xdata gBattV;
 
-__bit lowBattery;
+__bit gLowBattery;
 uint16_t __xdata longDataReqCounter;
 
 // True if SPI port configured for UART, False when configured for EEPROM
@@ -190,9 +190,29 @@ uint16_t getNextSleep()
 
 void LogSummary(void)
 {
-   LOGA("BattV Boot %d, Tx %d, update %d\n",gBootBattV,gTxBattV,gRefreshBattV);
    LOGA("Temp %d C\n",gTemperature);
    LOGA("RSSI %d, LQI %d\n",mLastRSSI,mLastLqi);
 }
 
+// refresh gBattV, check for low battery
+// if low battery is detected set gBattV to the triggering value
+void UpdateVBatt()
+{
+   ADCRead(ADC_CHAN_VDD_3);
+   gBattV = ADCScaleVDD(gRawA2DValue);
+   gLowBattery = false;  // assume the best
 
+   if(gBattV < tagSettings.batLowVoltage) {
+      gLowBattery = true;
+   }
+   else if(gTxBattV != 0 && gTxBattV < tagSettings.batLowVoltage) {
+      gBattV = gTxBattV;
+      gLowBattery = true;
+   }
+   else if(gRefreshBattV != 0 && gRefreshBattV < tagSettings.batLowVoltage) {
+      gBattV = gRefreshBattV;
+      gLowBattery = true;
+   }
+   LOGA("BattV Boot %d, now %d, Tx %d, update %d\n",
+        gBootBattV,gBattV,gTxBattV,gRefreshBattV);
+}

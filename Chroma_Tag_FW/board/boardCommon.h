@@ -41,6 +41,8 @@
 
 extern uint8_t __xdata mSelfMac[];
 
+extern __xdata __at (0xfda2) uint8_t gTempBuf320[320];
+
 #pragma callee_saves powerPortsDownForSleep
 void powerPortsDownForSleep(void);
 
