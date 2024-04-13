@@ -9,7 +9,7 @@
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 // #define FORCE_IMG_DL             // force tag to re-download every upload
 // #define DEBUGPROTO               // debug protocol
-// #define DEBUGOTA                 // debug OTA FW updates
+#define DEBUGOTA                 // debug OTA FW updates
 // #define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
@@ -28,6 +28,7 @@
 
 #define SFDP_DISABLED         // Disable SFDP to save 1538 bytes.
 // #define DISABLE_UI         // when you need to debug and are out of flash
+// #define DISABLE_DISPLAY    // don't actually update the display
 
 #if defined(DEBUG_RX_DATA) || defined(DEBUG_TX_DATA)
 #define DEBUG_COMMS

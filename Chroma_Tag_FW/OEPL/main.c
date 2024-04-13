@@ -47,11 +47,12 @@ const uint8_t __code channelList[] = {
 uint8_t *rebootP;
 
 const uint16_t __code fwVersion = FW_VERSION;
+const char * __code gBoardName = BOARD_NAME;
+uint16_t __xdata gUpdateFwVer;
+uint8_t __xdata gUpdateErr;
 
 __bit gLowBatteryShown;
 __bit noAPShown;
-
-
 
 // returns 0 if no accesspoints were found
 uint8_t channelSelect(uint8_t rounds) 
@@ -274,7 +275,8 @@ void main()
    ADCRead(ADC_CHAN_VDD_3);
    gBootBattV = ADCScaleVDD(gRawA2DValue);
 
-   LOGA("\nChroma OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",fwVersion);
+   LOGA("\n%s OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",
+        gBoardName,fwVersion);
    boardInitStage2();
 
    ADCRead(ADC_CHAN_TEMP);

@@ -39,6 +39,4 @@ extern void eraseImageBlocks(void);
 extern bool processAvailDataInfo(struct AvailDataInfo *__xdata avail);
 extern void initializeProto(void);
 extern uint8_t detectAP(const uint8_t channel);
-extern bool validateFWMagic(void);
-
 #endif

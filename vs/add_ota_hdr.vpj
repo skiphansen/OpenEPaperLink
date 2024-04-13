@@ -1,0 +1,148 @@
+<Project
+	Version="10.0"
+	VendorName="SlickEdit"
+	TemplateName="Other C/C++"
+	WorkingDir="../Chroma_Tag_FW/add_ota_hdr">
+	<Config
+		Name="Debug"
+		Type="cpp"
+		DebugCallbackName="gdb"
+		OutputFile="%bdCustom_PriceTag_AccesPoint"
+		CompilerConfigName="Latest Version">
+		<Menu>
+			<Target
+				Name="Compile"
+				MenuCaption="&amp;Compile"
+				CaptureOutputWith="ProcessBuffer"
+				OutputExts="*.o"
+				SaveOption="SaveCurrent"
+				RunFromDir="%rw">
+				<Exec CmdLine='cc -c -g %i %defd -o "%bd%n.o" "%f"'/>
+			</Target>
+			<Target
+				Name="Link"
+				MenuCaption="&amp;Link">
+				<Exec CmdLine='cc -g -o "%o" %f %libs'/>
+			</Target>
+			<Target
+				Name="Build"
+				MenuCaption="&amp;Build"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" build "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Rebuild"
+				MenuCaption="&amp;Rebuild"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" rebuild "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Debug"
+				MenuCaption="&amp;Debug"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='vsdebugio -prog "%o"'/>
+			</Target>
+			<Target
+				Name="Execute"
+				MenuCaption="E&amp;xecute"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%o"'/>
+			</Target>
+		</Menu>
+	</Config>
+	<Config
+		Name="Release"
+		Type="cpp"
+		DebugCallbackName="gdb"
+		OutputFile="%bdCustom_PriceTag_AccesPoint"
+		CompilerConfigName="Latest Version">
+		<Menu>
+			<Target
+				Name="Compile"
+				MenuCaption="&amp;Compile"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveCurrent"
+				OutputExts="*.o"
+				RunFromDir="%rw">
+				<Exec CmdLine='cc -c -O %i %defd -o "%bd%n.o" "%f"'/>
+			</Target>
+			<Target
+				Name="Link"
+				MenuCaption="&amp;Link">
+				<Exec CmdLine='cc -O -o "%o" %f %libs'/>
+			</Target>
+			<Target
+				Name="Build"
+				MenuCaption="&amp;Build"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" build "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Rebuild"
+				MenuCaption="&amp;Rebuild"
+				CaptureOutputWith="ProcessBuffer"
+				SaveOption="SaveWorkspaceFiles"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" rebuild "%w" "%r"'/>
+			</Target>
+			<Target
+				Name="Debug"
+				MenuCaption="&amp;Debug"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='vsdebugio -prog "%o"'/>
+			</Target>
+			<Target
+				Name="Execute"
+				MenuCaption="E&amp;xecute"
+				SaveOption="SaveNone"
+				BuildFirst="1"
+				CaptureOutputWith="ProcessBuffer"
+				RunFromDir="%rw">
+				<Exec CmdLine='"%o"'/>
+			</Target>
+		</Menu>
+	</Config>
+	<Rules Name="Compile">
+		<Rule
+			InputExts="*.s"
+			OutputExts="*.o"
+			LinkObject="1">
+			<Exec CmdLine='as -o "%bd%n.o" "%f"'/>
+		</Rule>
+	</Rules>
+	<Files>
+		<Folder
+			Name="Source Files"
+			Filters="*.c;*.C;*.cc;*.cpp;*.cp;*.cxx;*.c++;*.prg;*.pas;*.dpr;*.asm;*.s;*.bas;*.java;*.cs;*.sc;*.e;*.cob;*.html;*.rc;*.tcl;*.py;*.pl;*.d">
+			<F N="../Chroma_Tag_FW/add_ota_hdr/add_ota_hdr.c"/>
+			<F N="../Chroma_Tag_FW/add_ota_hdr/crc32.c"/>
+		</Folder>
+		<Folder
+			Name="Header Files"
+			Filters="*.h;*.H;*.hh;*.hpp;*.hxx;*.inc;*.sh;*.cpy;*.if">
+			<F N="../Chroma_Tag_FW/common/ota_hdr.h"/>
+		</Folder>
+		<Folder
+			Name="Other Files"
+			Filters="">
+			<F N="../Chroma_Tag_FW/add_ota_hdr/CMakeLists.txt"/>
+		</Folder>
+	</Files>
+	<Macro>
+	</Macro>
+</Project>

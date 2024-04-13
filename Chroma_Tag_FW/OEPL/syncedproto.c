@@ -25,6 +25,7 @@
 #include "userinterface.h"
 #include "wdt.h"
 #include "adc.h"
+#include "ota_hdr.h"
 #include "logging.h"
 
 // Kludge to save a few bytes of xcata and code
@@ -66,6 +67,7 @@ struct MacFrameBcast __xdata gBcastFrame;
 static uint32_t __xdata markerValid = EEPROM_IMG_VALID;
 
 extern void executeCommand(uint8_t cmd);  // this is defined in main.c
+void ValidateFWImage(void);
 
 // tools
 
@@ -76,6 +78,8 @@ void DumpCurBlock(void);
 #else
 #define DumpCurBlock()
 #endif
+
+uint32_t crc32(uint32_t crc,const uint8_t *__xdata Data,uint16_t __xdata size);
 
 uint8_t __xdata getPacketType() 
 {
@@ -801,24 +805,7 @@ static bool downloadFWUpdate(const struct AvailDataInfo *__xdata avail)
          return false;
       }
    }
-   wdt60s();
-   powerUp(INIT_EEPROM);
-#if 0
-   if(!validateMD5(EEPROM_SIZE - OTA_UPDATE_SIZE, otaSize)) {
-#if defined(DEBUGOTA)
-      pr("OTA: MD5 verification failed!\n");
-#endif
-      // if not valid, restart transfer from the beginning
-      curBlock.blockId = 0;
-      powerDown(INIT_EEPROM);
-      return false;
-   }
-#if defined(DEBUGOTA)
-   pr("OTA: MD5 pass!\n");
-#endif
-#endif
-
-   // no more data, download complete
+// no more data, download complete
    return true;
 }
 
@@ -1067,21 +1054,18 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
             sendXferComplete();
 
             powerUp(INIT_EEPROM);
-            if(validateFWMagic()) {
-               OTA_LOG("Valid magic number\n");
+            ValidateFWImage();
+            if(gOTA) {
                showApplyUpdate();
                wdt60s();
-               powerUp(INIT_EEPROM);
-               eepromRead(EEPROM_UPDATA_AREA_START,mScreenRow,256);
-               DumpHex(mScreenRow,256);
-               eepromReadStart(EEPROM_UPDATA_AREA_START);
+               eepromReadStart(EEPROM_UPDATA_AREA_START + sizeof(OtaHeader));
                selfUpdate();
             // Never returns, ends in WDT reset
             }
             else {
-               OTA_LOG("OTA: Invalid magic number!\n");
-               fastNextCheckin = true;
+               LOGA("OTA image validation failed\n");
                powerDown(INIT_EEPROM);
+               fastNextCheckin = true;
                wakeUpReason = WAKEUP_REASON_FAILED_OTA_FW;
                showFailedUpdate();
                xMemSet(curDispDataVer,0x00,8);
@@ -1099,20 +1083,64 @@ bool processAvailDataInfo(struct AvailDataInfo *__xdata avail)
    return false;
 }
 
-bool validateFWMagic() 
+
+#define pHdr ((OtaHeader * __xdata) gTempBuf320)
+void ValidateFWImage() 
 {
-#if 1
-   return true;
-#else
-   flashRead(0x8b, (void *)(blockbuffer + 1024), 256);
-   eepromRead(EEPROM_SIZE - OTA_UPDATE_SIZE,blockbuffer,256);
-   if(xMemEqual((const void *__xdata)(blockbuffer + 1024), (const void *__xdata)(blockbuffer + 0x8b), 8)) {
-      OTA_LOG("OTA: magic number matches! good fw\n");
-      return true;
-   }
-   OTA_LOG("OTA: this probably isn't a (recent) firmware file\n");
-   return false;
-#endif
+   uint32_t Adr = EEPROM_UPDATA_AREA_START;
+   uint32_t Crc = 0;
+   uint16_t Bytes2Read;
+
+   gOTA = false;   // Assume the worse
+   do {
+      eepromRead(Adr,gTempBuf320,sizeof(OtaHeader));
+
+      OTA_LOG("OTA Header:\n");
+      OTA_LOG("  CRC 0x%04lx\n",pHdr->Crc);
+      OTA_LOG("  ImageVer 0x%04x\n",pHdr->ImageVer);
+      OTA_LOG("  ImageLen %d\n",pHdr->ImageLen);
+      OTA_LOG("  HdrVersion %d\n",pHdr->HdrVersion);
+      OTA_LOG("  ImageType %s\n",pHdr->ImageType);
+
+      Adr += sizeof(OtaHeader);
+      if(pHdr->HdrVersion != OTA_HDR_VER) {
+         OTA_LOG("HdrVersion %d not supported\n",pHdr->HdrVersion);
+         gUpdateErr = OTA_ERR_HDR_VER;
+         break;
+      }
+
+      if(xMemEqual(pHdr->ImageType,(void __xdata *)gBoardName,sizeof(BOARD_NAME)) != 0) {
+         OTA_LOG("fw not for this board type\n");
+         gUpdateErr = OTA_ERR_WRONG_BOARD;
+         break;
+      }
+
+      if(pHdr->ImageLen > OTA_UPDATE_SIZE) {
+         OTA_LOG("Invalid image len %u\n",pHdr->ImageLen);
+         gUpdateErr = OTA_ERR_INVALID_LEN;
+         break;
+      }
+
+      while(pHdr->ImageLen > 0) {
+         Bytes2Read = pHdr->ImageLen;
+         if(Bytes2Read > BLOCK_XFER_BUFFER_SIZE) {
+            Bytes2Read = BLOCK_XFER_BUFFER_SIZE;
+         }
+         eepromRead(Adr,blockbuffer,Bytes2Read);
+         Crc = crc32(Crc,blockbuffer,Bytes2Read);
+         Adr += Bytes2Read;
+         pHdr->ImageLen -= Bytes2Read;
+      }
+
+      if(Crc != pHdr->Crc) {
+         OTA_LOG("Crc failure, is 0x%04lx expected 0x%04lx\n",Crc,pHdr->Crc);
+         gUpdateErr = OTA_ERR_INVALID_CRC;
+         break;
+      }
+      gUpdateFwVer = pHdr->ImageVer;
+      LOGA("OTA validated, updating to version %0x\n",gUpdateFwVer);
+      gOTA = true;
+   } while(false);
 }
 
 void initializeProto() 
@@ -1138,6 +1166,23 @@ void UpdateBcastFrame()
    xMemCopyShort(TX_FRAME_PTR,(void *)&gBcastFrame,sizeof(struct MacFrameBcast));
    TX_FRAME_PTR->seq = seq++;
 }
+
+uint32_t crc32(uint32_t crc,const uint8_t *__xdata Data,uint16_t __xdata size)
+{
+  uint32_t Mask;
+ 
+  crc = ~crc;
+  while(size-- > 0) {
+    crc ^= *Data++;
+ 
+    for(int i = 0; i < 8; i++) {
+      Mask = -(crc & 1);
+      crc = (crc >> 1) ^ (0xEDB88320L & Mask);
+    }
+  }
+  return ~crc;
+}
+
 
 #ifdef DEBUGBLOCKS
 void DumpCurBlock()

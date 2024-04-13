@@ -7,6 +7,8 @@
 #define BOARD_NAME "Chroma74"
 #define HW_TYPE    0x80
 
+extern const char * __code gBoardName;
+
 #if BUILD == chroma74y
 #define BWY
 #endif

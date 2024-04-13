@@ -152,7 +152,7 @@ void showSplashScreen()
 void DrawApplyUpdate() 
 {
     epdPrintBegin(136,134,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-    epdpr("Updating!");
+    epdpr("Flashing v%04x ...",gUpdateFwVer);
 }
 
 void showApplyUpdate()
@@ -164,7 +164,7 @@ void showApplyUpdate()
 void DrawFailedUpdate() 
 {
     epdPrintBegin(68, 134, EPD_DIRECTION_X, EPD_SIZE_DOUBLE, EPD_COLOR_BLACK);
-    epdpr("Invalid OTA FW!");
+    epdpr("OTA failed, error %d",gUpdateErr);
 }
 
 void showFailedUpdate()

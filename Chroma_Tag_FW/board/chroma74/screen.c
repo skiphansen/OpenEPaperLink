@@ -1145,6 +1145,7 @@ void screenByteTx(uint8_t byte)
 
 void drawWithSleep() 
 {
+#ifndef DISABLE_DISPLAY
    uint16_t Lowest = 0xffff;
 
    LOGA("Updating display\n");
@@ -1164,8 +1165,9 @@ void drawWithSleep()
    }
    gRefreshBattV = ADCScaleVDD(Lowest);
    powerUp(INIT_BASE);
-   LOGA("Update complete\n");
    screenShutdown();
    UpdateVBatt();
+   LOGA("Update complete\n");
+#endif
 }
 
