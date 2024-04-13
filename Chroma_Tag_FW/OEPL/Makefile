@@ -6,7 +6,6 @@ ifeq ($(BUILD),chroma74y)
 BOARD=chroma74
 else ifeq ($(BUILD),chroma74r)
 BOARD=chroma74
-FLAGS += -DPROXY_BUILD
 else
 BOARD=$(BUILD)
 endif
@@ -44,6 +43,7 @@ FLAGS += -I. -MD
 
 BUILD_DIR=$(BUILDS_DIR)/$(BUILD)
 IMAGE_NAME?=$(BUILD)_full_${FW_VER}
+OTA_IMAGE_NAME?=$(BUILD)_ota_${FW_VER}
 include $(FIRMWARE_ROOT)/make/rules.mk
 
 

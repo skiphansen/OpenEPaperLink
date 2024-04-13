@@ -114,18 +114,13 @@ uint32_t small_crc32(uint32_t crc,uint8_t *Data, size_t size)
    
   while(size-- > 0) {
     crc ^= *Data++;
-    printf("Crc 0x%08x\n",crc);
  
     for(int i = 0; i < 8; i++) {
       Mask = -(crc & 1);
-      printf("Mask 0x%08x\n",Mask);
       crc = (crc >> 1) ^ (0xEDB88320L & Mask);
-      printf("Crc 0x%08x\n",crc);
     }
   }
  
-  printf("Crc 0x%08x\n",crc);
-   
   return ~crc;
 }
 
