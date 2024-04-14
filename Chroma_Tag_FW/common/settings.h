@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define FW_VERSION 0x0001        // version number
+#define FW_VERSION 0x0002        // version number
 #define FW_VERSION_SUFFIX "-RC1" // suffix, like -RC1 or whatever.
 #define BAUD_115200              // Defaults to 1 megabaud this is not defined
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
@@ -21,7 +21,7 @@
 // #define DEBUG_SLEEP              // debug sleeping
 //#define DEBUG_RX_DATA            // display subgig rx packets
 //#define DEBUG_TX_DATA            // display subgig tx packets
-#define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
+//#define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
 // #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
 // #define DEBUG_CHIP_CFG   // log chip configuration

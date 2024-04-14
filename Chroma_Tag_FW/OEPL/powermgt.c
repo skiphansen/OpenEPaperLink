@@ -116,9 +116,8 @@ void doSleep(uint32_t __xdata t)
       t = DEBUG_MAX_SLEEP;
       LOG(" to %ld ms\n",t);
    }
-   else {
-      LOG("Sleeping for %ld ms\n",t);
-   }
+#elif !defined(DEBUG_SLEEP)
+   MAIN_LOG("Sleeping for %ld ms\n",t);
 #endif
 
 #ifdef DEBUG_SLEEP
