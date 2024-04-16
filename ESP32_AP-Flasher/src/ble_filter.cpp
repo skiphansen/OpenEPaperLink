@@ -16,6 +16,7 @@
 
 uint8_t gicToOEPLtype(uint8_t gicType) {
     switch (gicType) {
+        case 0xA0:
         case 0x08:
             return GICI_BLE_EPD_21_BW;
             break;
@@ -49,6 +50,9 @@ uint8_t gicToOEPLtype(uint8_t gicType) {
             break;
         case 0x6A:
             return GICI_BLE_EPD_BWR_74;
+            break;
+        case 0xEB:
+            return GICI_BLE_EPD_BWR_29_SILABS;
             break;
         default:
             return GICI_BLE_UNKNOWN;  // Should never happen, return 1.54"
@@ -188,6 +192,14 @@ uint32_t compress_image(uint8_t address[8], uint8_t* buffer, uint32_t max_len) {
         case 3:
             width_display = 384;
             height_display = 640;
+            break;
+        case 5:// TFT 2.1"
+            width_display = 104;
+            height_display = 212;
+            break;
+        case 7:
+            width_display = 168;
+            height_display = 384;
             break;
     }
     switch ((giciType >> 1) & 3)  // Extra color

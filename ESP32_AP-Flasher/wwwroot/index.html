@@ -238,7 +238,7 @@
 							It sets the mac automatically, tries to recognize the type, and starts flashing. Currently, Solum M2 tags only.
 							<br><br>
 							<button class="button" id="doUSBflash">Command line</button><br><br>
-							Using <a href="https://github.com/jjwbruijn/OpenEPaperLink/raw/master/Tag_Flasher/OEPL-Flasher.py" target="_blank">OEPL-Flasher.py</a>, you have full control over the flashing of the tag.<br>
+							Using <a href="https://github.com/jjwbruijn/OpenEPaperLink/tree/master/Tag_Flasher#oepl-flasherpy" target="_blank">OEPL-Flasher.py</a>, you have full control over the flashing of the tag.<br>
 							Use the --ip argument to connect to the flasher.<br>
 							<br>
 							Usage:<br>
@@ -510,18 +510,16 @@ options:
 						<div id="releasetable"></div>
 						<h4>Other actions</h4>
 						<div>
-							<p>
-								<div id="rollbackOption" style="display:none">
-									<button type="button" id="rollbackBtn">Rollback to previous firmware</button>
-								</div>
+							<p id="rollbackOption" style="display:none">
+								<button type="button" id="rollbackBtn">Rollback to previous firmware</button>
 							</p>
-							<p>
-								<span id="c6Option" style="display:none;">
-									<div id="updateC6Option">
-										<button type="button" id="updateC6Btn">Update ESP32-C6</button>
-										<input type="checkbox" value="1" checked id="c6download">download latest version
-									</div>
-								</span>
+							<p id="updateC6Option" style="display:none;">
+								<button type="button" id="updateC6Btn">Update ESP32-C6</button>
+								<input type="checkbox" value="1" checked id="c6download">download latest version
+							</p>
+							<p id="updateTagtypeOption">
+								<button type="button" id="updateTagtypeBtn">Update tagtype definitions</button>
+								<input type="checkbox" value="1" id="tagtype_clean">remove unused tagtype files
 							</p>
 						</div>
 					</div>
