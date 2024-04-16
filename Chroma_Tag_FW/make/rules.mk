@@ -16,8 +16,24 @@ $(BUILD_DIR)/main.ihx: $(OBJS)
 $(BUILD_DIR)/main.elf: $(OBJS)
 	$(CC) $(FLAGS) -o $(BUILD_DIR)/$(notdir $@) $^
 
-%.bin: %.ihx
-	objcopy $^ $(BUILD_DIR)/$(IMAGE_NAME).bin -I ihex -O binary
+$(BUILD_DIR):
+	if [ ! -e $(BUILD_DIR) ]; then mkdir -p $(BUILD_DIR); fi
+
+${HDR_TOOL}: $(wildcard $(HDR_TOOL_DIR)/*) $(FW_COMMON_DIR)/ota_hdr.h
+	cmake -S $(HDR_TOOL_DIR) -B $(HDR_TOOL_BUILD_DIR)
+	cmake --build $(HDR_TOOL_BUILD_DIR)
+
+$(PREBUILT_DIR)/$(IMAGE_NAME).bin: $(BUILD_DIR)/$(IMAGE_NAME).bin
+	cp $< $@
+
+$(PREBUILT_DIR)/$(IMAGE_NAME).hex: $(BUILD_DIR)/main.ihx
+	cp $< $@
+
+$(PREBUILT_DIR)/$(OTA_IMAGE_NAME).bin: $(PREBUILT_DIR)/$(IMAGE_NAME).bin
+	$(HDR_TOOL) $<
+
+$(BUILD_DIR)/$(IMAGE_NAME).bin: $(BUILD_DIR)/main.ihx
+	objcopy $< $@ -I ihex -O binary
 	@# Display sizes, we're critically short for code and RAM space !
 	@grep '^Area' $(BUILD_DIR)/main.map | head -1
 	@echo '--------------------------------        ----        ----        ------- ----- ------------'
@@ -26,19 +42,11 @@ $(BUILD_DIR)/main.elf: $(OBJS)
 	@echo -n ".bin size: "
 	@ls -l $(BUILD_DIR)/$(IMAGE_NAME).bin | cut -f5 -d' '
 
-$(BUILD_DIR):
-	if [ ! -e $(BUILD_DIR) ]; then mkdir -p $(BUILD_DIR); fi
 
-${HDR_TOOL}: $(wildcard $(HDR_TOOL_DIR)/*) $(FW_COMMON_DIR)/ota_hdr.h
-	cmake -S $(HDR_TOOL_DIR) -B $(HDR_TOOL_BUILD_DIR)
-	cmake --build $(HDR_TOOL_BUILD_DIR)
-
-$(RELEASE_BINS): $(BUILD_DIR)/main.ihx $(BUILD_DIR)/$(IMAGE_NAME).bin
 
 .PHONY: all clean veryclean flash reset release debug
 
-
-all: $(BUILD_DIR) $(PREBUILT_DIR) $(TARGETS)
+all: $(BUILD_DIR) $(BUILD_DIR)/$(IMAGE_NAME).bin
 
 clean:
 	@rm -rf $(BUILD_DIR)
@@ -54,13 +62,7 @@ flash:	all
 reset:	
 	cc-tool --reset
 
-$(PREBUILT_DIR)/$(IMAGE_NAME).bin: all
-	cp $(BUILD_DIR)/$(IMAGE_NAME).bin $(PREBUILT_DIR)
-
-$(PREBUILT_DIR)/$(OTA_IMAGE_NAME).bin: all
-	$(HDR_TOOL) $(PREBUILT_DIR)/$(IMAGE_NAME).bin
-
-release: $(RELEASE_BINS)
+release: all $(RELEASE_BINS)
 
 debug:
 	@echo "FIRMWARE_ROOT=$(FIRMWARE_ROOT)"
@@ -77,4 +79,5 @@ debug:
 	@echo "HDR_TOOL_DIR=$(HDR_TOOL_DIR)"
 	@echo "HHDR_TOOL_BUILD_DIR=$(HDR_TOOL_BUILD_DIR)"
 	@echo "HDR_TOOL=$(HDR_TOOL)"
+	@echo "OTA_IMAGE_NAME=$(OTA_IMAGE_NAME)"
 
