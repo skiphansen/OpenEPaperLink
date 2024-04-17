@@ -24,6 +24,8 @@
 #include "drawing.h"
 #include "logging.h"
 
+void DrawTagMac(void);
+
 void addOverlay() 
 {
 #ifdef DEBUG_FORCE_OVERLAY
@@ -120,25 +122,30 @@ void DrawSplashScreen()
    epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
    epdpr("Starting...");
 
-   epdPrintBegin(3,268,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    DrawFwVer();
-
-   epdPrintBegin(3,284,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_RED);
-   DrawTagMac();
-#ifndef LEAN_VERSION
-   loadRawBitmap(oepli,136,22,EPD_COLOR_BLACK);
-   loadRawBitmap(cloud,136,10,EPD_COLOR_RED);
+   epdPrintBegin(48,176,EPD_DIRECTION_X,EPD_SIZE_SINGLE,
+#ifdef BWY
+// Yellow is very low constrast, make it black for BWY displays
+                 EPD_COLOR_BLACK);
+#else
+                 EPD_COLOR_RED);
 #endif
-
-#if 0
+   DrawTagMac();
+#ifndef DISABLE_BARCODES
    uint8_t __xdata buffer[17];
    spr(buffer, "%02X%02X", mSelfMac[7], mSelfMac[6]);
    spr(buffer + 4, "%02X%02X", mSelfMac[5], mSelfMac[4]);
    spr(buffer + 8, "%02X%02X", mSelfMac[3], mSelfMac[2]);
    spr(buffer + 12, "%02X%02X", mSelfMac[1], mSelfMac[0]);
-   printBarcode(buffer, 392, 264);
-   printBarcode(buffer, 384, 264);
+   printBarcode(buffer,48,208);
 #endif
+
+#ifndef LEAN_VERSION
+   loadRawBitmap(oepli,136,22,EPD_COLOR_BLACK);
+   loadRawBitmap(cloud,136,10,EPD_COLOR_RED);
+#endif
+
 }
 
 void showSplashScreen()
@@ -190,7 +197,7 @@ void DrawAPFound()
    DrawTagMac();
    epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    DrawFwVer();
-#if 0
+#ifndef DISABLE_BARCODES
    uint8_t __xdata buffer[17];
    spr(buffer,"%02X%02X",mSelfMac[7],mSelfMac[6]);
    spr(buffer + 4,"%02X%02X",mSelfMac[5],mSelfMac[4]);

@@ -22,4 +22,8 @@ void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color
 #pragma callee_saves fwVerString
 const char __xdata* fwVerString(void);
 
+#ifndef DISABLE_BARCODES
+void printBarcode(const char __xdata *string, uint16_t x, uint16_t y);
+#endif
+
 #endif

@@ -433,3 +433,34 @@ void epdpr(const char __code *fmt, ...) __reentrant
     va_end(vl);
 }
 
+#define BARCODE_ROWS    40
+
+#ifndef DISABLE_BARCODES
+void printBarcode(const char __xdata *string, uint16_t x, uint16_t y) 
+{
+   uint8_t OutMask;
+
+   xMemSet(&gBci,0,sizeof(gBci));
+   gBci.str = string;
+
+   uint16_t test = xStrLen(string);
+
+   if(!setWindowY(y,BARCODE_ROWS)) {
+      gWinColor = EPD_COLOR_BLACK;
+      setWindowX(x, x + barcodeWidth(xStrLen(string)));
+      OutMask = (0x80 >> (gWinDrawX & 0x7));
+      while(gBci.state != BarCodeDone) {
+         if(barcodeNextBar()) {
+            blockbuffer[gWinBufNdx] |= OutMask;
+         }
+         OutMask = OutMask >> 1;
+         if(OutMask == 0) {
+            LOGV("  Next out byte blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
+            gWinBufNdx++;
+            OutMask = 0x80;
+         }
+      }
+   }
+}
+#endif
+
