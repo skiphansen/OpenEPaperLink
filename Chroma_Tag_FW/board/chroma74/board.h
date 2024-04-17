@@ -31,7 +31,7 @@ extern const char * __code gBoardName;
  
 EEPROM size: 0x10.0000 / 1024k / 1 Megabyte 
 Image size:  (640 x 384 x 3 bits/pixel) / 8 bit / byte = 92160 bytes 
-rounded up to erase bundary = 94,208 / 0x1.7000 
+rounded up to erase boundary = 94,208 / 0x1.7000 
 Image slots: 10 
  
 | Start Adr | End Adr  | Size | Usage |

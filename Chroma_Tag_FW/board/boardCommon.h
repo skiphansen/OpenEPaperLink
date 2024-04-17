@@ -40,6 +40,7 @@
 #define P2_XOSC32_Q2       0x10
 
 extern uint8_t __xdata mSelfMac[];
+extern char __xdata gMacString[17];
 
 extern __xdata __at (0xfda2) uint8_t gTempBuf320[320];
 
@@ -53,7 +54,6 @@ void boardInitStage2(void);
 void PortInit(void);
 
 //late, after eeprom
-void boardGetOwnMac(uint8_t __xdata *mac);
 void InitBcastFrame(void);
 void UpdateBcastFrame(void);
 

@@ -102,10 +102,7 @@ void afterFlashScreenSaver()
 
 void DrawTagMac() 
 {
-   epdpr("MAC: %02X:%02X", mSelfMac[7], mSelfMac[6]);
-   epdpr(":%02X:%02X",mSelfMac[5],mSelfMac[4]);
-   epdpr(":%02X:%02X",mSelfMac[3],mSelfMac[2]);
-   epdpr(":%02X:%02X",mSelfMac[1],mSelfMac[0]);
+   epdpr("MAC: %s",gMacString);
 }
 
 void DrawFwVer()
@@ -133,12 +130,7 @@ void DrawSplashScreen()
 #endif
    DrawTagMac();
 #ifndef DISABLE_BARCODES
-   uint8_t __xdata buffer[17];
-   spr(buffer, "%02X%02X", mSelfMac[7], mSelfMac[6]);
-   spr(buffer + 4, "%02X%02X", mSelfMac[5], mSelfMac[4]);
-   spr(buffer + 8, "%02X%02X", mSelfMac[3], mSelfMac[2]);
-   spr(buffer + 12, "%02X%02X", mSelfMac[1], mSelfMac[0]);
-   printBarcode(buffer,48,208);
+   printBarcode(gMacString,48,208);
 #endif
 
 #ifndef LEAN_VERSION
@@ -198,13 +190,7 @@ void DrawAPFound()
    epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    DrawFwVer();
 #ifndef DISABLE_BARCODES
-   uint8_t __xdata buffer[17];
-   spr(buffer,"%02X%02X",mSelfMac[7],mSelfMac[6]);
-   spr(buffer + 4,"%02X%02X",mSelfMac[5],mSelfMac[4]);
-   spr(buffer + 8,"%02X%02X",mSelfMac[3],mSelfMac[2]);
-   spr(buffer + 12,"%02X%02X",mSelfMac[1],mSelfMac[0]);
-   printBarcode(buffer,392,253);
-   printBarcode(buffer,384,253);
+   printBarcode(gMacString,48,253);
 #endif
 
 #ifndef LEAN_VERSION

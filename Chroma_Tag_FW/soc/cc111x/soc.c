@@ -9,7 +9,9 @@
 #include "settings.h"
 #include "logging.h"
 
-#define MAC_SECOND_WORD    0x44674b7aUL
+void boardGetOwnMac();
+
+char __xdata gMacString[17];
 
 #pragma callee_saves prvReadSetting
 //returns token length if found, copies at most maxLen. returns -1 if not found
@@ -84,38 +86,35 @@ void boardInitStage2(void)
       NV_DATA_LOG("ADC mAdcIntercept %d\n",mAdcIntercept);
    }
 
-   boardGetOwnMac(mSelfMac);
+   boardGetOwnMac();
    powerDown(INIT_EEPROM);
 
    irqsOn();
 }
 
-void boardGetOwnMac(uint8_t __xdata *mac)
+void boardGetOwnMac()
 {
-   uint8_t a, b, c;
    
-// Set mac[1], mac[2], mac[3], mac[4], mac[5], mac[6], and maybe mac[7]
-// NB: mac[7] is ignored
-   if(prvReadSetting(0x2a,mac + 1,7) < 0 && prvReadSetting(1,mac + 1,6) < 0) {
+// Set mSelfMac[1], mSelfMac[2], mSelfMac[3], mSelfMac[4], mSelfMac[5], mSelfMac[6], and maybe mSelfMac[7]
+// NB: mSelfMac[7] is ignored
+   if(prvReadSetting(0x2a,gTempBuf320,7) < 0 && prvReadSetting(1,gTempBuf320,6) < 0) {
       return;
    }
 
 // reformat MAC how we need it (please do not ask me why it is written so 
 // weirdly, ask SDCC. Writing it simpler causes TWO(!!!) spills to DSEG
-   
-   c = mac[4];
-   mac[4] = (uint8_t)(MAC_SECOND_WORD >> 0);
-   
-   b = mac[5];
-   mac[5] = (uint8_t)(MAC_SECOND_WORD >> 8);
-   
-   a = mac[6];
-   mac[6] = (uint8_t)(MAC_SECOND_WORD >> 16);
-   mac[7] = (uint8_t)(MAC_SECOND_WORD >> 24);
-   
-   mac[0] = a;
-   mac[1] = b;
-   mac[2] = c;
+   mSelfMac[7] = 0x44;
+   mSelfMac[6] = 0x67;
+   mSelfMac[5] = 0x4b;
+   mSelfMac[4] = 0x7a;
+   mSelfMac[3] = gTempBuf320[2];
+   mSelfMac[2] = gTempBuf320[3];
+   mSelfMac[1] = gTempBuf320[4];
+   mSelfMac[0] = gTempBuf320[5];
+   spr(gMacString,"%02X%02X",mSelfMac[7],mSelfMac[6]);
+   spr(gMacString+4,"%02X%02X",mSelfMac[5],mSelfMac[4]);
+   spr(gMacString+8,"%02X%02X",mSelfMac[3],mSelfMac[2]);
+   spr(gMacString+12,"%02X%02X",mSelfMac[1],mSelfMac[0]);
 }
 
 

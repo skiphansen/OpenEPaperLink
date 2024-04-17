@@ -267,6 +267,7 @@ void executeCommand(uint8_t cmd)
    }
 }
 
+
 void main() 
 {  
    powerUp(INIT_BASE);
@@ -293,10 +294,9 @@ void main()
 
    InitBcastFrame();
 
-   MAIN_LOG("MAC>%02X%02X", mSelfMac[0], mSelfMac[1]);
-   MAIN_LOG("%02X%02X", mSelfMac[2], mSelfMac[3]);
-   MAIN_LOG("%02X%02X", mSelfMac[4], mSelfMac[5]);
-   MAIN_LOG("%02X%02X\n", mSelfMac[6], mSelfMac[7]);
+#ifdef DEBUGMAIN
+   MAIN_LOG("MAC %s\n",gMacString);
+#endif
 
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
