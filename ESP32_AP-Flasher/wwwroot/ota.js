@@ -591,7 +591,6 @@ async function fetchAndCheckTagtypes(cleanup) {
         }
         const fileList = await response.json();
 
-		console.log("fileList " + fileList);
         for (const file of fileList) {
             const filename = file.name;
             print(filename, "green");
@@ -600,17 +599,11 @@ async function fetchAndCheckTagtypes(cleanup) {
 
             if (cleanup) {
                 let isInUse = Array.from(gridItems).some(element => element.dataset.hwtype == hwtype);
-                if (isInUse) {
-                    console.log("file: " + file.name + "in use direct");
-                }
-                else {
+                if (!isInUse) {
+
                     isInUse = Array.from(gridItems).some(element => element.dataset.usetemplate == hwtype);
-                    if (isInUse) {
-                        console.log("file: " + file.name + "in use as template");
-                    }
                 }
                 if (!isInUse) {
-                    console.log("DELETE file " + file.name);
                     print("not in use, deleting", "yellow");
                     const formData = new FormData();
                     formData.append('path', '/tagtypes/' + filename);
@@ -621,6 +614,7 @@ async function fetchAndCheckTagtypes(cleanup) {
                     check = false;
                 }
             }
+            
             if (check) {
                 let githubUrl = "https://raw.githubusercontent.com/" + repo + "/master/resources/tagtypes/" + filename;
 
