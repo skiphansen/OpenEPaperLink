@@ -161,7 +161,6 @@ extern int LinkError(void);
 #define NUM_FRMS_LET_IT_SETTLE      0x50
 
 static const uint8_t __code mLutVcom[] = {
-   
    NUM_REPS_INITIAL_CHILL,    0x00, 0x00, VERIFY_SUM8(0x64, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, NUM_FRMS_INITIAL_CHILL),
    NUM_REPS_DC_BALANCE,    0x00, 0x00, VERIFY_SUM8(0x01, 0x01, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, NUM_FRMS_DC_BALANCE),
    NUM_REPS_ACTIVATE_1,    0x00, 0x00, VERIFY_SUM8(0x03, 0x01, 0x03, 0x05, 0x07, 0x00, 0x00, 0x00, NUM_FRMS_ACTIVATE_1),
@@ -1029,30 +1028,10 @@ static void screenInitIfNeeded(__bit forPartial)
 // wait for not busy
    while(!EPD_BUSY());
    
-   SendEpdTbl(gPwrUpEpd);
 // we can now talk to it
-#if 0
-   einkSelect();
-   screenPrvSendCommand(CMD_BOOSTER_SOFT_START);
-   screenByteTx(0x0e);      //as per datasheet
-   screenByteTx(0xcd);
-   screenByteTx(0x26);
-   einkDeselect();
+   SendEpdTbl(gPwrUpEpd);
    
-   einkSelect();
-   screenPrvSendCommand(CMD_POWER_SETTING);
-   screenByteTx(0x07);
-   screenByteTx(0x00);
-   screenByteTx(0x02);
-   screenByteTx(0x02);
-   einkDeselect();
-   
-   einkSelect();
-   screenPrvSendCommand(CMD_POWER_ON);
-   einkDeselect();
-#endif
-   
-   //wait for not busy
+// wait for not busy
    while(!EPD_BUSY());
    
    SendEpdTbl(gSetupEpd);

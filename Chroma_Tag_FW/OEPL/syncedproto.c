@@ -50,7 +50,8 @@ uint8_t __xdata APmac[8];
 uint16_t __xdata APsrcPan;
 uint8_t __xdata mSelfMac[8];
 static uint8_t __xdata seq;
-uint8_t __xdata currentChannel;
+uint8_t __xdata gCurrentChannel;
+uint8_t __xdata gSubGhzBand;
 __bit gOTA;
 
 // buffer we use to prepare/read packets
@@ -83,19 +84,19 @@ uint32_t crc32(uint32_t crc,const uint8_t *__xdata Data,uint16_t __xdata size);
 
 uint8_t __xdata getPacketType() 
 {
-   PROTO_LOG("pkt Type");
+   COMMS_LOG("pkt Type");
    if(pktIsBcast()) {
-      PROTO_LOG(" 0x%x\n",
+      COMMS_LOG(" 0x%x\n",
                 ((uint8_t *)inBuffer)[sizeof(struct MacFrameBcast)]);
       return ((uint8_t *)inBuffer)[sizeof(struct MacFrameBcast)];
    }
    if(pktIsUnicast()) {
    // normal frame
-      PROTO_LOG(" 0x%x\n",
+      COMMS_LOG(" 0x%x\n",
                 ((uint8_t *)inBuffer)[sizeof(struct MacFrameNormal)]);
       return ((uint8_t *)inBuffer)[sizeof(struct MacFrameNormal)];
    }
-   PROTO_LOG(" unknown\n");
+   COMMS_LOG(" unknown\n");
    return 0;
 }
 
@@ -163,7 +164,6 @@ uint8_t detectAP(const uint8_t channel) __reentrant
    radioSetChannel(channel);
    radioRxFlush();
    radioRxEnable(true);
-   LOGA("Trying ch %d",channel);
    for(uint8_t c = 1; c <= MAXIMUM_PING_ATTEMPTS; c++) {
       outBuffer[0] = sizeof(struct MacFrameBcast) + 1 + 2;
       UpdateBcastFrame();
@@ -180,13 +180,12 @@ uint8_t detectAP(const uint8_t channel) __reentrant
             xMemCopyShort(APmac,f->src,8);
             APsrcPan = f->pan;
             #undef f
-            LOGA(" AP found\n");
-            return c;
+            LOGA("AP on %d\n",channel);
+            return channel;
          }
       }
-      LOGA(".");
    }
-   LOGA("\n");
+   LOGA("No AP on %d\n",channel);
    return 0;
 }
 
@@ -209,17 +208,13 @@ static void sendAvailDataReq()
    availreq->wakeupReason = wakeUpReason;
    availreq->lastPacketRSSI = mLastRSSI;
    availreq->lastPacketLQI = mLastLqi;
-   ADCRead(ADC_CHAN_TEMP);
-   ADCScaleTemperature();
    availreq->temperature = gTemperature;
-   UpdateVBatt();
    availreq->batteryMv = gBattV;
    availreq->capabilities = 0;
    availreq->tagSoftwareVersion = fwVersion;
-   availreq->currentChannel = currentChannel;
+   availreq->currentChannel = gCurrentChannel;
    availreq->customMode = tagSettings.customMode;
    addCRC(availreq, sizeof(struct AvailDataReq));
-   LogSummary();
    radioTx(outBuffer);
 }
 #undef AvailDataReq
@@ -228,8 +223,12 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
 {
    radioRxEnable(true);
    uint32_t __xdata t;
+
+   UpdateVBatt();
+   LogSummary();
+   PROTO_LOG("Get Full AvlData\n");
+
    for(uint8_t c = 0; c < DATA_REQ_MAX_ATTEMPTS; c++) {
-      PROTO_LOG("Full AvlData, try %d\n",c);
       sendAvailDataReq();
       t = timerGet() + (TIMER_TICKS_PER_MS * DATA_REQ_RX_WINDOW_SIZE);
       while(timerGet() < t) {
@@ -241,6 +240,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
                   xMemCopyShort(APmac, (void *)f->src, 8);
                   APsrcPan = f->pan;
                   dataReqLastAttempt = c;
+                  PROTO_LOG("Got AvlData\n");
                   return(struct AvailDataInfo *)(inBuffer + sizeof(struct MacFrameNormal) + 1);
                }
             }
@@ -248,6 +248,7 @@ struct AvailDataInfo *__xdata getAvailDataInfo()
       }
    }
    dataReqLastAttempt = DATA_REQ_MAX_ATTEMPTS;
+   PROTO_LOG("Full AvlData failed\n");
    return NULL;
 }
 
@@ -278,6 +279,7 @@ struct AvailDataInfo *__xdata getShortAvailDataInfo()
          }
       }
    }
+   PROTO_LOG("AvlData failed\n");
    dataReqLastAttempt = DATA_REQ_MAX_ATTEMPTS;
    return NULL;
 }

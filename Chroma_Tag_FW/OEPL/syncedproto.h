@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include "settings.h"
 
-extern uint8_t __xdata currentChannel;
+extern uint8_t __xdata gCurrentChannel;
+extern uint8_t __xdata gSubGhzBand;
 extern uint8_t __xdata APmac[];
-
 extern uint8_t __xdata curImgSlot;
 extern bool __xdata fastNextCheckin;
 

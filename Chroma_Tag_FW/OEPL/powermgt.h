@@ -89,8 +89,10 @@ extern uint8_t __xdata wakeUpReason;
 
 extern uint16_t __xdata nextCheckInFromAP;
 extern uint8_t __xdata dataReqLastAttempt;
-extern int8_t __xdata temperature;
 extern uint16_t __xdata gBattV;
+
+// in degrees C
+extern int8_t __xdata gTemperature;
 
 // Battery voltage immediately after last boot
 extern uint16_t __xdata gBootBattV;

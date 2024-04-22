@@ -1,3 +1,5 @@
+#ifndef DISABLE_BARCODES
+
 #include <stdbool.h>
 #include "barcode.h"
 #include "asmUtil.h"
@@ -99,4 +101,5 @@ __bit barcodeNextBar()
    gBci.barsLeft--;
    return ret;
 }
+#endif
 

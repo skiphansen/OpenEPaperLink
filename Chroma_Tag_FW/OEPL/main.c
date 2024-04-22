@@ -24,14 +24,7 @@
 #include "syncedproto.h"
 #include "adc.h"
 
-// #define DEBUG_MODE
-
-static const uint64_t __code __at(0x008b) firmwaremagic = (0xdeadd0d0beefcafeull) + HW_TYPE;
-
-#define TAG_MODE_CHANSEARCH 0
-#define TAG_MODE_ASSOCIATED 1
-
-uint8_t currentTagMode = TAG_MODE_CHANSEARCH;
+__bit gTagAssociated;
 
 uint8_t __xdata slideShowCurrentImg;
 uint8_t __xdata slideShowRefreshCount = 1;
@@ -40,9 +33,10 @@ extern uint8_t *__idata blockp;
 
 __bit secondLongCheckIn;  // send another full request if the previous was a special reason
 
-const uint8_t __code channelList[] = {
+const uint8_t __code gChannelList[] = {
    200,100,201,101,202,102,203,103,204,104,205,105
 };
+
 
 uint8_t *rebootP;
 
@@ -54,36 +48,48 @@ uint8_t __xdata gUpdateErr;
 __bit gLowBatteryShown;
 __bit noAPShown;
 
-// returns 0 if no accesspoints were found
+// Return 0 if no APs are found
+// 
+// Initally we search for APs on both bands once we have found
+// one we know what band to search and only search that band to
+// avoid (further) out of band operation.
 uint8_t channelSelect(uint8_t rounds) 
 {
-   uint8_t __xdata result[sizeof(channelList)];
+   uint8_t __xdata BestLqi = 0;
+   uint8_t __xdata BestChannel = 0;
+   uint8_t __xdata i;
 
-   memset(result, 0, sizeof(result));
-
-   for(uint8_t i = 0; i < rounds; i++) {
-      for(uint8_t c = 0; c < sizeof(channelList); c++) {
-         if(detectAP(channelList[c])) {
+   while(rounds-- > 0) {
+      for(i = 0; i < sizeof(gChannelList); i++) {
+         if(gSubGhzBand == BAND_915 && gChannelList[i] < 200) {
+         // Using 915 band and this channel is in 868, skip it
+         }
+         else if(gSubGhzBand == BAND_868 && gChannelList[i] >= 200) {
+         // Using 868 band and this channel is in 915, skip it
+         }
+         else if(detectAP(gChannelList[i])) {
             AP_SEARCH_LOG("Chan %d LQI %d RSSI %d\n",
-                          channelList[c],mLastLqi,mLastRSSI);
-            if(mLastLqi > result[c]) {
-               result[c] = mLastLqi;
+                          gChannelList[i],mLastLqi,mLastRSSI);
+            if(BestLqi < mLastLqi) {
+               BestLqi = mLastLqi;
+               BestChannel = gChannelList[i];
             }
          }
       }
    }
-   uint8_t __xdata highestLqi = 0;
-   uint8_t __xdata highestSlot = 0;
-   for(uint8_t c = 0; c < sizeof(result); c++) {
-      if(result[c] > highestLqi) {
-         highestSlot = channelList[c];
-         highestLqi = result[c];
+
+   AP_SEARCH_LOG("Using ch %d\n",BestChannel);
+   if(BestChannel) {
+      if(BestChannel >= 200) {
+         gSubGhzBand = BAND_915;
+      }
+      else {
+         gSubGhzBand = BAND_868;
       }
    }
-
-   AP_SEARCH_LOG("Using ch %d\n",highestSlot);
-   return highestSlot;
+   return BestChannel;
 }
+#undef result
 
 void TagAssociated() 
 {
@@ -163,7 +169,7 @@ void TagAssociated()
    // We've averaged up to the maximum interval, this means the tag 
    // hasn't been in contact with an AP for some time.
       if(tagSettings.enableScanForAPAfterTimeout) {
-         currentTagMode = TAG_MODE_CHANSEARCH;
+         gTagAssociated = false;
          return;
       }
    }
@@ -195,10 +201,15 @@ void TagChanSearch()
 // not associated
 
 // try to find a working channel
-   currentChannel = channelSelect(2);
+   if(tagSettings.fixedChannel) {
+      gCurrentChannel = detectAP(tagSettings.fixedChannel);
+   }
+   else {
+      gCurrentChannel = channelSelect(2);
+   }
 
 // Check if we should redraw the screen with icons, info screen or screensaver
-   if((!currentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 
+   if((!gCurrentChannel && !noAPShown && tagSettings.enableNoRFSymbol) 
       || (gLowBattery && !gLowBatteryShown && tagSettings.enableLowBatSymbol) 
       || (scanAttempts == (INTERVAL_1_ATTEMPTS + INTERVAL_2_ATTEMPTS - 1))) 
    {
@@ -217,16 +228,19 @@ void TagChanSearch()
    }
 
 // did we find a working channel?
-   if(currentChannel) {
+   if(gCurrentChannel) {
    // now associated! set up and bail out of this loop.
       scanAttempts = 0;
-      powerUp(INIT_EEPROM);
-      writeSettings();
-      powerDown(INIT_EEPROM);
+      if(tagSettings.fixedChannel == 0) {
+      // Save the AP channel
+         powerUp(INIT_EEPROM);
+         writeSettings();
+         powerDown(INIT_EEPROM);
+      }
       wakeUpReason = WAKEUP_REASON_NETWORK_SCAN;
       initPowerSaving(INTERVAL_BASE);
       doSleep(getNextSleep() * 1000UL);
-      currentTagMode = TAG_MODE_ASSOCIATED;
+      gTagAssociated = true;
    }
    else {
    // still not associated
@@ -241,13 +255,24 @@ void executeCommand(uint8_t cmd)
          wdtDeviceReset();
          break;
 
-      case CMD_DO_RESET_SETTINGS:
+      case CMD_DO_SCAN:
+         LOGA("CMD_DO_SCAN\n");
+         gTagAssociated = false;
+         gCurrentChannel = 0;
+         break;
+
+      case CMD_DO_RESET_SETTINGS: {
+      // save gCurrentChannel before loadDefaultSettings() clears it
+         uint8_t ChannelSave = gCurrentChannel;
          LOGA("Reset settings\n");
          powerUp(INIT_EEPROM);
          loadDefaultSettings();
          writeSettings();
          powerDown(INIT_EEPROM);
+      // retore gCurrentChannel
+         gCurrentChannel = ChannelSave;
          break;
+      }
 
       case CMD_DO_DEEPSLEEP:
          afterFlashScreenSaver();
@@ -276,12 +301,15 @@ void main()
    ADCRead(ADC_CHAN_VDD_3);
    gBootBattV = ADCScaleVDD(gRawA2DValue);
 
-   LOGA("\n%s OEPL v%04x, compiled " __DATE__" " __TIME__ "\n",
-        gBoardName,fwVersion);
+   LOGA("\n%s OEPL v%04x"
+#ifdef FW_VERSION_SUFFIX
+        FW_VERSION_SUFFIX
+#endif
+        ", compiled " __DATE__" " __TIME__ "\n",gBoardName,fwVersion);
+
    boardInitStage2();
 
-   ADCRead(ADC_CHAN_TEMP);
-   ADCScaleTemperature();
+   UpdateVBatt();
 // Log initial battery voltage and temperature
    LogSummary();
 
@@ -291,17 +319,12 @@ void main()
    if((SLEEP & SLEEP_RST) == SLEEP_RST_WDT) {
       wakeUpReason = WAKEUP_REASON_WDT_RESET;
    }
-
    InitBcastFrame();
-
-#ifdef DEBUGMAIN
    MAIN_LOG("MAC %s\n",gMacString);
-#endif
 
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
    powerUp(INIT_EEPROM);
-
    loadSettings();
 
 // get the highest slot number, number of slots
@@ -340,51 +363,52 @@ void main()
 
    // show the splashscreen
       showSplashScreen();
+      doSleep(10000UL);   // Give the user a chance to read it
    }
 
    wdt10s();
 
 // Try the saved channel before scanning for an AP to avoid
 // out of band transmissions as much as possible
-   if(currentChannel) {
-      LOGA("Check last channel\n");
-      if(!detectAP(currentChannel)) {
-         currentChannel = 0;
+   if(gCurrentChannel) {
+      if(!detectAP(gCurrentChannel)) {
+         MAIN_LOG("No AP found on saved channel\n");
+         gCurrentChannel = 0;
       }
    }
+   else {
+      LOGA("No saved channel\n");
+   }
 
-   if(currentChannel) {
+   if(!gCurrentChannel) {
+      TagChanSearch();
+   }
+
+   if(gCurrentChannel) {
       showAPFound();
-#if 0
-// Why ??? 
-   // write the settings to the eeprom
-      powerUp(INIT_EEPROM);
-      writeSettings();
-      powerDown(INIT_EEPROM);
-#endif
-      initPowerSaving(INTERVAL_BASE);
-      currentTagMode = TAG_MODE_ASSOCIATED;
-      doSleep(5000UL);
+      gTagAssociated = true;
    }
    else {
-      MAIN_LOG("No AP found\n");
       showNoAP();
-#if 0
-// Why ??? 
-      // write the settings to the eeprom
-      powerUp(INIT_EEPROM);
-      writeSettings();
-      powerDown(INIT_EEPROM);
-#endif
-      initPowerSaving(INTERVAL_AT_MAX_ATTEMPTS);
-      currentTagMode = TAG_MODE_CHANSEARCH;
-      doSleep(120000UL);
+      gTagAssociated = false;
    }
 
-// this is the loop we'll stay in forever, basically.
+#ifndef ISDEBUGBUILD
+// write the settings to the eeprom nothing has changed, but we
+// invalidated the settings in EEPROM when we loaded them into RAM
+// to give the user the ability to clear flash by removing the batteries 
+// during  the first screen refresh.
+
+   powerUp(INIT_EEPROM);
+   writeSettings();
+#endif
+   initPowerSaving(gTagAssociated ? INTERVAL_BASE : INTERVAL_AT_MAX_ATTEMPTS);
+   doSleep(gTagAssociated ? 5000UL : 120000UL);
+
+// this is the loop we'll stay in forever
    while(1) {
       wdt10s();
-      if(currentTagMode == TAG_MODE_ASSOCIATED) {
+      if(gTagAssociated) {
          TagAssociated();
       }
       else {

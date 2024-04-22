@@ -18,11 +18,16 @@
 #include "syncedproto.h"
 #include "logging.h"
 
+void LogSettings(void);
+
 #define SETTINGS_MAGIC 0xABBA5AA5
+#define SUBGHZ_SETTINGS_VERSION 0x01
 typedef struct {
-   uint32_t Magic;   // SETTINGS_MAGIC
+   uint32_t Magic;            // SETTINGS_MAGIC
+   uint8_t SubGhzSettingsVer; // SUBGHZ_SETTINGS_VERSION
    uint8_t CurrentChannel;
-   uint8_t Padding[128-sizeof(struct tagsettings) - 5];
+   uint8_t SubGhzBand;
+   uint8_t Padding[128-sizeof(struct tagsettings) - 7];
    struct tagsettings OeplSettings;
 } SubGhzSettings;
 
@@ -42,6 +47,8 @@ void loadDefaultSettings()
    tagSettings.minimumCheckInTime = INTERVAL_BASE;
    tagSettings.fixedChannel = 0;
    tagSettings.batLowVoltage = BATTERY_VOLTAGE_MINIMUM;
+   gCurrentChannel = 0;
+   gSubGhzBand = BAND_UNKNOWN;
 }
 
 void loadSettingsFromBuffer(uint8_t* p) 
@@ -63,26 +70,36 @@ static void upgradeSettings()
 }
 #endif
 
+
 #define Settings  ((SubGhzSettings *__xdata) gTempBuf320)
 void loadSettings() 
 {
-
    eepromRead(EEPROM_SETTINGS_AREA_START,gTempBuf320,sizeof(SubGhzSettings));
-   SETTINGS_LOG("Read:\n");
-   SETTINGS_LOG_HEX(gTempBuf320,sizeof(SubGhzSettings));
 
    xMemCopyShort((void*)&tagSettings,(void*)&Settings->OeplSettings,sizeof(tagSettings));
-   if(tagSettings.settingsVer == 0xFF || Settings->Magic != SETTINGS_MAGIC) {
-   // settings not set. load the defaults
-      SETTINGS_LOG("Loaded defaults settingsVer 0x%x Magic 0x%lx\n",
-                   tagSettings.settingsVer,Settings->Magic);
+   if(Settings->Magic != SETTINGS_MAGIC || 
+      Settings->SubGhzSettingsVer != SUBGHZ_SETTINGS_VERSION) 
+   {  // settings not set. load the defaults
+      LOGA("Loaded defaults settingsVer 0x%x Magic 0x%lx\n",
+           Settings->SubGhzSettingsVer,Settings->Magic);
       loadDefaultSettings();
-      currentChannel = 0;
       return;
    }
-   currentChannel = Settings->CurrentChannel;
 // settings are valid
-   SETTINGS_LOG("Settings loaded\n");
+   gCurrentChannel = Settings->CurrentChannel;
+   gSubGhzBand = Settings->SubGhzBand;
+
+   LOGA("Loaded settings:\n");
+   LogSettings();
+
+#ifndef ISDEBUGBUILD
+// Invalidate the settings in the SPI flash, we'll write them back later.
+// This so the user can clear flash by removing the batteries during 
+// the first screen refresh.
+   SETTINGS_LOG("Invalidate settings\n");
+   gTempBuf320[0] = 0;
+   eepromWrite(EEPROM_SETTINGS_AREA_START,(void*)&gTempBuf320,1);
+#endif
 }
 
 void writeSettings() 
@@ -91,27 +108,60 @@ void writeSettings()
    eepromRead(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(*Settings));
    if(Settings->Magic == SETTINGS_MAGIC
       && memcmp((void*)&Settings->OeplSettings,(void*)tagSettings,sizeof(tagSettings)) == 0
-      && Settings->CurrentChannel == currentChannel)
+      && Settings->CurrentChannel == gCurrentChannel)
    {
       SETTINGS_LOG("No change\n");
       return;
    }
+
+   if(Settings->OeplSettings.fixedChannel != tagSettings.fixedChannel) {
+      SETTINGS_LOG("Fixed channel %d -> %d\n",
+                   Settings->OeplSettings.fixedChannel,
+                   tagSettings.fixedChannel);
+
+      if(tagSettings.fixedChannel != 0) {
+         if(tagSettings.fixedChannel < 100) {
+            LOGE("Ignored fixedChannel %d\n",Settings->OeplSettings.fixedChannel);
+            tagSettings.fixedChannel = 0;
+         }
+         else if(tagSettings.fixedChannel >= 200) {
+            gSubGhzBand = BAND_915;
+         }
+         else {
+            gSubGhzBand = BAND_868;
+         }
+      }
+   }
+
    xMemSet((void *)Settings,0,sizeof(SubGhzSettings));
-   Settings->Magic = SETTINGS_MAGIC;
-   Settings->CurrentChannel = currentChannel;
    xMemCopyShort((void*)&Settings->OeplSettings,(void*)&tagSettings,sizeof(tagSettings));
+   Settings->Magic = SETTINGS_MAGIC;
+   Settings->SubGhzSettingsVer = SUBGHZ_SETTINGS_VERSION;
+   Settings->CurrentChannel = gCurrentChannel;
+   Settings->SubGhzBand = gSubGhzBand;
+
+#if 0
    SETTINGS_LOG("Wrote:\n");
    SETTINGS_LOG_HEX((void *)Settings,sizeof(SubGhzSettings));
+#endif
    eepromErase(EEPROM_SETTINGS_AREA_START,1);
    eepromWrite(EEPROM_SETTINGS_AREA_START,(void*)Settings,sizeof(SubGhzSettings));
-   SETTINGS_LOG("Saved settings\n");
+   LOGA("Saved settings:\n");
+   LogSettings();
 }
 #undef Settings
 
-void invalidateSettingsEEPROM() 
+void LogSettings() 
 {
-   int32_t __xdata valid = 0x0000;
-   SETTINGS_LOG("Invalidate settings\n");
-   eepromWrite(EEPROM_SETTINGS_AREA_START, (void*)&valid, 4);
+   LOGA("  Scan After Timeout %d\n",tagSettings.enableScanForAPAfterTimeout);
+   LOGA("  fixedChannel %d\n",tagSettings.fixedChannel);
+   LOGA("  batLowVoltage %d\n",tagSettings.batLowVoltage);
+   LOGA("  enableFastBoot %d\n",tagSettings.enableFastBoot);
+   LOGA("  Last ch %d\n",gCurrentChannel);
+// The following are not that interesting
+   SETTINGS_LOG("  customMode %d\n",tagSettings.customMode);
+   SETTINGS_LOG("  min Check In Time %d\n",tagSettings.minimumCheckInTime);
+   SETTINGS_LOG("  gSubGhzBand %d\n",gSubGhzBand);
 }
+
 

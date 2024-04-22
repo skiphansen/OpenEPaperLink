@@ -5,7 +5,6 @@
 
 extern uint16_t __xdata mAdcSlope;
 extern uint16_t __xdata mAdcIntercept;
-extern int8_t __xdata gTemperature;
 extern uint16_t __xdata gRawA2DValue;
 
 // virtual sources only. returns adcval << 4

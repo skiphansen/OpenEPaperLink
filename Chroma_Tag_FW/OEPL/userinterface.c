@@ -25,16 +25,17 @@
 #include "logging.h"
 
 void DrawTagMac(void);
+void DrawFwVer(void);
 
 void addOverlay() 
 {
 #ifdef DEBUG_FORCE_OVERLAY
 // force icons to be display for testing
    gBattV = 0;
-   currentChannel = 0;
+   gCurrentChannel = 0;
 #endif
 
-   if(currentChannel == 0 && tagSettings.enableNoRFSymbol) {
+   if(gCurrentChannel == 0 && tagSettings.enableNoRFSymbol) {
       loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
       loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
       noAPShown = true;
@@ -49,7 +50,7 @@ void addOverlay()
    else {
       gLowBatteryShown = false;
    }
-#ifdef ISDEBUGBUILD
+#ifdef FW_VERSION_SUFFIX
    epdPrintBegin(0,SCREEN_HEIGHT - FONT_HEIGHT - 2,
                  EPD_DIRECTION_X,
                  EPD_SIZE_SINGLE,
@@ -59,7 +60,8 @@ void addOverlay()
 #else
                  EPD_COLOR_RED);
 #endif
-   epdpr("DEBUG");
+   epdpr("DEBUG - ");
+   DrawFwVer();
 #endif
 }
 
@@ -67,9 +69,6 @@ void DrawAfterFlashScreenSaver()
 {
    epdPrintBegin(3,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
    epdpr("OpenEPaperLink");
-
-   epdPrintBegin(360,8,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("v%04X",fwVersion);
 
    epdPrintBegin(10,48,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("I'm fast asleep... UwU   To wake me:");
@@ -88,6 +87,10 @@ void DrawAfterFlashScreenSaver()
 
    epdPrintBegin(255, 283, EPD_DIRECTION_X, EPD_SIZE_SINGLE, EPD_COLOR_RED);
    DrawTagMac();
+
+   epdPrintBegin(360,8,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   DrawFwVer();
+
 }
 
 void afterFlashScreenSaver()
@@ -129,9 +132,11 @@ void DrawSplashScreen()
                  EPD_COLOR_RED);
 #endif
    DrawTagMac();
-#ifndef DISABLE_BARCODES
-   printBarcode(gMacString,48,208);
-#endif
+
+   epdPrintBegin(48,192,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   epdpr("VBat %d mV",gBootBattV);
+   epdPrintBegin(48,208,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   epdpr("Temperature %dC",gTemperature);
 
 #ifndef LEAN_VERSION
    loadRawBitmap(oepli,136,22,EPD_COLOR_BLACK);
@@ -145,6 +150,7 @@ void showSplashScreen()
    if(displayCustomImage(CUSTOM_IMAGE_SPLASHSCREEN)) {
       return;
    }
+   UpdateVBatt();
    DrawScreen(DrawSplashScreen);
 }
 
@@ -183,19 +189,22 @@ void DrawAPFound()
    epdpr(":%02X:%02X",APmac[3],APmac[2]);
    epdpr(":%02X:%02X",APmac[1],APmac[0]);
    epdPrintBegin(48,112,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("Ch: %d RSSI: %d LQI: %d",currentChannel,mLastRSSI,mLastLqi);
+   epdpr("Ch: %d RSSI: %d LQI: %d",gCurrentChannel,mLastRSSI,mLastLqi);
    epdPrintBegin(48,128,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("Tag ");
    DrawTagMac();
    epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    DrawFwVer();
-#ifndef DISABLE_BARCODES
-   printBarcode(gMacString,48,253);
-#endif
+   epdPrintBegin(48,160,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   epdpr("VBat %d mV, Txing: %d mV, Displaying: %d mV",
+
+         gBattV,gTxBattV,gRefreshBattV);
 
 #ifndef LEAN_VERSION
-   loadRawBitmap(receive,100,170,EPD_COLOR_BLACK);
+   loadRawBitmap(receive,100,186,EPD_COLOR_BLACK);
 #endif
+
+   printBarcode(gMacString,48,285);
    addOverlay();
 }
 
@@ -204,6 +213,7 @@ void showAPFound()
    if(displayCustomImage(CUSTOM_IMAGE_APFOUND)) {
       return;
    }
+   UpdateVBatt();
    DrawScreen(DrawAPFound);
 }
 

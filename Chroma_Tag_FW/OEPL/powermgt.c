@@ -37,9 +37,6 @@ uint16_t __xdata nextCheckInFromAP;
 uint8_t __xdata wakeUpReason;
 uint8_t __xdata scanAttempts;
 
-int8_t __xdata temperature;
-
-
 // Battery voltage immediately after last boot
 uint16_t __xdata gBootBattV;
 
@@ -82,7 +79,7 @@ void powerUp(const uint8_t parts)
       u1init();
       radioInit();
       radioSetTxPower(10);
-      radioSetChannel(currentChannel);
+      radioSetChannel(gCurrentChannel);
    }
 
 // The debug UART and the EEPROM both use USART1 on Chroma devices
@@ -193,10 +190,12 @@ void LogSummary(void)
    LOGA("RSSI %d, LQI %d\n",mLastRSSI,mLastLqi);
 }
 
-// refresh gBattV, check for low battery
+// refresh gBattV, gTemperaturecheck for low battery
 // if low battery is detected set gBattV to the triggering value
 void UpdateVBatt()
 {
+   ADCRead(ADC_CHAN_TEMP);
+   ADCScaleTemperature();
    ADCRead(ADC_CHAN_VDD_3);
    gBattV = ADCScaleVDD(gRawA2DValue);
    gLowBattery = false;  // assume the best

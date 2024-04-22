@@ -39,8 +39,8 @@ Image slots: 10
 | 0x0.0000  | 0x0.1fff |   8k | Factory NVRAM
 | 0x0.2000  | 0x0.5fff |  16k | Factory LUT ???
 | 0x0.6000  | 0x0.7fff |  32k | unused ???
-| 0x0.c000  | 0x0.dfff |   4k | Chroma Settings
-| 0x0.e000  | 0x0.ffff |   4k | OEPL Settings
+| 0x0.c000  | 0x0.dfff |   4k | OEPL Settings
+| 0x0.e000  | 0x0.ffff |   4k | OEPL NVRAM
 | 0x1.0000  | 0x1.8fff |  36k | OTA FW update
 | 0x1.9000  | 0x4.6fff |  92k | Image slot 0
 | 0x4.7000  | 0x5.dfff |  92k | Image slot 1
@@ -55,11 +55,14 @@ Image slots: 10
 | 0xf.f000  | 0xf.ffff |   4k | unused
 
 */
-#define EEPROM_SETTINGS_AREA_START  (0x0c000UL)
-#define EEPROM_SETTINGS_AREA_LEN    (EEPROM_ERZ_SECTOR_SZ)
+#define EEPROM_FACTORY_NVRAM_ADR       (0x00000UL)
+#define EEPROM_FACTORY_NVRAM_LEN       (EEPROM_ERZ_SECTOR_SZ * 2)
 
-#define EEPROM_OEPL_SETTINGS_START  (0x0d000UL)
-#define EEPROM_OEPL_SETTINGS_LEN    (EEPROM_ERZ_SECTOR_SZ)
+#define EEPROM_SETTINGS_AREA_START     (0x0c000UL)
+#define EEPROM_SETTINGS_AREA_LEN       (EEPROM_ERZ_SECTOR_SZ)
+
+#define EEPROM_OEPL_NVRAM_ADR          (0x0d000UL)
+#define EEPROM_OEPL_NVRAM_LEN          (EEPROM_ERZ_SECTOR_SZ)
 //some free space here
 
 #define EEPROM_UPDATA_AREA_START    (0x10000UL)

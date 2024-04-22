@@ -7,6 +7,9 @@
 #define FONT_HEIGHT  16
 #define FONT_WIDTH   10
 
+extern __xdata int16_t gCharX;
+extern __xdata int16_t gCharY;
+
 typedef void (*DrawingFunction)(void) __reentrant;
 void DrawScreen(DrawingFunction);
 
@@ -22,7 +25,9 @@ void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color
 #pragma callee_saves fwVerString
 const char __xdata* fwVerString(void);
 
-#ifndef DISABLE_BARCODES
+#ifdef DISABLE_BARCODES
+#define printBarcode(x,y,z)
+#else
 void printBarcode(const char __xdata *string, uint16_t x, uint16_t y);
 #endif
 

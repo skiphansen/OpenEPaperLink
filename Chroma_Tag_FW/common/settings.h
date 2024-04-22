@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define FW_VERSION 0x0002        // version number
+#define FW_VERSION 0x0003        // version number
 #define FW_VERSION_SUFFIX "-BETA" // suffix, like -RC1 or whatever.
 #define BAUD_115200              // Defaults to 1 megabaud this is not defined
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
@@ -21,10 +21,12 @@
 // #define DEBUG_SLEEP              // debug sleeping
 //#define DEBUG_RX_DATA            // display subgig rx packets
 //#define DEBUG_TX_DATA            // display subgig tx packets
-//#define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
+#define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
 // #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
 // #define DEBUG_CHIP_CFG   // log chip configuration
+// #define DISABLE_BARCODES   // barcodes are optional
+#define ISDEBUGBUILD          // disable clearing and resaving of settings on every reset
 
 #define SFDP_DISABLED         // Disable SFDP to save 1538 bytes.
 // #define DISABLE_UI         // when you need to debug and are out of flash
@@ -34,27 +36,9 @@
 #define DEBUG_COMMS
 #endif
 
-
-// The firmware can validate the image MD5 before displaying it. 
-// This costs about 8mAS (milliamp-second) for a 1.54, 16
-// And more importantly for the Chroma series it needs flash and data space
-// we can't afford
-// #define VALIDATE_IMAGE_MD5       // The firmware can validate the image MD5 
-
-// #define PRINT_LUT                // uncomment if you want the tag to print the LUT for the current temperature bracket
-// #define ENABLE_GPIO_WAKE         // uncomment to enable GPIO wake
-// #define ENABLE_RETURN_DATA       // enables the tag to send blocks of data back. Enabling this costs about 4 IRAM bytes
-// #define LEAN_VERSION             // makes a smaller version, leaving extra flash space for other things
-// #define WRITE_MAC_FROM_FLASH     // takes mac address from flash if none is set in the infopage
-
 #if defined(DISABLE_UI) && !defined(LEAN_VERSION)
 #define LEAN_VERSION
-#endif
-
-#if defined(DEBUGSETTINGS) || defined(DEBUGMSG) || defined(DEBUGBLOCKS) \
-    || defined(DEBUGPROTO) || defined(DEBUGOTA) || defined(DEBUGNFC) \
-    || defined(DEBUGEPD) || defined(DEBUGMAIN) || defined(DEBUGEEPROM)
-#define ISDEBUGBUILD
+#define DISABLE_BARCODES
 #endif
 
 #define SETTINGS_STRUCT_VERSION 0x01
@@ -65,6 +49,11 @@
 #define DEFAULT_SETTING_SCANFORAP 0
 #define DEFAULT_SETTING_LOWBATSYMBOL 1
 #define DEFAULT_SETTING_NORFSYMBOL 1
+
+#define BAND_UNKNOWN    0
+#define BAND_868        1
+#define BAND_915        2
+
 
 /*
 struct tagsettings {
@@ -89,5 +78,4 @@ void loadDefaultSettings();
 void writeSettings();
 void loadSettings();
 void loadSettingsFromBuffer(uint8_t* p);
-void invalidateSettingsEEPROM();
 #endif
