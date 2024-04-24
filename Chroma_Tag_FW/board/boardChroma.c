@@ -1,3 +1,4 @@
+#include "soc.h"
 #include "board.h"
 #include "cpu.h"
 #include "u1.h"
@@ -55,7 +56,11 @@ void PortInit()
 
 // Port 0 output pins
    P0DIR = P0_EPD_BS1 | P0_EEPROM_CLK | P0_EEPROM_MOSI 
-         | P0_EPD_nENABLE | P0_EPD_D_nCMD;
+         | P0_EPD_nENABLE | P0_EPD_D_nCMD
+#if BUILD == chroma42r
+         | P0_EPD_nCS1
+#endif
+      ;
 // Port 0 peripheral pins
    P0SEL = P0_EEPROM_CLK | P0_EEPROM_MOSI | P0_EEPROM_MISO;
 

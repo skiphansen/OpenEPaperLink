@@ -39,6 +39,8 @@
 
 #define ENABLE_LOGGING  0
 
+#define LOGA(format, ... ) printf(format,## __VA_ARGS__)
+
 #if ENABLE_LOGGING
 #define LOG(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
 #define LOG_RAW(format, ... ) printf(format,## __VA_ARGS__)
@@ -179,14 +181,14 @@ void CC1101_cmdStrobe(uint8_t cmd);
 void CC1101_wakeUp(void);
 uint8_t CC1101_readReg(uint8_t regAddr, uint8_t regType);
 void CC1101_writeReg(uint8_t regAddr, uint8_t value);
-void CC1101_setRxState(void);
 void CC1101_setTxState(void);
+
+void setIdleState(void);
 
 spi_device_handle_t gSpiHndl;
 
 #define readConfigReg(regAddr)   CC1101_readReg(regAddr, CC1101_CONFIG_REGISTER)
 #define readStatusReg(regAddr)   CC1101_readReg(regAddr, CC1101_STATUS_REGISTER)
-#define setIdleState()           CC1101_cmdStrobe(CC1101_SIDLE)
 #define flushRxFifo()            CC1101_cmdStrobe(CC1101_SFRX)
 #define flushTxFifo()            CC1101_cmdStrobe(CC1101_SFTX)
 
@@ -264,11 +266,6 @@ const char *RegNamesCC1101[] = {
 #elif CONFIG_SPI3_HOST
    #define HOST_ID SPI3_HOST
 #endif
-
-/*
- * RF state
- */
-static uint8_t gRfState;
 
 #define cc1101_Select()    gpio_set_level(CONFIG_CSN_GPIO, LOW)
 #define cc1101_Deselect()  gpio_set_level(CONFIG_CSN_GPIO, HIGH)
@@ -469,8 +466,8 @@ void CC1101_reset(void)
 void CC1101_setRxState(void)
 {
    CC1101_cmdStrobe(CC1101_SRX);
-   gRfState = RFSTATE_RX;
 }
+
 
 /**
  * CC1101_setTxState
@@ -480,7 +477,6 @@ void CC1101_setRxState(void)
 void CC1101_setTxState(void)
 {
    CC1101_cmdStrobe(CC1101_STX);
-   gRfState = RFSTATE_TX;
 }
 
 
@@ -670,6 +666,7 @@ void CC1101_SetConfig(const RfSetting *pConfig)
    uint8_t Reg;
 
    memset(RegWasSet,0,sizeof(RegWasSet));
+   setIdleState();
 
    if(pConfig == NULL) {
 // Just set the fixed registers
@@ -705,6 +702,29 @@ void CC1101_SetConfig(const RfSetting *pConfig)
          }
       }
 #endif
+   }
+}
+
+void setIdleState()
+{
+   uint8_t MarcState;
+   CC1101_cmdStrobe(CC1101_SIDLE);
+// Wait for it
+   do {
+      MarcState = readStatusReg(CC1101_MARCSTATE);
+   } while(MarcState != CC1101_STATE_IDLE);
+}
+
+
+void CC1101_logState()
+{
+   static uint8_t LastMarcState = 0xff;
+   uint8_t MarcState;
+
+   MarcState = readStatusReg(CC1101_MARCSTATE);
+   if(LastMarcState != MarcState) {
+      LOGA("MarcState 0x%x -> 0x%x\n",LastMarcState,MarcState);
+      LastMarcState = MarcState;
    }
 }
 

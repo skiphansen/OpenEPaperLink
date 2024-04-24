@@ -330,8 +330,12 @@ void main()
 // get the highest slot number, number of slots
    initializeProto();
 
+   powerUp(INIT_EEPROM);
+   MAIN_LOG("drawing slot 3\n");
+   drawImageAtAddress(EEPROM_IMG_START + (EEPROM_IMG_EACH * 3));
+   MAIN_LOG("done!\n");
+   while(true);
 #if 0
-   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
    showSplashScreen();
    showAPFound();
    showNoAP();

@@ -12,6 +12,7 @@ extern __xdata int16_t gCharY;
 
 typedef void (*DrawingFunction)(void) __reentrant;
 void DrawScreen(DrawingFunction);
+extern DrawingFunction gDrawingFunct;
 
 #pragma callee_saves drawImageAtAddress
 void drawImageAtAddress(uint32_t addr);

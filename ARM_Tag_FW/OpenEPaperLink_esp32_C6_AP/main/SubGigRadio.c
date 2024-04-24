@@ -381,6 +381,7 @@ SubGigErr SubGig_radioSetChannel(uint8_t ch)
          }
       }
       SubGig_CC1101_SetConfig(SetChannr);
+      CC1101_setRxState();
    } while(false);
 
    return Ret;
@@ -432,6 +433,8 @@ int8_t SubGig_commsRxUnencrypted(uint8_t *data)
       if(gSubGigData.FreqTest) {
          break;
       }
+      CC1101_logState();
+
       if(!gSubGigData.RxAvailable && gpio_get_level(CONFIG_GDO0_GPIO) == 1) {
       // Did we miss an interrupt?
          if(gpio_get_level(CONFIG_GDO0_GPIO) == 1) {

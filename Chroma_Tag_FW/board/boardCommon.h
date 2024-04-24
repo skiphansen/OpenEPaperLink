@@ -44,6 +44,44 @@ extern char __xdata gMacString[17];
 
 extern __xdata __at (0xfda2) uint8_t gTempBuf320[320];
 
+#pragma callee_saves screenPrvWaitByteSent
+static inline void screenPrvWaitByteSent(void)
+{
+   while (U0CSR & 0x01);
+}
+
+#pragma callee_saves einkSelect
+static inline void einkSelect(void)
+{
+   P1 &= (uint8_t) ~P1_EPD_nCS0;
+   __asm__("nop");   //60ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
+#pragma callee_saves einkSelect1
+static inline void einkSelect1(void)
+{
+   P0 &= (uint8_t) ~P0_EPD_nCS1;
+   __asm__("nop");   //60ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
+#pragma callee_saves einkDeselect
+static inline void einkDeselect(void)
+{
+   screenPrvWaitByteSent();
+   __asm__("nop");   //20ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+   P1 |= P1_EPD_nCS0;
+   __asm__("nop");   //40ns between deselect select and reselect as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
+#pragma callee_saves einkDeselect1
+static inline void einkDeselect1(void)
+{
+   screenPrvWaitByteSent();
+   __asm__("nop");   //20ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+   P0 |= P0_EPD_nCS1;
+   __asm__("nop");   //40ns between deselect select and reselect as per spec. at our clock speed that is less than a single cycle, so delay a cycle
+}
+
 #pragma callee_saves powerPortsDownForSleep
 void powerPortsDownForSleep(void);
 

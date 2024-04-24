@@ -3,6 +3,8 @@
 #include <stdarg.h>
 typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 #include "../oepl-definitions.h"
+#include "soc.h"
+#include "board.h"
 #include "barcode.h"
 #include "asmUtil.h"
 #include "drawing.h"
@@ -18,6 +20,8 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "logging.h"
 #include "font.h"
 
+DrawingFunction gDrawingFunct;
+
 #pragma callee_saves prvPrintFormat
 void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __code *fmt, va_list vl) __reentrant __naked;
 
@@ -30,8 +34,9 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
    #define LOG_HEXV(x,y)
 #endif
 
-// Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
+// Pixel we are drawing currently 0 -> SCREEN_WIDTH - 1
 __xdata int16_t gDrawX;
+// Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
 __xdata int16_t gDrawY;
 
 __xdata int16_t gWinX;
@@ -52,7 +57,8 @@ __xdata uint16_t gWinBufNdx;
 __bit gWinColor;
 __bit gLargeFont;
 __bit gDirectionY;
-__bit g2BitsPerPixel;
+__bit g2BitsPerPixel;   // Input file
+__bit gDrawFromFlash;
 
 // NB: 8051 data / code space saving KLUDGE!
 // Use the locally in a routine but DO NOT call anything if you care
@@ -60,38 +66,40 @@ __bit g2BitsPerPixel;
 __xdata uint16_t TempU16;
 __xdata uint16_t TempU8;
 
+__xdata uint32_t gEEpromAdr;
+
 bool setWindowX(uint16_t start,uint16_t width);
 bool setWindowY(uint16_t start,uint16_t height);
 void SetWinDrawNdx(void);
+void DoPass(void);
 
-// Screen is 640 x 384 with 2 bits per pixel we need 61,440 (60K) bytes
-// which of course we don't have.
-// Read data as 64 chunks of 960 bytes (480 bytes of b/w, 480 bytes of r/y),
-// convert to pixels and them out.
-#define LINES_PER_PART     6  
-#define TOTAL_PART         64 
+// Screen is 400 x 300 with 2 bits per pixel 
+// The B/W data is loaded first then the red/yellow.
+
+// 400 x 300 / 8 = 30000 bytes, we have BLOCK_XFER_BUFFER_SIZE which is
+// about 2079 bytes so we need to load the image in parts.
+// Lets use 40 lines per part (2000 bytes) and 10 total parts.
+// We make two passes, one for B&W pixels and one for red/yellow
+
+#define TOTAL_PART         10
+#define LINES_PER_PART     30
 #define BYTES_PER_LINE     (SCREEN_WIDTH / 8)
 #define PIXELS_PER_PART    (SCREEN_WIDTH * LINES_PER_PART)
 #define BYTES_PER_PART     (PIXELS_PER_PART / 8)
 #define BYTES_PER_PLANE    (BYTES_PER_LINE * SCREEN_HEIGHT)
 
-// scratch buffer of BLOCK_XFER_BUFFER_SIZE (0x457 / 1,111 bytes)
+// scratch buffer of BLOCK_XFER_BUFFER_SIZE (0x457 / 2079 bytes)
 extern uint8_t __xdata blockbuffer[];
 
 #define eih ((struct EepromImageHeader *__xdata) blockbuffer)
 void drawImageAtAddress(uint32_t addr) __reentrant 
 {
-   uint32_t Adr = addr;
-   uint8_t Part;
-   uint16_t i;
-   uint16_t j;
-   uint8_t Mask = 0x80;
-   uint8_t Value = 0;
-   uint8_t Pixel;
+   gEEpromAdr = addr;
+   gDrawFromFlash = true;
 
    powerUp(INIT_EEPROM);
-   eepromRead(Adr,blockbuffer,sizeof(struct EepromImageHeader));
-   Adr += sizeof(struct EepromImageHeader);
+   eepromRead(gEEpromAdr,blockbuffer,sizeof(struct EepromImageHeader));
+   gEEpromAdr += sizeof(struct EepromImageHeader);
 
    if(eih->dataType == DATATYPE_IMG_RAW_1BPP) {
       g2BitsPerPixel = false;
@@ -106,62 +114,108 @@ void drawImageAtAddress(uint32_t addr) __reentrant
       return;
    }
 
-   screenTxStart(false);
-   gPartY = 0;
-   gDrawY = 0;
-   for(Part = 0; Part < TOTAL_PART; Part++) {
-#if 1
-   // Read 6 lines of b/w pixels
-      eepromRead(Adr,blockbuffer,BYTES_PER_PART);
-      if(g2BitsPerPixel) {
-      // Read 6 lines of red/yellow pixels
-         eepromRead(Adr+BYTES_PER_PLANE,&blockbuffer[BYTES_PER_PART],
-                    BYTES_PER_PART);
-      }
-      else {
-         xMemSet(&blockbuffer[BYTES_PER_PART],0,BYTES_PER_PART);
-      }
-      Adr += BYTES_PER_PART;
-#else
-      xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
-#endif
 
-      for(i = 0; i < LINES_PER_PART; i++) {
-         addOverlay();
-         gDrawY++;
-      }
-      j = BYTES_PER_PART;
-      for(i = 0; i < BYTES_PER_PART; i++) {
-         while(Mask != 0) {
-         // B/W bit
-            if(blockbuffer[i] & Mask) {
-               Pixel = PIXEL_BLACK;
-            }
-            else {
-               Pixel = PIXEL_WHITE;
-            }
-
-         // red/yellow W bit
-            if(blockbuffer[j] & Mask) {
-               Pixel = PIXEL_RED_YELLOW;
-            }
-            Value <<= 4;
-            Value |= Pixel;
-            if(Mask & 0b10101010) {
-            // Value ready, send it
-               screenByteTx(Value);
-            }
-            Mask >>= 1; // next bit
-         }
-         Mask = 0x80;
-         j++;
-      }
-      gPartY += LINES_PER_PART;
-   }
+   gRedPass = false;
+   screenTxStart();
+   DoPass();
+   gRedPass = true;
+   screenTxStart();
+   DoPass();
 // Finished with SPI flash
    powerDown(INIT_EEPROM);
    drawWithSleep();
    #undef eih
+}
+
+void DoPass()
+{
+   uint8_t Part;
+   uint16_t i;
+   uint8_t Mask = 0x80;
+   uint8_t Value = 0;
+   uint16_t BytesSent = 0;
+
+   LOG("Doing %d pass\n",gRedPass);
+   gDrawX = 0;
+   gPartY = 0;
+   gDrawY = 0;
+
+   einkSelect();  // Start with CS0
+   for(Part = 0; Part < TOTAL_PART; Part++) {
+      if(gDrawFromFlash) {
+      // Read 40 lines of pixels
+         if(gRedPass && !g2BitsPerPixel) {
+         // Dummy pass
+            xMemSet(blockbuffer,0,BYTES_PER_PART);
+         }
+         else {
+            eepromRead(gEEpromAdr,blockbuffer,BYTES_PER_PART);
+            gEEpromAdr += BYTES_PER_PART;
+         }
+#if 0
+         for(i = 0; i < LINES_PER_PART; i++) {
+            addOverlay();
+            gDrawY++;
+         }
+#endif
+      }
+      else {
+#if 0
+         xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
+         for(i = 0; i < LINES_PER_PART; i++) {
+            DrawIt();
+            gDrawY++;
+         }
+#endif
+      }
+
+      for(i = 0; i < BYTES_PER_PART; i++) {
+         while(Mask != 0) {
+            if(gRedPass) {
+            // red/yellow pixel, 1 bit
+               Value <<= 1;
+               if(!(blockbuffer[i] & Mask)) {
+                  Value |= 1;
+               }
+               if(Mask & 0b00000001) {
+               // Value ready, send it
+                  screenByteTx(Value);
+                  BytesSent++;
+               }
+            }
+            else {
+            // B/W pixel, 2 bits
+               Value <<= 2;
+               if(blockbuffer[i] & Mask) {
+                  Value |= PIXEL_BLACK;
+               }
+               if(Mask & 0b00010001) {
+               // Value ready, send it
+                  screenByteTx(Value);
+                  BytesSent++;
+               }
+            }
+
+            Mask >>= 1; // next bit
+            gDrawX++;
+            if(gDrawX == (SCREEN_WIDTH / 2)) {
+            // Switch to the slave controller
+               einkDeselect();
+               einkSelect1();
+            }
+            else if(gDrawX == SCREEN_WIDTH) {
+            // Switch back to the master controller
+               einkDeselect1();
+               einkSelect();
+               gDrawX = 0;
+            }
+         }
+         Mask = 0x80;
+      }
+      gPartY += LINES_PER_PART;
+   }
+   einkDeselect();
+   einkDeselect1();
 }
 
 void DrawScreen(DrawingFunction DrawIt)
@@ -173,7 +227,8 @@ void DrawScreen(DrawingFunction DrawIt)
    uint8_t Value = 0;
    uint8_t Pixel;
 
-   screenTxStart(false);
+   screenTxStart();
+   gDrawX = 0;
    gPartY = 0;
    gDrawY = 0;
    for(Part = 0; Part < TOTAL_PART; Part++) {
@@ -197,13 +252,25 @@ void DrawScreen(DrawingFunction DrawIt)
             if(blockbuffer[j] & Mask) {
                Pixel = PIXEL_RED_YELLOW;
             }
-            Value <<= 4;
+            Value <<= 2;
             Value |= Pixel;
-            if(Mask & 0b10101010) {
+            if(Mask & 0b00010001) {
             // Value ready, send it
                screenByteTx(Value);
             }
             Mask >>= 1; // next bit
+            gDrawX++;
+         }
+         if(gDrawX == (SCREEN_WIDTH / 2)) {
+         // Switch to slave controller
+            einkDeselect();
+            einkSelect1();     // Start with CS0
+         }
+         else if(gDrawX == SCREEN_WIDTH) {
+         // Switch back to master controller
+            einkDeselect1();
+            einkSelect();     // Start with CS0
+            gDrawX = 0;
          }
          Mask = 0x80;
          j++;
@@ -224,6 +291,10 @@ void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color)
 
    LOGV("gDrawY %d\n",gDrawY);
    LOGV("ld bmp x %d, y %d, color %d\n",x,y,color);
+
+   if(color != gRedPass) {
+      return;
+   }
 
    if(setWindowY(y,bmp[1])) {
    // Nothing to do Y limit are outside of what we're drawing at the moment
@@ -396,6 +467,10 @@ void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color
 #pragma callee_saves epdPutchar
 static void epdPutchar(uint32_t data) __reentrant 
 {
+   if(gWinColor != gRedPass) {
+      return;
+   }
+
    if(gDirectionY) {
       gFontHeight = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
    }
@@ -440,6 +515,10 @@ void printBarcode(const char __xdata *string, uint16_t x, uint16_t y)
 {
    uint8_t OutMask;
 
+   if(gRedPass) {
+   // Bar codes are always B&W
+      return;
+   }
    xMemSet(&gBci,0,sizeof(gBci));
    gBci.str = string;
 

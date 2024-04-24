@@ -6,9 +6,13 @@ ifeq ($(BUILD),chroma74y)
 BOARD=chroma74
 else ifeq ($(BUILD),chroma74r)
 BOARD=chroma74
+else ifeq ($(BUILD),chroma42r)
+BOARD=chroma42
 else
 BOARD=$(BUILD)
 endif
+
+FLAGS += -DATC1441_LUT
 
 ifeq ($(BOARD),chroma74)
 ifeq ($(LUT),atc1441)

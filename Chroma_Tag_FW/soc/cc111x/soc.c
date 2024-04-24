@@ -63,7 +63,11 @@ void boardInitStage2(void)
 #ifdef SCREEN_EXPECTS_VCOM
    if(prvReadSetting(0x23,&mScreenVcom,1) < 0) {
       NV_DATA_LOG("failed to get VCOM\n");
+#if BUILD == chroma42r
+      mScreenVcom = 8;     // a sane value .8v from one example panel
+#else
       mScreenVcom = 0x28;  //a sane value
+#endif
    }
    else {
       NV_DATA_LOG("VCOM: 0x%02x\n", mScreenVcom);
