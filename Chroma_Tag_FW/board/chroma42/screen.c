@@ -351,8 +351,6 @@ void screenShutdown(void)
 void screenTxStart()
 {
    screenInitIfNeeded();
-   CopyCfg();
-   LogConfig("screenTxStart");
    
 // Send command to both controllers   
    einkSelect();

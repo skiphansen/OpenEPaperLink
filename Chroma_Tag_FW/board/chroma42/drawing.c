@@ -133,7 +133,6 @@ void DoPass()
    uint16_t i;
    uint8_t Mask = 0x80;
    uint8_t Value = 0;
-   uint16_t BytesSent = 0;
 
    LOG("Doing %d pass\n",gRedPass);
    gDrawX = 0;
@@ -180,7 +179,6 @@ void DoPass()
                if(Mask & 0b00000001) {
                // Value ready, send it
                   screenByteTx(Value);
-                  BytesSent++;
                }
             }
             else {
@@ -192,7 +190,6 @@ void DoPass()
                if(Mask & 0b00010001) {
                // Value ready, send it
                   screenByteTx(Value);
-                  BytesSent++;
                }
             }
 
@@ -231,8 +228,9 @@ void DrawScreen(DrawingFunction DrawIt)
    gDrawX = 0;
    gPartY = 0;
    gDrawY = 0;
+   einkSelect();  // Start with CS0
    for(Part = 0; Part < TOTAL_PART; Part++) {
-      xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
+      xMemSet(blockbuffer,0,BYTES_PER_PART);
       for(i = 0; i < LINES_PER_PART; i++) {
          DrawIt();
          gDrawY++;
@@ -240,44 +238,47 @@ void DrawScreen(DrawingFunction DrawIt)
       j = BYTES_PER_PART;
       for(i = 0; i < BYTES_PER_PART; i++) {
          while(Mask != 0) {
-         // B/W bit
-            if(blockbuffer[i] & Mask) {
-               Pixel = PIXEL_BLACK;
+            if(gRedPass) {
+            // red/yellow pixel, 1 bit
+               Value <<= 1;
+               if(!(blockbuffer[i] & Mask)) {
+                  Value |= 1;
+               }
+               if(Mask & 0b00000001) {
+               // Value ready, send it
+                  screenByteTx(Value);
+               }
             }
             else {
-               Pixel = PIXEL_WHITE;
+            // B/W pixel, 2 bits
+               Value <<= 2;
+               if(blockbuffer[i] & Mask) {
+                  Value |= PIXEL_BLACK;
+               }
+               if(Mask & 0b00010001) {
+               // Value ready, send it
+                  screenByteTx(Value);
+               }
             }
 
-         // red/yellow W bit
-            if(blockbuffer[j] & Mask) {
-               Pixel = PIXEL_RED_YELLOW;
-            }
-            Value <<= 2;
-            Value |= Pixel;
-            if(Mask & 0b00010001) {
-            // Value ready, send it
-               screenByteTx(Value);
-            }
             Mask >>= 1; // next bit
             gDrawX++;
-         }
-         if(gDrawX == (SCREEN_WIDTH / 2)) {
-         // Switch to slave controller
-            einkDeselect();
-            einkSelect1();     // Start with CS0
-         }
-         else if(gDrawX == SCREEN_WIDTH) {
-         // Switch back to master controller
-            einkDeselect1();
-            einkSelect();     // Start with CS0
-            gDrawX = 0;
+            if(gDrawX == (SCREEN_WIDTH / 2)) {
+            // Switch to the slave controller
+               einkDeselect();
+               einkSelect1();
+            }
+            else if(gDrawX == SCREEN_WIDTH) {
+            // Switch back to the master controller
+               einkDeselect1();
+               einkSelect();
+               gDrawX = 0;
+            }
          }
          Mask = 0x80;
-         j++;
       }
       gPartY += LINES_PER_PART;
    }
-// Finished with SPI flash
    drawWithSleep();
 }
 
