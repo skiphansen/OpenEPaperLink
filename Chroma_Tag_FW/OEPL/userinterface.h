@@ -14,7 +14,6 @@ void showAPFound();
 void showNoAP();
 void showLongTermSleep();
 void showNoEEPROM();
-void showNoMAC();
 
 #else
 

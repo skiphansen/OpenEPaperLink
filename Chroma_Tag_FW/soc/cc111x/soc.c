@@ -12,6 +12,7 @@
 void boardGetOwnMac();
 
 char __xdata gMacString[17];
+__bit gEEpromFailure;
 
 #pragma callee_saves prvReadSetting
 //returns token length if found, copies at most maxLen. returns -1 if not found
@@ -96,21 +97,28 @@ void boardInitStage2(void)
    irqsOn();
 }
 
+// JM 10339094 B
 void boardGetOwnMac()
 {
-   
-// Set mSelfMac[1], mSelfMac[2], mSelfMac[3], mSelfMac[4], mSelfMac[5], mSelfMac[6], and maybe mSelfMac[7]
-// NB: mSelfMac[7] is ignored
+// Set mSelfMac from the device SN stored in the factory "NVRAM".
+// Note: apparently some boards have a 6 character SN and some have a 7.
+// Only the first 6 charcters are used.
    if(prvReadSetting(0x2a,gTempBuf320,7) < 0 && prvReadSetting(1,gTempBuf320,6) < 0) {
+      gEEpromFailure = true;
       return;
    }
 
-// reformat MAC how we need it (please do not ask me why it is written so 
-// weirdly, ask SDCC. Writing it simpler causes TWO(!!!) spills to DSEG
    mSelfMac[7] = 0x44;
    mSelfMac[6] = 0x67;
+#if 0
+// Dimtry's original code ignored the first two characters of the SN, but
+// they seem useful to me
    mSelfMac[5] = 0x4b;
    mSelfMac[4] = 0x7a;
+#else
+   mSelfMac[5] = gTempBuf320[0];
+   mSelfMac[4] = gTempBuf320[1];
+#endif
    mSelfMac[3] = gTempBuf320[2];
    mSelfMac[2] = gTempBuf320[3];
    mSelfMac[1] = gTempBuf320[4];

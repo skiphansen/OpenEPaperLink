@@ -51,7 +51,8 @@ __xdata int16_t gCharX;
 __xdata int16_t gCharY;
 __xdata int8_t gFontWidth;
 __xdata int8_t gFontHeight;
-
+__xdata int16_t gTempX;
+__xdata int16_t gTempY;
 
 __xdata uint16_t gWinBufNdx;
 __bit gWinColor;
@@ -94,6 +95,9 @@ extern uint8_t __xdata blockbuffer[];
 #define eih ((struct EepromImageHeader *__xdata) blockbuffer)
 void drawImageAtAddress(uint32_t addr) __reentrant 
 {
+// Clear overlay flags since we are drawing a new screen
+   gLowBatteryShown = false;
+   noAPShown = false;
    gEEpromAdr = addr;
    gDrawFromFlash = true;
 
@@ -134,7 +138,6 @@ void DoPass()
    uint8_t Mask = 0x80;
    uint8_t Value = 0;
 
-   LOG("Doing %d pass\n",gRedPass);
    gDrawX = 0;
    gPartY = 0;
    gDrawY = 0;
@@ -159,13 +162,11 @@ void DoPass()
 #endif
       }
       else {
-#if 0
-         xMemSet(blockbuffer,0,BYTES_PER_PART * 2);
+         xMemSet(blockbuffer,0,BYTES_PER_PART);
          for(i = 0; i < LINES_PER_PART; i++) {
-            DrawIt();
+            gDrawingFunct();
             gDrawY++;
          }
-#endif
       }
 
       for(i = 0; i < BYTES_PER_PART; i++) {
@@ -217,68 +218,19 @@ void DoPass()
 
 void DrawScreen(DrawingFunction DrawIt)
 {
-   uint8_t Part;
-   uint16_t i;
-   uint16_t j;
-   uint8_t Mask = 0x80;
-   uint8_t Value = 0;
-   uint8_t Pixel;
+// Clear overlay flags since we are drawing a new screen
+   gLowBatteryShown = false;
+   noAPShown = false;
 
+   gDrawFromFlash = false;
+   g2BitsPerPixel = true;
+   gRedPass = false;
+   gDrawingFunct = DrawIt;
    screenTxStart();
-   gDrawX = 0;
-   gPartY = 0;
-   gDrawY = 0;
-   einkSelect();  // Start with CS0
-   for(Part = 0; Part < TOTAL_PART; Part++) {
-      xMemSet(blockbuffer,0,BYTES_PER_PART);
-      for(i = 0; i < LINES_PER_PART; i++) {
-         DrawIt();
-         gDrawY++;
-      }
-      j = BYTES_PER_PART;
-      for(i = 0; i < BYTES_PER_PART; i++) {
-         while(Mask != 0) {
-            if(gRedPass) {
-            // red/yellow pixel, 1 bit
-               Value <<= 1;
-               if(!(blockbuffer[i] & Mask)) {
-                  Value |= 1;
-               }
-               if(Mask & 0b00000001) {
-               // Value ready, send it
-                  screenByteTx(Value);
-               }
-            }
-            else {
-            // B/W pixel, 2 bits
-               Value <<= 2;
-               if(blockbuffer[i] & Mask) {
-                  Value |= PIXEL_BLACK;
-               }
-               if(Mask & 0b00010001) {
-               // Value ready, send it
-                  screenByteTx(Value);
-               }
-            }
-
-            Mask >>= 1; // next bit
-            gDrawX++;
-            if(gDrawX == (SCREEN_WIDTH / 2)) {
-            // Switch to the slave controller
-               einkDeselect();
-               einkSelect1();
-            }
-            else if(gDrawX == SCREEN_WIDTH) {
-            // Switch back to the master controller
-               einkDeselect1();
-               einkSelect();
-               gDrawX = 0;
-            }
-         }
-         Mask = 0x80;
-      }
-      gPartY += LINES_PER_PART;
-   }
+   DoPass();
+   gRedPass = true;
+   screenTxStart();
+   DoPass();
    drawWithSleep();
 }
 
@@ -331,10 +283,6 @@ void SetWinDrawNdx()
    LOGV("1 %d\n",gWinBufNdx);
    gWinBufNdx += (gWinDrawY - gPartY) * BYTES_PER_LINE;
    LOGV("2 %d\n",gWinBufNdx);
-   if(gWinColor) {
-      gWinBufNdx += BYTES_PER_PART;
-      LOGV("3 %d\n",gWinBufNdx);
-   }
 }
 
 // Set window X position and width in pixels

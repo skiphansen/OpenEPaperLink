@@ -7,8 +7,15 @@
 #define FONT_HEIGHT  16
 #define FONT_WIDTH   10
 
+extern __bit gWinColor;
+extern __bit gLargeFont;
+extern __bit gDirectionY;
 extern __xdata int16_t gCharX;
 extern __xdata int16_t gCharY;
+
+extern __xdata int16_t gTempX;
+extern __xdata int16_t gTempY;
+extern __xdata int16_t gWinDrawX;
 
 typedef void (*DrawingFunction)(void) __reentrant;
 void DrawScreen(DrawingFunction);

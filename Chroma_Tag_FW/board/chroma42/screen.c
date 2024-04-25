@@ -262,8 +262,6 @@ static void screenInitIfNeeded()
    }
    gScreenPowered = true;
    
-   LOG("screenInitIfNeeded\n");
-      
 // Don't select the EPD yet
    P1 |= P1_EPD_nCS0;
    P0 |= P0_EPD_nCS1;
@@ -280,19 +278,13 @@ static void screenInitIfNeeded()
    
    timerDelay(TIMER_TICKS_PER_SECOND * 10 / 1000); //wait 10ms
    
-   LOG("Releasing reset\n");
-      
 // release reset
    P1 |= P1_EPD_nRESET;
    timerDelay(TIMER_TICKS_PER_SECOND * 10 / 1000); //wait 10ms
    
-   LOG("First wait\n");
-      
 // Wait for Busy to go low
    while(EPD_BUSY());
    
-   LOG("Calling SendEpdTbl\n");
-      
 // we can now talk to it
    SendEpdTbl(gPwrUpEpd);
    
@@ -301,17 +293,13 @@ static void screenInitIfNeeded()
    einkSelect1();
    screenPrvSendCommand(CMD_POWER_ON);
 
-   LOG("Second wait\n");
-      
 // wait for not busy
    while(!EPD_BUSY());
    einkDeselect();
    einkDeselect1();
    
-   LOG("Calling SendEpdTbl\n");
    SendEpdTbl(gSetupEpd);
 
-   LOG("Setting VCOM to %d\n",mScreenVcom);
    einkSelect();
    einkSelect1();
    screenPrvSendCommand(CMD_VCOM_DC_SETTING);
@@ -319,7 +307,6 @@ static void screenInitIfNeeded()
    einkDeselect();
    einkDeselect1();
    
-   LOG("screenInitIfNeeded returning\n");
    LOG_CONFIG("screenInitIfNeeded");
 }
 
@@ -357,8 +344,6 @@ void screenTxStart()
    einkSelect1();
    screenPrvSendCommand(gRedPass ? CMD_DISPLAY_START_TRANSMISSION_DTM2 :
                                    CMD_DISPLAY_START_TRANSMISSION_DTM1);
-   LOG("Sent cmd 0x%x\n",gRedPass ? CMD_DISPLAY_START_TRANSMISSION_DTM2 :
-       CMD_DISPLAY_START_TRANSMISSION_DTM1);
    einkDeselect();     // Start with CS0
    einkDeselect1();
 }

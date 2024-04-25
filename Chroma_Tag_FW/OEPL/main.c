@@ -292,6 +292,50 @@ void executeCommand(uint8_t cmd)
    }
 }
 
+#ifdef DEBUGGUI
+void displayLoop() 
+{
+   powerUp(INIT_BASE);
+
+   gLowBattery = true;
+
+   LOG("AP NOT Found\n");
+   showNoAP();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("afterFlashScreenSaver\n");
+   afterFlashScreenSaver();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("Splash screen\n");
+   showSplashScreen();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("Update screen\n");
+   showApplyUpdate();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("Failed update screen\n");
+   showFailedUpdate();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("AP Found\n");
+   showAPFound();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("Longterm sleep screen\n");
+   showLongTermSleep();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   LOG("NO EEPROM\n");
+   showNoEEPROM();
+   timerDelay(TIMER_TICKS_PER_SECOND * 4);
+
+   MAIN_LOG("done!\n");
+   while(true);
+}
+#endif
+
 
 void main() 
 {  
@@ -313,14 +357,23 @@ void main()
 // Log initial battery voltage and temperature
    LogSummary();
 
+#ifdef DEBUGGUI
+   displayLoop(); // never returns
+#else
+
 // Find the reason why we're booting; is this a WDT?
    wakeUpReason = WAKEUP_REASON_FIRSTBOOT;
    SLEEP_LOG("SLEEP reg %02x\n",SLEEP);
    if((SLEEP & SLEEP_RST) == SLEEP_RST_WDT) {
       wakeUpReason = WAKEUP_REASON_WDT_RESET;
    }
-   InitBcastFrame();
+
+   if(gEEpromFailure) {
+      showNoEEPROM();
+      doSleep(0); // forever, never returns
+   }
    MAIN_LOG("MAC %s\n",gMacString);
+   InitBcastFrame();
 
 // do a little sleep, this prevents a partial boot during battery insertion
    doSleep(400UL);
@@ -330,36 +383,7 @@ void main()
 // get the highest slot number, number of slots
    initializeProto();
 
-   MAIN_LOG("Callign showSplashScreen!\n");
    showSplashScreen();
-   MAIN_LOG("done!\n");
-   while(true);
-
-#if 0
-   powerUp(INIT_EEPROM);
-   MAIN_LOG("drawing slot 3\n");
-   drawImageAtAddress(EEPROM_IMG_START + (EEPROM_IMG_EACH * 3));
-   MAIN_LOG("done!\n");
-   showSplashScreen();
-   showAPFound();
-   showNoAP();
-   showLongTermSleep();
-   afterFlashScreenSaver();
-   MAIN_LOG("drawing image\n");
-   powerDown(INIT_EEPROM);
-   showSplashScreen();
-   MAIN_LOG("image drawn\n");
-   powerUp(INIT_EEPROM);
-   doSleep(20000L);
-   powerUp(INIT_EEPROM);
-   MAIN_LOG("drawing slot 1\n");
-   drawImageAtAddress(EEPROM_IMG_START + EEPROM_IMG_EACH);
-   MAIN_LOG("image drawn\n");
-   powerUp(INIT_EEPROM);
-   doSleep(20000L);
-   MAIN_LOG("done!\n");
-   while(true);
-#endif
 
    if(tagSettings.enableFastBoot) {
    // Fastboot
@@ -423,6 +447,7 @@ void main()
          TagChanSearch();
       }
    }
+#endif
 }
 
 

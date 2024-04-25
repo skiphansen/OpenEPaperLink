@@ -8,6 +8,8 @@
 
 void WOR_ISR(void) __interrupt (5);
 
+extern __bit gEEpromFailure;
+
 #pragma callee_saves clockingAndIntsInit
 void clockingAndIntsInit(void);
 
@@ -22,9 +24,5 @@ void rndSeed(uint8_t seedA, uint8_t seedB);
 
 #pragma callee_saves selfUpdate
 void selfUpdate(void);
-
-
-
-
 
 #endif

@@ -27,11 +27,35 @@
 void DrawTagMac(void);
 void DrawFwVer(void);
 
+void VertCenterLine()
+{
+   gCharY = (SCREEN_HEIGHT/2) - (FONT_HEIGHT / 2);
+   if(gLargeFont) {
+      gCharY -= (FONT_HEIGHT / 2);
+   }
+}
+
+void HorzCenterLine(uint8_t Chars)
+{
+   if(gLargeFont) {
+      gCharX = (SCREEN_WIDTH/2) - (Chars * (FONT_WIDTH + 1));
+   }
+   else {
+      gCharX = (SCREEN_WIDTH/2) - ((Chars * (FONT_WIDTH + 1)/2));
+   }
+}
+
+void CenterLine(uint8_t Chars)
+{
+   HorzCenterLine(Chars);
+   VertCenterLine();
+}
+
 void addOverlay() 
 {
 #ifdef DEBUG_FORCE_OVERLAY
 // force icons to be display for testing
-   gBattV = 0;
+   gLowBattery = true;
    gCurrentChannel = 0;
 #endif
 
@@ -65,32 +89,73 @@ void addOverlay()
 #endif
 }
 
+void SetTextPos(int16_t x, int16_t y)
+{
+// Save gCharX, gCharY for possible use later
+    gCharX = x;
+    gCharY = y;
+    gTempX = x;
+    gTempY = y;
+}
+
+void NextLine(uint8_t Lines)
+{
+// Save gCharX, gCharY for possible use later
+    gCharX = gTempX;
+    gCharY = gTempY + (Lines * FONT_HEIGHT);
+    gTempY = gCharY;
+}
+
 void DrawAfterFlashScreenSaver() 
 {
-   epdPrintBegin(3,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_DOUBLE;
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+
+   SetTextPos(16,3);
+   // epdPrintBegin(3,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
    epdpr("OpenEPaperLink");
 
-   epdPrintBegin(10,48,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("I'm fast asleep... UwU   To wake me:");
+   gLargeFont = EPD_SIZE_SINGLE;
+   NextLine(3);
 
-   epdPrintBegin(20,70,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   //epdPrintBegin(10,48,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   epdpr("I'm fast asleep... UwU");
+   NextLine(2);
+   epdpr("wake me:");
+   NextLine(1);
+
+// Indent
+   gCharX = gCharX + (2 * FONT_WIDTH);
+   gTempX = gCharX;
+
+   // epdPrintBegin(20,70,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("- Remove all batteries");
+   NextLine(1);
 
-   epdPrintBegin(20,86,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   //epdPrintBegin(20,86,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("- Short battery contacts");
+   NextLine(1);
 
-   epdPrintBegin(20,102,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   // epdPrintBegin(20,102,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("- Reinsert batteries");
+   NextLine(2);
 
-   epdPrintBegin(3,283,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+// Drop indent
+   gCharX = 16;
+   gTempX = gCharX;
+
+   // epdPrintBegin(3,283,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("openepaperlink.de");
+   NextLine(2);
 
-   epdPrintBegin(255, 283, EPD_DIRECTION_X, EPD_SIZE_SINGLE, EPD_COLOR_RED);
+   // epdPrintBegin(255, 283, EPD_DIRECTION_X, EPD_SIZE_SINGLE, EPD_COLOR_RED);
    DrawTagMac();
+   NextLine(2);
 
-   epdPrintBegin(360,8,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   DrawFwVer();
-
+   addOverlay();
+//   epdPrintBegin(360,8,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+//   DrawFwVer();
 }
 
 void afterFlashScreenSaver()
@@ -119,11 +184,20 @@ void DrawFwVer()
 
 void DrawSplashScreen()
 {
-   epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_DOUBLE;
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+
+   SetTextPos(48,80);
+//   epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
    epdpr("Starting...");
 
-   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_SINGLE;
+
+//   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   NextLine(4);
    DrawFwVer();
+#if 0
    epdPrintBegin(48,176,EPD_DIRECTION_X,EPD_SIZE_SINGLE,
 #ifdef BWY
 // Yellow is very low constrast, make it black for BWY displays
@@ -131,11 +205,15 @@ void DrawSplashScreen()
 #else
                  EPD_COLOR_RED);
 #endif
+#endif
+   NextLine(2);
    DrawTagMac();
 
-   epdPrintBegin(48,192,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("VBat %d mV",gBootBattV);
-   epdPrintBegin(48,208,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+//   epdPrintBegin(48,192,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   NextLine(1);
+   epdpr("VBat: %d mV",gBootBattV);
+   NextLine(1);
+//   epdPrintBegin(48,208,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
    epdpr("Temperature %dC",gTemperature);
 
 #ifndef LEAN_VERSION
@@ -156,8 +234,16 @@ void showSplashScreen()
 
 void DrawApplyUpdate() 
 {
-    epdPrintBegin(136,134,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-    epdpr("Flashing v%04x ...",gUpdateFwVer);
+#if SCREEN_WIDTH >= 640
+   gLargeFont = EPD_SIZE_DOUBLE;
+#else
+// Large font won't fit on one line, two looks odd
+   gLargeFont = EPD_SIZE_SINGLE;
+#endif
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+   CenterLine(18);
+   epdpr("Flashing v%04x ...",gUpdateFwVer);
 }
 
 void showApplyUpdate()
@@ -168,8 +254,16 @@ void showApplyUpdate()
 
 void DrawFailedUpdate() 
 {
-    epdPrintBegin(68, 134, EPD_DIRECTION_X, EPD_SIZE_DOUBLE, EPD_COLOR_BLACK);
-    epdpr("OTA failed, error %d",gUpdateErr);
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+   gLargeFont = EPD_SIZE_DOUBLE;
+   HorzCenterLine(13);
+   gCharY = 0;
+   epdpr("OTA FAILED :(");
+
+   gWinColor = EPD_COLOR_RED;
+   CenterLine(12);
+   epdpr("Error Code %d",gUpdateErr);
 }
 
 void showFailedUpdate()
@@ -179,32 +273,57 @@ void showFailedUpdate()
 
 void DrawAPFound() 
 {
-   epdPrintBegin(10,10,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_DOUBLE;
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+
+   SetTextPos(10,10);
    epdpr("Waiting for data...");
-   epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+
+   gLargeFont = EPD_SIZE_SINGLE;
+   NextLine(3);
    epdpr("Found the following AP:");
-   epdPrintBegin(48,96,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("AP MAC: %02X:%02X",APmac[7],APmac[6]);
-   epdpr(":%02X:%02X",APmac[5],APmac[4]);
-   epdpr(":%02X:%02X",APmac[3],APmac[2]);
-   epdpr(":%02X:%02X",APmac[1],APmac[0]);
-   epdPrintBegin(48,112,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+
+   NextLine(1);
+   epdpr("AP MAC: %02X%02X",APmac[7],APmac[6]);
+   epdpr("%02X%02X",APmac[5],APmac[4]);
+   epdpr("%02X%02X",APmac[3],APmac[2]);
+   epdpr("%02X%02X",APmac[1],APmac[0]);
+
+   NextLine(1);
    epdpr("Ch: %d RSSI: %d LQI: %d",gCurrentChannel,mLastRSSI,mLastLqi);
-   epdPrintBegin(48,128,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+
+   NextLine(1);
    epdpr("Tag ");
    DrawTagMac();
-   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   DrawFwVer();
-   epdPrintBegin(48,160,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   epdpr("VBat %d mV, Txing: %d mV, Displaying: %d mV",
 
+   NextLine(1);
+#if SCREEN_WIDTH >= 640
+   epdpr("VBat: %d mV, Txing: %d mV, Displaying: %d mV",
          gBattV,gTxBattV,gRefreshBattV);
-
-#ifndef LEAN_VERSION
-   loadRawBitmap(receive,100,186,EPD_COLOR_BLACK);
+#else
+// Don't have room for all three, display lowest
+   epdpr("VBat: ");
+   if(gRefreshBattV != 0 && gRefreshBattV < gTxBattV) {
+      epdpr("%d mV",gRefreshBattV);
+   }
+   else {
+      epdpr("%d mV",gTxBattV);
+   }
 #endif
 
-   printBarcode(gMacString,48,285);
+   NextLine(1);
+   DrawFwVer();
+
+#ifndef DISABLE_BARCODES
+   gTempY = gTempY + (2 * FONT_HEIGHT);
+   printBarcode(gMacString,48,gTempY);
+   gTempY += FONT_HEIGHT;
+#endif
+
+#ifndef LEAN_VERSION
+   loadRawBitmap(receive,100,gTempY + (2 * FONT_HEIGHT),EPD_COLOR_BLACK);
+#endif
    addOverlay();
 }
 
@@ -219,13 +338,24 @@ void showAPFound()
 
 void DrawNoAP() 
 {
-   epdPrintBegin(10,10,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+   gLargeFont = EPD_SIZE_DOUBLE;
+   gCharY = 0;
+   HorzCenterLine(14);
    epdpr("No AP found :(");
-   epdPrintBegin(10,274,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_SINGLE;
+   NextLine(3);
+   HorzCenterLine(36);
    epdpr("We'll try again in a little while...");
+
 #ifndef LEAN_VERSION
-   loadRawBitmap(receive, 76, 120, EPD_COLOR_BLACK);
-   loadRawBitmap(failed, 82, 122, EPD_COLOR_RED);
+// receive bitmap is 56 x 56
+
+   loadRawBitmap(receive,(SCREEN_WIDTH - 56)/2,(SCREEN_HEIGHT-56)/2,
+                 EPD_COLOR_BLACK);
+// failed bitmap is 48 x 48
+   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
    addOverlay();
 }
@@ -240,8 +370,10 @@ void showNoAP()
 
 void DrawLongTermSleep() 
 {
-   epdPrintBegin(SCREEN_WIDTH/2,SCREEN_HEIGHT/2,EPD_DIRECTION_X,
-                 EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   gLargeFont = EPD_SIZE_SINGLE;
+   gDirectionY = EPD_DIRECTION_X;
+   gWinColor = EPD_COLOR_BLACK;
+   CenterLine(8);
    epdpr("zzZZZ...");
    addOverlay();
 }
@@ -263,10 +395,11 @@ void DrawSleepForever()
 
 void DrawNoEEPROM() 
 {
-    epdPrintBegin(50,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-    epdpr("EEPROM FAILED :(");
+   epdPrintBegin(50,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   epdpr("EEPROM FAILED :(");
 #ifndef LEAN_VERSION
-    loadRawBitmap(failed,176,126,EPD_COLOR_RED);
+// failed bitmap is 48 x 48
+   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
 }
 
@@ -278,17 +411,12 @@ void showNoEEPROM()
 
 void DrawNoMAC() 
 {
-    epdPrintBegin(100,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
-    epdpr("NO MAC SET :(");
+   epdPrintBegin(100,3,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
+   epdpr("NO MAC SET :(");
 #ifndef LEAN_VERSION
-    loadRawBitmap(failed,176,126,EPD_COLOR_RED);
+// failed bitmap is 48 x 48
+   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
-}
-
-void showNoMAC()
-{
-   DrawScreen(DrawNoMAC);
-   DrawSleepForever();
 }
 
 bool displayCustomImage(uint8_t imagetype) 
