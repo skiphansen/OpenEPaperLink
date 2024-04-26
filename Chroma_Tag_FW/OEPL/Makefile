@@ -1,4 +1,4 @@
-BUILD ?= chroma42
+BUILD ?= chroma29
 LUT ?= atc1441
 FLAGS += -DBUILD=$(BUILD)
 

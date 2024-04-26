@@ -357,6 +357,11 @@ void main()
 // Log initial battery voltage and temperature
    LogSummary();
 
+   drawImageFromEeprom(1,0);
+   MAIN_LOG("done!\n");
+   while(true);
+
+
 #ifdef DEBUGGUI
    displayLoop(); // never returns
 #else
