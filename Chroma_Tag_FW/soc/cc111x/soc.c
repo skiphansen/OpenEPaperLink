@@ -103,6 +103,8 @@ void boardGetOwnMac()
 // Set mSelfMac from the device SN stored in the factory "NVRAM".
 // Note: apparently some boards have a 6 character SN and some have a 7.
 // Only the first 6 charcters are used.
+   xMemSet(gTempBuf320,0x00,sizeof(gTempBuf320));
+   
    if(prvReadSetting(0x2a,gTempBuf320,7) < 0 && prvReadSetting(1,gTempBuf320,6) < 0) {
       gEEpromFailure = true;
       return;
@@ -110,19 +112,33 @@ void boardGetOwnMac()
 
    mSelfMac[7] = 0x44;
    mSelfMac[6] = 0x67;
-#if 0
-// Dimtry's original code ignored the first two characters of the SN, but
-// they seem useful to me
-   mSelfMac[5] = 0x4b;
-   mSelfMac[4] = 0x7a;
-#else
-   mSelfMac[5] = gTempBuf320[0];
-   mSelfMac[4] = gTempBuf320[1];
-#endif
    mSelfMac[3] = gTempBuf320[2];
    mSelfMac[2] = gTempBuf320[3];
    mSelfMac[1] = gTempBuf320[4];
    mSelfMac[0] = gTempBuf320[5];
+   gTempBuf320[2] = 0;
+   LOGA("SN %s%02x%02x",gTempBuf320,mSelfMac[3],mSelfMac[2]);
+   LOGA("%02x%02x\n",mSelfMac[1],mSelfMac[0]);
+#if 0
+// Dimtry's original code ignored the first two characters of the SN, but
+// they seem useful to me.
+   mSelfMac[5] = 0x4b;
+   mSelfMac[4] = 0x7a;
+#else
+// Since the first 2 characters are known to be upper case ASCII subtract
+// 'A' from the value to convert it from a 7 bit value to a 5 bit value.
+// 
+// This allows us to use the extra 3 bits to convey something else like the
+// hardware variation.
+// 
+// i.e. Multiple incompatible hardware variations that need different FW 
+// images, but otherwise are compatible can share a single HWID and the 
+// AP but the AP can parse the "extra" bits in the MAC address to 
+// select the correct OTA image.
+
+   mSelfMac[5] = gTempBuf320[0] - 'A';
+   mSelfMac[4] = gTempBuf320[1] - 'A';
+#endif
    spr(gMacString,"%02X%02X",mSelfMac[7],mSelfMac[6]);
    spr(gMacString+4,"%02X%02X",mSelfMac[5],mSelfMac[4]);
    spr(gMacString+8,"%02X%02X",mSelfMac[3],mSelfMac[2]);
