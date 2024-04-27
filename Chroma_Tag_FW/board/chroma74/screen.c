@@ -834,12 +834,6 @@ static const uint8_t __code gPwrOffEpd[] = {
 };
 
 
-#pragma callee_saves screenPrvWaitByteSent
-static inline void screenPrvWaitByteSent(void)
-{
-   while (U0CSR & 0x01);
-}
-
 #pragma callee_saves screenPrvSendCommand
 static inline void screenPrvSendCommand(uint8_t cmdByte)
 {
@@ -850,22 +844,6 @@ static inline void screenPrvSendCommand(uint8_t cmdByte)
    __asm__("nop");
    screenPrvWaitByteSent();
    P0 |= P0_EPD_D_nCMD;
-}
-
-#pragma callee_saves einkSelect
-static inline void einkSelect(void)
-{
-   P1 &= (uint8_t) ~P1_EPD_nCS0;
-   __asm__("nop");   //60ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
-}
-
-#pragma callee_saves einkDeselect
-static inline void einkDeselect(void)
-{
-   screenPrvWaitByteSent();
-   __asm__("nop");   //20ns between select and anything else as per spec. at our clock speed that is less than a single cycle, so delay a cycle
-   P1 |= P1_EPD_nCS0;
-   __asm__("nop");   //40ns between deselect select and reselect as per spec. at our clock speed that is less than a single cycle, so delay a cycle
 }
 
 #ifdef DMITRY_LUT
@@ -1135,7 +1113,9 @@ void screenByteTx(uint8_t byte)
 
 void drawWithSleep() 
 {
-#ifndef DISABLE_DISPLAY
+#ifdef DISABLE_DISPLAY
+   LOGA("NOT updating display\n");
+#else
    uint16_t Lowest = 0xffff;
 
    LOGA("Updating display\n");
