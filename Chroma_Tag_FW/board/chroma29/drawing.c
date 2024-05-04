@@ -25,7 +25,7 @@ DrawingFunction gDrawingFunct;
 #pragma callee_saves prvPrintFormat
 void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __code *fmt, va_list vl) __reentrant __naked;
 
-// #define VERBOSE_DEBUGDRAWING
+#define VERBOSE_DEBUGDRAWING
 #ifdef VERBOSE_DEBUGDRAWING
    #define LOGV(format, ... ) pr(format,## __VA_ARGS__)
    #define LOG_HEXV(x,y) DumpHex(x,y)
@@ -39,16 +39,21 @@ __xdata int16_t gDrawX;
 // Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
 __xdata int16_t gDrawY;
 
+// Logical units
 __xdata int16_t gWinX;
 __xdata int16_t gWinEndX;
-__xdata int16_t gWinY;
 __xdata int16_t gWinEndY;
-
-__xdata int16_t gPartY;       // y coord of first line in part
-__xdata int16_t gWinDrawX;
-__xdata int16_t gWinDrawY;
 __xdata int16_t gCharX;
 __xdata int16_t gCharY;
+
+// Physical units
+__xdata int16_t gPhyX;
+__xdata int16_t gPhyY;
+__xdata int16_t gPartY;       // y coord of first line in part
+__xdata int16_t gWinY;
+
+__xdata int16_t gWinDrawX;
+__xdata int16_t gWinDrawY;
 __xdata int8_t gFontWidth;
 __xdata int8_t gFontHeight;
 __xdata int16_t gTempX;
@@ -256,45 +261,51 @@ void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color)
    bmp += (TempU16 + 2);
 
    while(Width) {
-      blockbuffer[gWinBufNdx++] |= *bmp++;
+      blockbuffer[gWinBufNdx--] |= *bmp++;
       Width = Width - 8;
    }
 }
 
+// physical X = 127 - logical y
+// physical Y = 295 - logical x
 void SetWinDrawNdx()
 {
-   LOGV("SetWinDrawNdx: gWinDrawY %d gWinY %d gDrawY %d\n",
-        gWinDrawY,gWinY,gDrawY);
-   gWinBufNdx = gWinDrawX >> 3;
-   LOGV("1 %d\n",gWinBufNdx);
+   LOGV("SetWinDrawNdx: gPartY %d gPhyX %d gPhyY %d gDrawY %d\n",
+        gPartY,gPhyX,gPhyY,gDrawY);
+   gWinBufNdx = gPhyX >> 3;
+   LOGV("gWinBufNdx 1 %d\n",gWinBufNdx);
    gWinBufNdx += (gWinDrawY - gPartY) * BYTES_PER_LINE;
-   LOGV("2 %d\n",gWinBufNdx);
+   LOGV("gWinBufNdx 2 %d\n",gWinBufNdx);
 }
 
-// Set window X position and width in pixels
+// Set logical window X position and width in pixels
+// return true if the window is outside of range we're drawing at the moment
 bool setWindowX(uint16_t start,uint16_t width) 
 {
    gWinX = start;
    gWinDrawX = start;
    gWinEndX = start + width;
-   LOGV("gWinEndX %d\n",gWinEndX);
-   SetWinDrawNdx();
-   return false;
+   gPhyY = (SCREEN_HEIGHT - 1) - start;
+   gWinDrawY = gDrawY;
+
+   LOGV("gDrawY %d start %d end %d",gDrawY,start,gWinEndX);
+   if(gPhyY >= gDrawY && gPhyY < gDrawY + width) {
+      gWinY = gPhyY - width + 1;
+      LOGV("\n");
+      return false;
+   }
+   LOGV(" outside window\n");
+   return true;
 }
 
-// Set window Y position and height in pixels
+// Set logical window Y position and height in pixels
 // return true if the window is outside of range we're drawing at the moment
 bool setWindowY(uint16_t start,uint16_t height) 
 {
+   gPhyX = start;
    gWinEndY = start + height;
-   if(gDrawY >= start && gDrawY < gWinEndY) {
-      gWinY = start;
-      gWinDrawY = gDrawY;
-      return false;
-   }
-   LOGV("Outside of window, gDrawY %d start %d end %d\n",
-        gDrawY,start,gWinEndY);
-   return true;
+   SetWinDrawNdx();
+   return false;
 }
 
 // https://raw.githubusercontent.com/basti79/LCD-fonts/master/10x16_vertikal_MSB_1.h
@@ -326,67 +337,46 @@ bool setWindowY(uint16_t start,uint16_t height)
 // So 16 bits [byte1]:[Byte 0}
 void writeCharEPD(uint8_t c) 
 {
-   uint16_t InMask;
+   uint16_t InMask = 0x8000;
    uint16_t FontBits;
    uint8_t OutMask;
 
-   OutMask = (0x80 >> (gCharX & 0x7));
+   OutMask = (0x80 >> (gPhyX & 0x7));
+//   OutMask = (0x80 >> (gDrawY & 0x7));
+
    c -= 0x20;
 
    LOGV("gCharY %d gCharX %d OutMask 0x%x\n",gCharY,gCharX,OutMask);
-   LOGV("gPartY %d gDrawX %d writeCharEPD c 0x%x\n",gDrawY,gDrawX,c);
-   if(!gDirectionY) {
-      if(gLargeFont) {
-         InMask = 0x8000 >> ((gDrawY - gWinY) / 2);
-      }
-      else {
-         InMask = 0x8000 >> (gDrawY - gWinY);
-      }
-      TempU16 = (gCharY - gWinY) * 2;
+   LOGV("gDrawY %d gWinY %d writeCharEPD c 0x%x\n",gDrawY,gWinY,c);
 
-      LOGV("  InMask 0x%x blockbuffer 0x%x\n",InMask,blockbuffer[gWinBufNdx]);
-      for(TempU8 = 0; TempU8 < gFontWidth; TempU8++) {
-         FontBits = (font[c][TempU16 + 1] << 8) | font[c][TempU16];
-         LOGV("  FontBits 0x%x\n",FontBits);
-         if(gLargeFont) {
-            if(TempU8 & 1) {
-               TempU16 += 2;
-            }
-         }
-         else {
-            TempU16 += 2;
-         }
-         if(FontBits & InMask) {
-            blockbuffer[gWinBufNdx] |= OutMask;
-         }
-         OutMask = OutMask >> 1;
-         if(OutMask == 0) {
-            LOGV("  Next out byte blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
-            gWinBufNdx++;
-            OutMask = 0x80;
-         }
-      }
-   }
-   else {
-      InMask = 0x1;
-      TempU16 = (gDrawY - gWinY) * 2;
-      FontBits = (font[c][TempU16 + 1] << 8) | font[c][TempU16];
+   LOGV("  In byte blockbuffer[%d] 0x%x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
 
-      LOGV("blockbuffer 0x%x FontBits 0x%x\n",blockbuffer[gWinBufNdx],FontBits);
-      while(InMask != 0) {
-         LOGV("  OutMask 0x%x InMask 0x%x gWinBufNdx 0x%x\n",OutMask,InMask,gWinBufNdx);
-         if(FontBits & InMask) {
-            blockbuffer[gWinBufNdx] |= OutMask;
-         }
-         InMask = InMask << 1;
-         OutMask = OutMask >> 1;
-         if(OutMask == 0) {
-            LOGV("  Next out byte blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
-            gWinBufNdx++;
-            OutMask = 0x80;
-         }
+#if 1
+   TempU16 = (gFontWidth - (gDrawY - gWinY) - 1) * 2;
+#else
+   TempU16 = (gDrawY - gWinY) * 2;
+#endif
+
+   FontBits = (font[c][TempU16] << 8) | font[c][TempU16 + 1];
+   LOGV("  FontBits 0x%x\n",FontBits);
+   for(TempU8 = 0; TempU8 < gFontHeight * 2; TempU8 += 2) {
+#if 1
+      if(FontBits & InMask) {
+         blockbuffer[gWinBufNdx] |= OutMask;
       }
-      LOGV("blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
+      InMask = InMask >> 1;
+      OutMask = OutMask >> 1;
+#else
+      if(TempU8 == 0) {
+         blockbuffer[gWinBufNdx] |= OutMask;
+      }
+#endif
+      if(OutMask == 0) {
+         LOGV("  Next out byte blockbuffer[%d] 0x%x\n",
+              gWinBufNdx,blockbuffer[gWinBufNdx]);
+         gWinBufNdx--;
+         OutMask = 0x80;
+      }
    }
 }
 
@@ -406,30 +396,15 @@ static void epdPutchar(uint32_t data) __reentrant
       return;
    }
 
-   if(gDirectionY) {
-      gFontHeight = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
-   }
-   else {
-      gFontHeight = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
-   }
-
-   if(!setWindowY(gCharY,gFontHeight)) {
-      if(gDirectionY) {
-         gFontWidth = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
-      }
-      else {
-         gFontWidth = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
-      }
-      setWindowX(gCharX,gFontWidth);
+   if(!setWindowX(gCharX,gFontWidth)) {
+      setWindowY(gCharY,gFontHeight);
       writeCharEPD(data >> 24);
    }
 
    if(gDirectionY) {
-      TempU16 = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
       gCharY += gFontHeight + 1;
    }
    else {
-      TempU16 = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
       gCharX += gFontWidth + 1;
    }
 }
@@ -469,7 +444,8 @@ void printBarcode(const char __xdata *string, uint16_t x, uint16_t y)
          }
          OutMask = OutMask >> 1;
          if(OutMask == 0) {
-            LOGV("  Next out byte blockbuffer 0x%x\n",blockbuffer[gWinBufNdx]);
+            LOGV("  Next out byte blockbuffer[%d] 0x%x\n",
+                 gWinBufNdx,blockbuffer[gWinBufNdx]);
             gWinBufNdx++;
             OutMask = 0x80;
          }

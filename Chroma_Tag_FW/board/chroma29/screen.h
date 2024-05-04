@@ -10,8 +10,44 @@ extern __bit gRedPass;
 extern __bit gDrawFromFlash;
 #define SCREEN_EXPECTS_VCOM
 
+// Physical
 #define SCREEN_WIDTH             128L
 #define SCREEN_HEIGHT            296L
+
+// Logical
+#define DISPLAY_WIDTH             SCREEN_HEIGHT
+#define DISPLAY_HEIGHT            SCREEN_WIDTH
+
+
+/*
+       Logical->rotated right 90 deg and mirrored -> Physical
+          Physical                          Logical
+    0,0 +-----------+ 127,0      0, 0 +----------------------+ 295,0  
+        |  part 0   |            -----|                      |        
+        |    -      |            cable|                      |        
+   0,73 |  part 1   | 127,73     -----|                      |        
+        |    -      |           0,127 +----------------------+ 295,127
+  0.147 |  part 2   | 127,147                                         
+        |    -      |                                                 
+  0,221 |  part 3   | 127,221                                         
+  0,295 +-----------+ 127,295                                         
+          | cable |                                                   
+                                 
+16 bytes per physical line  
+So physical X = 127 - logical y
+physical Y = 295 - logical x
+ 
++ (logical y
+*/
+#if 0
+#if SCREEN_HEIGHT > SCREEN_WIDTH
+#define SCREEN_ROTATED           1
+#else
+#define SCREEN_ROTATED           0
+#endif
+#endif
+
+#define SCREEN_ROTATED           0
 
 #define SCREEN_BYTE_FILL         0x66  //white for normal mode
 

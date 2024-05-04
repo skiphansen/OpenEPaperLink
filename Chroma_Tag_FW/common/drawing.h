@@ -12,7 +12,8 @@ extern __bit gLargeFont;
 extern __bit gDirectionY;
 extern __xdata int16_t gCharX;
 extern __xdata int16_t gCharY;
-
+extern __xdata int8_t gFontWidth;
+extern __xdata int8_t gFontHeight;
 extern __xdata int16_t gTempX;
 extern __xdata int16_t gTempY;
 extern __xdata int16_t gWinDrawX;

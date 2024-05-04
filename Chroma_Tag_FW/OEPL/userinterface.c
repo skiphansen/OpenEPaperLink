@@ -29,7 +29,7 @@ void DrawFwVer(void);
 
 void VertCenterLine()
 {
-   gCharY = (SCREEN_HEIGHT/2) - (FONT_HEIGHT / 2);
+   gCharY = (DISPLAY_HEIGHT - FONT_HEIGHT) / 2;
    if(gLargeFont) {
       gCharY -= (FONT_HEIGHT / 2);
    }
@@ -38,10 +38,10 @@ void VertCenterLine()
 void HorzCenterLine(uint8_t Chars)
 {
    if(gLargeFont) {
-      gCharX = (SCREEN_WIDTH/2) - (Chars * (FONT_WIDTH + 1));
+      gCharX = (DISPLAY_WIDTH/2) - (Chars * (FONT_WIDTH + 1));
    }
    else {
-      gCharX = (SCREEN_WIDTH/2) - ((Chars * (FONT_WIDTH + 1)/2));
+      gCharX = (DISPLAY_WIDTH/2) - ((Chars * (FONT_WIDTH + 1)/2));
    }
 }
 
@@ -60,22 +60,22 @@ void addOverlay()
 #endif
 
    if(gCurrentChannel == 0 && tagSettings.enableNoRFSymbol) {
-      loadRawBitmap(ant,SCREEN_WIDTH - 24,6,EPD_COLOR_BLACK);
-      loadRawBitmap(cross,SCREEN_WIDTH - 16,13,EPD_COLOR_RED);
+      loadRawBitmap(ant,DISPLAY_WIDTH - 24,6,EPD_COLOR_BLACK);
+      loadRawBitmap(cross,DISPLAY_WIDTH - 16,13,EPD_COLOR_RED);
       noAPShown = true;
    }
    else {
       noAPShown = false;
    }
    if(gLowBattery && tagSettings.enableLowBatSymbol) {
-      loadRawBitmap(battery,SCREEN_WIDTH - 24,SCREEN_HEIGHT - 16,EPD_COLOR_BLACK);
+      loadRawBitmap(battery,DISPLAY_WIDTH - 24,DISPLAY_HEIGHT - 16,EPD_COLOR_BLACK);
       gLowBatteryShown = true;
    }
    else {
       gLowBatteryShown = false;
    }
 #ifdef FW_VERSION_SUFFIX
-   epdPrintBegin(0,SCREEN_HEIGHT - FONT_HEIGHT - 2,
+   epdPrintBegin(0,DISPLAY_HEIGHT - FONT_HEIGHT - 2,
                  EPD_DIRECTION_X,
                  EPD_SIZE_SINGLE,
 #ifdef BWY
@@ -96,6 +96,15 @@ void SetTextPos(int16_t x, int16_t y)
     gCharY = y;
     gTempX = x;
     gTempY = y;
+
+    if(gDirectionY) {
+       gFontHeight = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
+       gFontWidth = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
+    }
+    else {
+       gFontHeight = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
+       gFontWidth = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
+    }
 }
 
 void NextLine(uint8_t Lines)
@@ -234,7 +243,7 @@ void showSplashScreen()
 
 void DrawApplyUpdate() 
 {
-#if SCREEN_WIDTH >= 640
+#if DISPLAY_WIDTH >= 640
    gLargeFont = EPD_SIZE_DOUBLE;
 #else
 // Large font won't fit on one line, two looks odd
@@ -242,8 +251,13 @@ void DrawApplyUpdate()
 #endif
    gDirectionY = EPD_DIRECTION_X;
    gWinColor = EPD_COLOR_BLACK;
-   CenterLine(18);
-   epdpr("Flashing v%04x ...",gUpdateFwVer);
+//   CenterLine(18);
+//   gCharX = 0;
+//   gCharY = 0;
+   CenterLine(1);
+   SetTextPos(gCharX,gCharY);
+//   epdpr("Flashing v%04x ...",gUpdateFwVer);
+   epdpr("ABCDE");
 }
 
 void showApplyUpdate()
@@ -298,7 +312,7 @@ void DrawAPFound()
    DrawTagMac();
 
    NextLine(1);
-#if SCREEN_WIDTH >= 640
+#if DISPLAY_WIDTH >= 640
    epdpr("VBat: %d mV, Txing: %d mV, Displaying: %d mV",
          gBattV,gTxBattV,gRefreshBattV);
 #else
@@ -352,10 +366,10 @@ void DrawNoAP()
 #ifndef LEAN_VERSION
 // receive bitmap is 56 x 56
 
-   loadRawBitmap(receive,(SCREEN_WIDTH - 56)/2,(SCREEN_HEIGHT-56)/2,
+   loadRawBitmap(receive,(DISPLAY_WIDTH - 56)/2,(DISPLAY_HEIGHT-56)/2,
                  EPD_COLOR_BLACK);
 // failed bitmap is 48 x 48
-   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
+   loadRawBitmap(failed,(DISPLAY_WIDTH-48)/2,(DISPLAY_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
    addOverlay();
 }
@@ -399,7 +413,7 @@ void DrawNoEEPROM()
    epdpr("EEPROM FAILED :(");
 #ifndef LEAN_VERSION
 // failed bitmap is 48 x 48
-   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
+   loadRawBitmap(failed,(DISPLAY_WIDTH-48)/2,(DISPLAY_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
 }
 
@@ -415,7 +429,7 @@ void DrawNoMAC()
    epdpr("NO MAC SET :(");
 #ifndef LEAN_VERSION
 // failed bitmap is 48 x 48
-   loadRawBitmap(failed,(SCREEN_WIDTH-48)/2,(SCREEN_HEIGHT-48)/2,EPD_COLOR_RED);
+   loadRawBitmap(failed,(DISPLAY_WIDTH-48)/2,(DISPLAY_HEIGHT-48)/2,EPD_COLOR_RED);
 #endif
 }
 
