@@ -40,7 +40,7 @@
 #define ENABLE_LOGGING  0
 
 // LOGA - generic logging, always enabled
-#define LOGA(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
+#define LOGA(format, ... ) printf(format,## __VA_ARGS__)
 // LOGE - error logging, always enabled
 #define LOGE(format, ... ) printf("%s: " format,__FUNCTION__,## __VA_ARGS__)
 
@@ -680,13 +680,12 @@ int CC1101_Rx(uint8_t *RxBuf,size_t RxBufLen,uint8_t *pRssi,uint8_t *pLqi)
             gFreqErrSumCount++;
             FreqCorrection = (int8_t) (gFreqErrSum / gFreqErrSumCount);
             if(gFreqCorrection != FreqCorrection) {
-               LOGA("gFreqCorrection changed from %d to %d\n",
-                    gFreqCorrection,FreqCorrection);
+               LOGA("FreqCorrection %d -> %d\n",gFreqCorrection,FreqCorrection);
                gFreqCorrection = FreqCorrection;
                CC1101_writeReg(CC1101_FSCTRL0,gFreqCorrection);
             }
             if(gFreqErrSumCount == 255) {
-               LOGA("Final gFreqCorrection %d\n",gFreqCorrection);
+               LOGA("Final FreqCorrection %d\n",gFreqCorrection);
             }
          }
       }
@@ -777,7 +776,7 @@ void CC1101_logState()
 
    MarcState = readStatusReg(CC1101_MARCSTATE);
    if(LastMarcState != MarcState) {
-      LOGA("MarcState 0x%x -> 0x%x\n",LastMarcState,MarcState);
+      LOG("MarcState 0x%x -> 0x%x\n",LastMarcState,MarcState);
       LastMarcState = MarcState;
    }
 }
