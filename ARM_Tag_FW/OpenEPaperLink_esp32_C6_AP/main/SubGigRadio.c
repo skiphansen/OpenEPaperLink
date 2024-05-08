@@ -412,6 +412,8 @@ SubGigErr SubGig_radioTx(uint8_t *packet)
       if(CC1101_Tx(packet)) {
          Ret = SUBGIG_TX_FAILED;
       }
+   // Clear RxAvailable, in TX GDO0 deasserts on TX FIFO underflows
+      gSubGigData.RxAvailable = false;
    // restore original len just in case anyone cares
       packet[0] += RAW_PKT_PADDING;
    } while(false);
