@@ -261,7 +261,7 @@ void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color)
    bmp += (TempU16 + 2);
 
    while(Width) {
-      blockbuffer[gWinBufNdx--] |= *bmp++;
+      blockbuffer[gWinBufNdx++] |= *bmp++;
       Width = Width - 8;
    }
 }
@@ -315,7 +315,7 @@ bool setWindowY(uint16_t start,uint16_t height)
 // 
 // Note: 
 //  The first bit on the left is the MSB of the second byte.  
-//  The last bit on the rigth is the LSB of the first byte.  
+//  The last bit on the right is the LSB of the first byte.  
 // 
 // For example: "L"
 // static const uint8_t __code font[96][20]={ // https://raw.githubusercontent.com/basti79/LCD-fonts/master/10x16_vertikal_MSB_1.h
@@ -341,40 +341,45 @@ void writeCharEPD(uint8_t c)
    uint16_t FontBits;
    uint8_t OutMask;
 
-   OutMask = (0x80 >> (gPhyX & 0x7));
-//   OutMask = (0x80 >> (gDrawY & 0x7));
-
-   c -= 0x20;
-
-   LOGV("gCharY %d gCharX %d OutMask 0x%x\n",gCharY,gCharX,OutMask);
-   LOGV("gDrawY %d gWinY %d writeCharEPD c 0x%x\n",gDrawY,gWinY,c);
-
+   LOGV("writeCharEPD c '%c' 0x%x gPhyX %d\n",c,c,gPhyX);
+   LOGV("  gDrawY %d gWinY %d gFontWidth %d\n",gDrawY,gWinY,gFontWidth);
    LOGV("  In byte blockbuffer[%d] 0x%x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
 
-#if 1
-   TempU16 = (gFontWidth - (gDrawY - gWinY) - 1) * 2;
-#else
-   TempU16 = (gDrawY - gWinY) * 2;
+   OutMask = 0x80 >> (gPhyX & 0x7);
+   LOGV("  OutMask 0x%x ",OutMask);
+   if(gLargeFont) {
+      TempU16 = FONT_WIDTH - ((gDrawY - gWinY)/2) - 1;
+#if 0
+      if((gDrawY - gWinY) & 0x1) {
+         InMask = 0x80;
+      }
 #endif
+   }
+   else {
+      TempU16 = FONT_WIDTH - (gDrawY - gWinY) - 1;
+   }
+   TempU16 = TempU16 * 2;
+   c -= 0x20;
+   FontBits = (font[c][TempU16+1] << 8) | font[c][TempU16];
+   LOGV("TempU16 %d FontBits 0x%x InMask 0x%x\n",TempU16,FontBits,InMask);
 
-   FontBits = (font[c][TempU16] << 8) | font[c][TempU16 + 1];
-   LOGV("  FontBits 0x%x\n",FontBits);
-   for(TempU8 = 0; TempU8 < gFontHeight * 2; TempU8 += 2) {
-#if 1
+   for(TempU8 = 0; TempU8 < gFontHeight; TempU8++) {
       if(FontBits & InMask) {
          blockbuffer[gWinBufNdx] |= OutMask;
       }
-      InMask = InMask >> 1;
-      OutMask = OutMask >> 1;
-#else
-      if(TempU8 == 0) {
-         blockbuffer[gWinBufNdx] |= OutMask;
+      if(gLargeFont) {
+         if(TempU8 & 1) {
+            InMask = InMask >> 1;
+         }
       }
-#endif
+      else {
+         InMask = InMask >> 1;
+      }
+      OutMask = OutMask >> 1;
       if(OutMask == 0) {
          LOGV("  Next out byte blockbuffer[%d] 0x%x\n",
               gWinBufNdx,blockbuffer[gWinBufNdx]);
-         gWinBufNdx--;
+         gWinBufNdx++;
          OutMask = 0x80;
       }
    }

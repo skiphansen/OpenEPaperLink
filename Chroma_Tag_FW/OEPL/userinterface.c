@@ -249,13 +249,16 @@ void DrawApplyUpdate()
 // Large font won't fit on one line, two looks odd
    gLargeFont = EPD_SIZE_SINGLE;
 #endif
+   gLargeFont = EPD_SIZE_DOUBLE;
    gDirectionY = EPD_DIRECTION_X;
    gWinColor = EPD_COLOR_BLACK;
 //   CenterLine(18);
 //   gCharX = 0;
 //   gCharY = 0;
-   CenterLine(1);
+//   SetTextPos(0,0);
+   CenterLine(4);
    SetTextPos(gCharX,gCharY);
+
 //   epdpr("Flashing v%04x ...",gUpdateFwVer);
    epdpr("ABCDE");
 }
