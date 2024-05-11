@@ -54,7 +54,7 @@ __xdata int16_t gWinY;
 
 __xdata int16_t gWinDrawX;
 __xdata int16_t gWinDrawY;
-__xdata int8_t gFontWidth;
+__xdata int8_t gCharWidth;
 __xdata int8_t gFontHeight;
 __xdata int16_t gTempX;
 __xdata int16_t gTempY;
@@ -335,33 +335,46 @@ bool setWindowY(uint16_t start,uint16_t height)
 // |              +--- Bottom
 // +-- Top 
 // So 16 bits [byte1]:[Byte 0}
-void writeCharEPD(uint8_t c) 
+#pragma callee_saves epdPutchar
+static void epdPutchar(uint32_t data) __reentrant 
 {
-   uint16_t InMask = 0x8000;
+   uint16_t InMask;
    uint16_t FontBits;
    uint8_t OutMask;
 
-   LOGV("writeCharEPD c '%c' 0x%x gPhyX %d\n",c,c,gPhyX);
-   LOGV("  gDrawY %d gWinY %d gFontWidth %d\n",gDrawY,gWinY,gFontWidth);
+   if(gWinColor != gRedPass) {
+      return;
+   }
+
+   OutMask = (uint8_t) (data >> 24);   // Character we are displaying
+   TempU16 = gFontIndexTbl[OutMask - 0x20];
+   gCharWidth = TempU16 >> 12;
+   if(gLargeFont) {
+      gCharWidth = gCharWidth * 2;
+   }
+   TempU8 = gCharX;
+   gCharX += gCharWidth + 1;
+
+   if(setWindowX(TempU8,gCharWidth)) {
+      return;
+   }
+   setWindowY(gCharY,gFontHeight);
+   TempU16 &= 0xfff;
+   InMask = 0x8000;
+   LOGV("writeCharEPD '%c' gPhyX %d\n",OutMask,gPhyX);
+   LOGV("  gDrawY %d gWinY %d gCharWidth %d\n",gDrawY,gWinY,gCharWidth);
    LOGV("  In byte blockbuffer[%d] 0x%x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
 
    OutMask = 0x80 >> (gPhyX & 0x7);
    LOGV("  OutMask 0x%x ",OutMask);
+
+   TempU8 = gCharWidth - (gDrawY - gWinY) - 1;
    if(gLargeFont) {
-      TempU16 = FONT_WIDTH - ((gDrawY - gWinY)/2) - 1;
-#if 0
-      if((gDrawY - gWinY) & 0x1) {
-         InMask = 0x80;
-      }
-#endif
+      TempU8 /= 2;
    }
-   else {
-      TempU16 = FONT_WIDTH - (gDrawY - gWinY) - 1;
-   }
-   TempU16 = TempU16 * 2;
-   c -= 0x20;
-   FontBits = (font[c][TempU16+1] << 8) | font[c][TempU16];
-   LOGV("TempU16 %d FontBits 0x%x InMask 0x%x\n",TempU16,FontBits,InMask);
+   TempU16 += TempU8;
+   FontBits = gPackedData[TempU16 & 0xfff];
+   LOGV("TempU16 %d gFontHeight %d FontBits 0x%x\n",TempU16,gFontHeight,FontBits);
 
    for(TempU8 = 0; TempU8 < gFontHeight; TempU8++) {
       if(FontBits & InMask) {
@@ -377,11 +390,14 @@ void writeCharEPD(uint8_t c)
       }
       OutMask = OutMask >> 1;
       if(OutMask == 0) {
-         LOGV("  Next out byte blockbuffer[%d] 0x%x\n",
-              gWinBufNdx,blockbuffer[gWinBufNdx]);
+         LOGV("  blockbuffer[%d] 0x%x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
          gWinBufNdx++;
          OutMask = 0x80;
       }
+   }
+   if(OutMask != 0x80) {
+      LOGV("  blockbuffer[%d] 0x%x\n",
+           gWinBufNdx,blockbuffer[gWinBufNdx]);
    }
 }
 
@@ -392,26 +408,6 @@ void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color
    gWinColor = color;
    gCharX = x;
    gCharY = y;
-}
-
-#pragma callee_saves epdPutchar
-static void epdPutchar(uint32_t data) __reentrant 
-{
-   if(gWinColor != gRedPass) {
-      return;
-   }
-
-   if(!setWindowX(gCharX,gFontWidth)) {
-      setWindowY(gCharY,gFontHeight);
-      writeCharEPD(data >> 24);
-   }
-
-   if(gDirectionY) {
-      gCharY += gFontHeight + 1;
-   }
-   else {
-      gCharX += gFontWidth + 1;
-   }
 }
 
 void epdpr(const char __code *fmt, ...) __reentrant 
