@@ -18,7 +18,7 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "settings.h"
 #include "userinterface.h"
 #include "logging.h"
-#include "font.h"
+#include "packed_font.h"
 
 DrawingFunction gDrawingFunct;
 
@@ -373,7 +373,7 @@ static void epdPutchar(uint32_t data) __reentrant
       TempU8 /= 2;
    }
    TempU16 += TempU8;
-   FontBits = gPackedData[TempU16 & 0xfff];
+   FontBits = gPackedData[TempU16];
    LOGV("TempU16 %d gFontHeight %d FontBits 0x%x\n",TempU16,gFontHeight,FontBits);
 
    for(TempU8 = 0; TempU8 < gFontHeight; TempU8++) {

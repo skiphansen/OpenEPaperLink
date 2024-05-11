@@ -16,7 +16,7 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "settings.h"
 #include "userinterface.h"
 #include "logging.h"
-#include "font.h"
+#include "packed_font.h"
 
 #pragma callee_saves prvPrintFormat
 void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __code *fmt, va_list vl) __reentrant __naked;
