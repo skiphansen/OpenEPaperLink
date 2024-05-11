@@ -10,8 +10,13 @@ extern int8_t __xdata mCurTemperature;
 
 #define SCREEN_EXPECTS_VCOM
 
+// Physical
 #define SCREEN_WIDTH             640L
 #define SCREEN_HEIGHT            384L
+
+// Logical
+#define DISPLAY_WIDTH             SCREEN_WIDTH 
+#define DISPLAY_HEIGHT            SCREEN_HEIGHT
 
 #define SCREEN_NUM_GREYS         7
 #define SCREEN_FIRST_GREY_IDX    0
