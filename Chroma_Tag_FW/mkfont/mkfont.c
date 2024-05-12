@@ -22,7 +22,7 @@ int getopt(int argc,char **argv,char *opts);
 #define FONT_HEIGHT  16
 #define FONT_WIDTH   10
 
-#define OPTION_STRING  "v"
+#define OPTION_STRING  "lv"
 
 #define LOG(format, ... ) fprintf(stderr,format,## __VA_ARGS__)
 #define LOGV(format, ... ) if(gVerbose) LOG(format,## __VA_ARGS__)
@@ -32,24 +32,23 @@ uint16_t gPackedData[DEFINED_CHARS * FONT_HEIGHT];
 uint16_t gFontData[DEFINED_CHARS][FONT_HEIGHT];
 bool gVerbose = false;
 
+int PackFont(void);
+int ListFont(void);
+void FillFontData(void);
+
 int main(int argc, char *argv[])
 {
-   int FontDataOffset = 0;
-   int FontDataLen;
-   int i;
-   int j;
-   int FirstBit;
-   int LastBit;
-   int IndexValue;
-   int CharWidth;
-   int TotalCharWidth = 0;
-   uint8_t *pPackedData = (uint8_t *) gPackedData;
    int Ret = 0; // Assume the best
    int Option;
+   bool bList = false;
 
    while(Ret == 0 && (Option = getopt(argc,argv,OPTION_STRING)) != -1) {
       switch(Option) {
-         case 'v':   // display CRC and exit
+         case 'l':
+            bList = true;
+            break;
+
+         case 'v':
             gVerbose = true;
             break;
 
@@ -61,22 +60,33 @@ int main(int argc, char *argv[])
 
    if(Ret != 0) {
       printf("Usage: mkfont [-v] > <output_file>\n");
-      exit(Ret);
+      printf("        mkfont -l\n");
    }
+   else if(bList) {
+      ListFont();
+   }
+   else {
+      PackFont();
+   }
+   return Ret;
+}
 
-// convert font[] from byte array to uint16_t array
-   for(i = 0; i < DEFINED_CHARS; i++) {
-      for(j = 0; j < FONT_WIDTH; j++) {
-         gFontData[i][j] = font[i][j * 2] | (font[i][(j * 2) + 1] << 8);
-      }
-      LOGV("Char '%c':\n",' ' + i);
-      for(j = 0; j < FONT_WIDTH; j++) {
-         LOGV("%s0x%04x",j == 0 ?  "" : ", ",gFontData[i][j]);
-      }
-      LOGV("\n");
-   }
+int PackFont()
+{
+   int FontDataOffset = 0;
+   int FontDataLen;
+   int i;
+   int j;
+   int FirstBit;
+   int LastBit;
+   int IndexValue;
+   int CharWidth;
+   int TotalCharWidth = 0;
+   uint8_t *pPackedData = (uint8_t *) gPackedData;
+
+   FillFontData();
+
 // Create a 7 bit wide space (averge char with is 6.7 bits)
-
    for(i = 0; i < DEFINED_CHARS; i++) {
       for(j = 0; j < FONT_WIDTH; j++) {
          if(gFontData[i][j] != 0) {
@@ -166,6 +176,64 @@ int main(int argc, char *argv[])
    printf("\n};\n\n");
 
    return 0;
+}
+
+int ListFont()
+{
+   int i;
+   int j;
+   int k;
+   uint16_t Mask;
+
+   FillFontData();
+
+   for(i = 0; i < DEFINED_CHARS; i++) {
+      printf("Char 0x%x",' ' + i);
+      if((' ' + i) != 0x7f) {
+         printf(", '%c'",' ' + i);
+      }
+      printf("\n");
+
+      Mask = 0x8000;
+      for(j = 0; j < FONT_HEIGHT; j++) {
+         printf("Line %2d: |",j);
+         for(k = 0; k < FONT_WIDTH; k++) {
+            printf("%c",(gFontData[i][k] & Mask) ? '*' : ' ');
+         }
+         Mask >>= 1;
+         printf("|\n");
+      }
+
+      for(j = 0; j < FONT_HEIGHT; j++) {
+         printf("0x%04x ",gFontData[i][j]);
+      }
+      printf("\n");
+   }
+
+   return 0;
+}
+
+void FillFontData()
+{
+   int i;
+   int j;
+
+// convert font[] from byte array to uint16_t array
+   for(i = 0; i < DEFINED_CHARS; i++) {
+      for(j = 0; j < FONT_WIDTH; j++) {
+         gFontData[i][j] = font[i][j * 2] | (font[i][(j * 2) + 1] << 8);
+      }
+      LOGV("Char '%c':\n",' ' + i);
+      for(j = 0; j < FONT_WIDTH; j++) {
+         LOGV("%s0x%04x",j == 0 ?  "" : ", ",gFontData[i][j]);
+      }
+      if(gVerbose) {
+         for(j = 0; j < FONT_WIDTH; j++) {
+            LOGV("%s0x%04x",j == 0 ?  "" : ", ",gFontData[i][j]);
+         }
+      }
+      LOGV("\n");
+   }
 }
 
 #ifdef _WIN32

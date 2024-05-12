@@ -9,8 +9,6 @@ set(CMAKE_BUILD_TYPE "Debug")
 # Compilation options
 set(CMAKE_C_FLAGS "-std=gnu99 -Wall")
 
-include_directories(../../zbs243_shared)
-
 # Sources for this executable
 set (SOURCES 
    mkfont.c
