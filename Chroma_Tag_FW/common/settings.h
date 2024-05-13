@@ -23,7 +23,7 @@
 //#define DEBUG_TX_DATA            // display subgig tx packets
 // #define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
-// #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
+#define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
 // #define DEBUG_CHIP_CFG   // log chip configuration
 // #define LEAN_VERSION // disable bitmaps to save code space
 

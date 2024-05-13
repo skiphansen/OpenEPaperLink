@@ -10,10 +10,6 @@
 
 extern const char * __code gBoardName;
 
-#if BUILD == chroma29y
-#define BWY
-#endif
-
 //eeprom spi
 #define EEPROM_SIZE              0x0020000L
 #define EEPROM_4K_ERASE_OPCODE   0x20

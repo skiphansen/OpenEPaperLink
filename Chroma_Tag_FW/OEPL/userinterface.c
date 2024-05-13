@@ -44,23 +44,29 @@ void addOverlay()
 // force icons to be display for testing
    gLowBattery = true;
    gCurrentChannel = 0;
+   gLowBatteryShown = false;
+   tagSettings.enableNoRFSymbol = true;
+   tagSettings.enableLowBatSymbol = true;
 #endif
 
    if(gCurrentChannel == 0 && tagSettings.enableNoRFSymbol) {
+      gWinColor = EPD_COLOR_BLACK;
       gBmpX = DISPLAY_WIDTH - 24;
-      gBmpY = 13;
-      gWinColor = EPD_COLOR_RED;
+      gBmpY = 6;
       loadRawBitmap(ant);
+      gWinColor = EPD_COLOR_RED;
       gBmpX = DISPLAY_WIDTH - 16;
+      gBmpY = 13;
+      loadRawBitmap(cross);
       noAPShown = true;
    }
    else {
       noAPShown = false;
    }
    if(gLowBattery && tagSettings.enableLowBatSymbol) {
+      gWinColor = EPD_COLOR_BLACK;
       gBmpX = DISPLAY_WIDTH - 24;
       gBmpY = DISPLAY_HEIGHT - 16;
-      gWinColor = EPD_COLOR_BLACK;
       loadRawBitmap(battery);
       gLowBatteryShown = true;
    }
@@ -334,7 +340,6 @@ void DrawNoAP()
 // and the right side of the display
    gBmpY = gCharY;
    gBmpX = gCharX + (DISPLAY_WIDTH - gCharX - 56)/2;
-   LOG("0: gCharX %d gBmpX %d gBmpY %d\n",gCharX,gBmpX,gBmpY);
    if(gBmpX & 0x7) {
    // round back to byte boundary
       gBmpX -= (gBmpX & 0x7);
@@ -347,16 +352,13 @@ void DrawNoAP()
    loadRawBitmap(receive);
 // failed bitmap is 48 x 48, adjust starting position to
 // overlay the receive ICON
-   gBmpX += (56 - 48);
    gBmpY += (56 - 48);
    LOG("1: gCharX %d gBmpX %d gBmpY %d\n",gCharX,gBmpX,gBmpY);
 
    gWinColor = EPD_COLOR_RED;
    loadRawBitmap(failed);
 #endif
-#if 0
    addOverlay();
-#endif
 }
 
 void showNoAP()

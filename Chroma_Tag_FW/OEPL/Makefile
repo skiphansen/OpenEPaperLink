@@ -3,6 +3,7 @@ LUT ?= atc1441
 FLAGS += -DBUILD=$(BUILD)
 
 ifeq ($(BUILD),chroma74y)
+FLAGS += -DBWY
 BOARD=chroma74
 else ifeq ($(BUILD),chroma74r)
 BOARD=chroma74
@@ -21,6 +22,8 @@ else ifeq ($(LUT),dmitry)
 FLAGS += -DDMITRY_LUT
 endif
 endif
+
+
 
 FW_VER := $(shell grep "\#define FW_VERSION" ../common/settings.h | grep -v "suffix" | awk '{print $$3}' | cut -c 3-)
 
