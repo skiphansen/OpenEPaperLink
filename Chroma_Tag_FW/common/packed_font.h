@@ -1,4 +1,4 @@
-static const uint16_t __code gFontIndexTbl[96] = {
+const uint16_t __code gFontIndexTbl[96] = {
    0x7000,   // Char ' ' width 7, data offset 0x0
    0x1007,   // Char '!' width 1, data offset 0x7
    0x5008,   // Char '"' width 5, data offset 0x8
@@ -98,7 +98,7 @@ static const uint16_t __code gFontIndexTbl[96] = {
 
 };
 
-static const uint16_t __code gPackedData[660] = {
+const uint16_t __code gPackedData[660] = {
 // 0x0
    0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x7fd8,
 // 0x8

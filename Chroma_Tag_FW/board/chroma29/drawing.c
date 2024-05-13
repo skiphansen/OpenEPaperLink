@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
-typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 #include "../oepl-definitions.h"
 #include "soc.h"
 #include "board.h"
@@ -18,12 +17,11 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 #include "settings.h"
 #include "userinterface.h"
 #include "logging.h"
+#include "draw_common.h"
 #include "packed_font.h"
 
 DrawingFunction gDrawingFunct;
 
-#pragma callee_saves prvPrintFormat
-void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __code *fmt, va_list vl) __reentrant __naked;
 
 #define VERBOSE_DEBUGDRAWING
 #ifdef VERBOSE_DEBUGDRAWING
@@ -34,19 +32,25 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
    #define LOG_HEXV(x,y)
 #endif
 
+// Logical units
+__xdata int16_t gWinX;
+__xdata int16_t gWinEndY;
+__xdata int16_t gCharX;
+__xdata int16_t gCharY;
+__xdata int16_t gLeftMargin;
+
+__xdata int16_t gBmpX;
+__xdata int16_t gBmpY;
+
+
+// Physical units
+
 // Pixel we are drawing currently 0 -> SCREEN_WIDTH - 1
 __xdata int16_t gDrawX;
 // Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
 __xdata int16_t gDrawY;
 
-// Logical units
-__xdata int16_t gWinX;
-__xdata int16_t gWinEndX;
-__xdata int16_t gWinEndY;
-__xdata int16_t gCharX;
-__xdata int16_t gCharY;
 
-// Physical units
 __xdata int16_t gPhyX;
 __xdata int16_t gPhyY;
 __xdata int16_t gPartY;       // y coord of first line in part
@@ -56,8 +60,6 @@ __xdata int16_t gWinDrawX;
 __xdata int16_t gWinDrawY;
 __xdata int8_t gCharWidth;
 __xdata int8_t gFontHeight;
-__xdata int16_t gTempX;
-__xdata int16_t gTempY;
 
 __xdata uint16_t gWinBufNdx;
 __bit gWinColor;
@@ -65,6 +67,7 @@ __bit gLargeFont;
 __bit gDirectionY;
 __bit g2BitsPerPixel;   // Input file
 __bit gDrawFromFlash;
+__bit gCenterLine;
 
 // NB: 8051 data / code space saving KLUDGE!
 // Use the locally in a routine but DO NOT call anything if you care
@@ -229,31 +232,30 @@ void DrawScreen(DrawingFunction DrawIt)
 // bmp[0] =  bmp width in pixels (must be a multiple of 8)
 // bmp[1] =  bmp height in pixels
 // bmp[2...] = pixel data 1BBP
-void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color) 
+void loadRawBitmap(uint8_t *bmp)
 {
    uint8_t Width = bmp[0];
 
    LOGV("gDrawY %d\n",gDrawY);
-   LOGV("ld bmp x %d, y %d, color %d\n",x,y,color);
+   LOGV("ld bmp gBmpX %d, gBmpY %d, color %d\n",gBmpX,gBmpY,gWinColor);
 
-   if(color != gRedPass) {
+   if(gWinColor != gRedPass) {
       return;
    }
 
-   if(setWindowY(y,bmp[1])) {
+   if(setWindowX(gBmpX,Width)) {
    // Nothing to do Y limit are outside of what we're drawing at the moment
       return;
    }
-   gWinColor = color;
 #ifdef DEBUGDRAWING
-   if((x & 0x7) != 0) {
-      LOG("loadRawBitmap invaild x %x\n",x);
+   if((gBmpX & 0x7) != 0) {
+      LOG("loadRawBitmap invalid x %x\n",gBmpX);
    }
    if((Width & 0x7) != 0) {
-      LOG("loadRawBitmap invaild Width %x\n",Width);
+      LOG("loadRawBitmap invalid Width %x\n",Width);
    }
 #endif
-   setWindowX(x,Width);
+   setWindowY(gBmpY,bmp[1]);
 
    TempU16 = gWinDrawY - gWinY;
    TempU16 = TempU16 * Width;
@@ -284,17 +286,14 @@ bool setWindowX(uint16_t start,uint16_t width)
 {
    gWinX = start;
    gWinDrawX = start;
-   gWinEndX = start + width;
    gPhyY = (SCREEN_HEIGHT - 1) - start;
    gWinDrawY = gDrawY;
 
-   LOGV("gDrawY %d start %d end %d",gDrawY,start,gWinEndX);
    if(gPhyY >= gDrawY && gPhyY < gDrawY + width) {
+      LOGV("gDrawY %d start %d end %d\n",gDrawY,start,start + width);
       gWinY = gPhyY - width + 1;
-      LOGV("\n");
       return false;
    }
-   LOGV(" outside window\n");
    return true;
 }
 
@@ -336,15 +335,11 @@ bool setWindowY(uint16_t start,uint16_t height)
 // +-- Top 
 // So 16 bits [byte1]:[Byte 0}
 #pragma callee_saves epdPutchar
-static void epdPutchar(uint32_t data) __reentrant 
+void epdPutchar(uint32_t data) __reentrant 
 {
    uint16_t InMask;
    uint16_t FontBits;
    uint8_t OutMask;
-
-   if(gWinColor != gRedPass) {
-      return;
-   }
 
    OutMask = (uint8_t) (data >> 24);   // Character we are displaying
    TempU16 = gFontIndexTbl[OutMask - 0x20];
@@ -355,7 +350,7 @@ static void epdPutchar(uint32_t data) __reentrant
    TempU8 = gCharX;
    gCharX += gCharWidth + 1;
 
-   if(setWindowX(TempU8,gCharWidth)) {
+   if(gWinColor != gRedPass || setWindowX(TempU8,gCharWidth)) {
       return;
    }
    setWindowY(gCharY,gFontHeight);
@@ -399,24 +394,6 @@ static void epdPutchar(uint32_t data) __reentrant
       LOGV("  blockbuffer[%d] 0x%x\n",
            gWinBufNdx,blockbuffer[gWinBufNdx]);
    }
-}
-
-void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color) 
-{
-   gLargeFont = fontsize;
-   gDirectionY = direction;
-   gWinColor = color;
-   gCharX = x;
-   gCharY = y;
-}
-
-void epdpr(const char __code *fmt, ...) __reentrant 
-{
-    va_list vl;
-    va_start(vl, fmt);
-    LOGV("epdpr '%s'\n",fmt);
-    prvPrintFormat(epdPutchar, 0, fmt, vl);
-    va_end(vl);
 }
 
 #define BARCODE_ROWS    40

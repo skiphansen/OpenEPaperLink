@@ -2,13 +2,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include "printf.h"
+#include "draw_common.h"
 #include "board.h"
 #include "cpu.h"
 #include "powermgt.h"
 
 __bit gUartWasSelected;
 
-typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
 
 //this implementation assumes XDATA == CODESPACE (as it is true on TI's CC111x)
 

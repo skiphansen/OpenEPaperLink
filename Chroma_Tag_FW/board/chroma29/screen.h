@@ -18,6 +18,8 @@ extern __bit gDrawFromFlash;
 #define DISPLAY_WIDTH             SCREEN_HEIGHT
 #define DISPLAY_HEIGHT            SCREEN_WIDTH
 
+// or 26 x 8 characters with a 10 x 16 font
+
 
 /*
        Logical->rotated right 90 deg and mirrored -> Physical
