@@ -164,50 +164,52 @@ void DrawFwVer()
 
 void DrawSplashScreen()
 {
+   SetDrawingDefaults();
    gLargeFont = EPD_SIZE_DOUBLE;
-   gDirectionY = EPD_DIRECTION_X;
-   gWinColor = EPD_COLOR_BLACK;
 
+#if DISPLAY_WIDTH == 296
+// 2.9"
+   epdpr("OpenEPaperLink");
+#elif DISPLAY_WIDTH >= 640
+// 7.4" or wider
    gCharX = 48;
    gCharY = 80;
-//   epdPrintBegin(48,80,EPD_DIRECTION_X,EPD_SIZE_DOUBLE,EPD_COLOR_BLACK);
    epdpr("Starting...");
-
+#endif
    gLargeFont = EPD_SIZE_SINGLE;
-
-
-//   epdPrintBegin(48,144,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
-   NextLine(4);
+   NextLine(SPLASH_HDR_SPACE);
    DrawFwVer();
-#if 0
-   epdPrintBegin(48,176,EPD_DIRECTION_X,EPD_SIZE_SINGLE,
-#ifdef BWY
-// Yellow is very low constrast, make it black for BWY displays
-                 EPD_COLOR_BLACK);
-#else
-                 EPD_COLOR_RED);
-#endif
-#endif
    NextLine(2);
-   DrawTagMac();
 
-//   epdPrintBegin(48,192,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+   DrawTagMac();
    NextLine(1);
+
    epdpr("VBat: %d mV",gBootBattV);
    NextLine(1);
-//   epdPrintBegin(48,208,EPD_DIRECTION_X,EPD_SIZE_SINGLE,EPD_COLOR_BLACK);
+
    epdpr("Temperature %dC",gTemperature);
 
-#ifndef LEAN_VERSION
-   gBmpX = 136;
-   gBmpY = 22;
-   gWinColor = EPD_COLOR_BLACK;
-   loadRawBitmap(oepli);
+#ifdef SPLASH_LOGO_X
    gWinColor = EPD_COLOR_RED;
-   gBmpY = 10;
-   loadRawBitmap(cloud);
-#endif
+   gBmpX = SPLASH_LOGO_X;
+   gBmpY = SPLASH_LOGO_Y;
+   LOG("0: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   gBmpX -= CloudTop[1];
+   LOG("1: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   loadRawBitmap(CloudTop);
 
+   gWinColor = EPD_COLOR_BLACK;
+   LOG("2: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   gBmpX -= oepli[1];
+   LOG("3: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   loadRawBitmap(oepli);
+
+   LOG("4: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   gBmpX -= CloudBottom[1];
+   LOG("5: gBmpX %d gBmpY %d\n",gBmpX,gBmpY);
+   gWinColor = EPD_COLOR_RED;
+   loadRawBitmap(CloudBottom);
+#endif
 }
 
 void showSplashScreen()

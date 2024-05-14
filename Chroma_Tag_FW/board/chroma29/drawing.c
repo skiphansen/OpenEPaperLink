@@ -234,42 +234,69 @@ void DrawScreen(DrawingFunction DrawIt)
 // bmp[2...] = pixel data 1BBP
 void loadRawBitmap(uint8_t *bmp)
 {
-   uint8_t Width = bmp[0];
+   uint8_t Width;
+   uint8_t Bits;
 
-   LOGV("gDrawY %d\n",gDrawY);
-   LOGV("ld bmp gBmpX %d, gBmpY %d, color %d\n",gBmpX,gBmpY,gWinColor);
-
-   if(gWinColor != gRedPass) {
-      return;
-   }
-
-   if(setWindowX(gBmpX,Width)) {
+   if(gWinColor != gRedPass || setWindowX(gBmpX,bmp[1])) {
    // Nothing to do Y limit are outside of what we're drawing at the moment
       return;
    }
-#ifdef DEBUGDRAWING
-   if((gBmpX & 0x7) != 0) {
-      LOG("loadRawBitmap invalid x %x\n",gBmpX);
-   }
-   if((Width & 0x7) != 0) {
-      LOG("loadRawBitmap invalid Width %x\n",Width);
-   }
-#endif
-   setWindowY(gBmpY,bmp[1]);
+   Width = bmp[0];
+   setWindowY(gBmpY,Width);
+
+   LOGV("ld bmp gBmpX %d, gBmpY %d, color %d\n",gBmpX,gBmpY,gWinColor);
+   LOGV("gDrawY %d height %d\n",gDrawY,bmp[1]);
 
    TempU16 = gWinDrawY - gWinY;
+   LOGV("TempU16 %d\n",TempU16);
    TempU16 = TempU16 * Width;
+   LOGV("TempU16 %d\n",TempU16);
    TempU16 = TempU16 >> 3;
+   LOGV("TempU16 %d\n",TempU16);
    bmp += (TempU16 + 2);
 
-   while(Width) {
-      blockbuffer[gWinBufNdx++] |= *bmp++;
-      Width = Width - 8;
+   if((gPhyX & 0x7) != 0 || (Width & 0x7) != 0) {
+      uint8_t OutMask = 0x80 >> (gPhyX & 0x7);
+      uint8_t InMask = 0x80;
+      LOGV("Using slow method\nwidth %d ",Width);
+
+      Bits = *bmp++;
+      while(Width--) {
+         LOGV("Bits 0x%02x InMask 0x%02x OutMask 0x%02x\n",Bits,InMask,OutMask);
+         if(Bits & InMask) {
+            blockbuffer[gWinBufNdx] |= OutMask;
+         }
+         LOGV("blockbuffer[%d] 0x%02x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
+         InMask >>= 1;
+         if(InMask == 0) {
+            Bits = *bmp++;
+            InMask = 0x80;
+            LOGV("New Bits 0x%02x\n",Bits);
+         }
+
+         OutMask >>= 1;
+         if(OutMask == 0) {
+            OutMask = 0x80;
+            gWinBufNdx++;
+            LOGV("new blockbuffer[%d] 0x%02x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
+         }
+         LOGV("Width %d ",Width);
+      }
+      LOGV("blockbuffer[%d] 0x%02x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
+   }
+   else {
+      LOGV("Using fast method width %d bits 0x%02x\n",Width,*bmp);
+      while(Width) {
+         blockbuffer[gWinBufNdx] |= *bmp++;
+         LOGV("blockbuffer[%d] 0x%02x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
+         gWinBufNdx++;
+         Width -= 8;
+      }
    }
 }
 
-// physical X = 127 - logical y
-// physical Y = 295 - logical x
+// physical Y = 295 - logical X
+// physical X = logical Y
 void SetWinDrawNdx()
 {
    LOGV("SetWinDrawNdx: gPartY %d gPhyX %d gPhyY %d gDrawY %d\n",
