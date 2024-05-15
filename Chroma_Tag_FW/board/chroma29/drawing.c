@@ -23,7 +23,7 @@
 DrawingFunction gDrawingFunct;
 
 
-#define VERBOSE_DEBUGDRAWING
+// #define VERBOSE_DEBUGDRAWING
 #ifdef VERBOSE_DEBUGDRAWING
    #define LOGV(format, ... ) pr(format,## __VA_ARGS__)
    #define LOG_HEXV(x,y) DumpHex(x,y)
@@ -369,6 +369,22 @@ void epdPutchar(uint32_t data) __reentrant
    uint8_t OutMask;
 
    OutMask = (uint8_t) (data >> 24);   // Character we are displaying
+
+   if(OutMask < 0x20) {
+      switch(OutMask) {
+         case '\n':
+            SetFontSize();
+            gCharY += gFontHeight;
+            gCharX = gLeftMargin;
+            break;
+
+         default:
+            LOGE("Invalid char 0x%02x\n",OutMask);
+            break;
+      }
+
+      return;
+   }
    TempU16 = gFontIndexTbl[OutMask - 0x20];
    gCharWidth = TempU16 >> 12;
    if(gLargeFont) {

@@ -24,6 +24,7 @@ typedef struct {
 #define OTA_ERR_WRONG_BOARD   2
 #define OTA_ERR_INVALID_LEN   3
 #define OTA_ERR_INVALID_CRC   4
+#define OTA_ERR_INVALID_HDR   5
 
 #endif   // _OTA_HDR_H_
 

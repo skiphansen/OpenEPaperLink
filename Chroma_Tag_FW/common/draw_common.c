@@ -12,12 +12,16 @@
 void CalcLineWidth(uint32_t data) __reentrant 
 {
    uint8_t TempU8 = (uint8_t) (data >> 24);   // Character we are displaying
-   uint16_t TempU16 = gFontIndexTbl[TempU8 - 0x20];
-   gCharWidth = TempU16 >> 12;
-   if(gLargeFont) {
-      gCharWidth = gCharWidth * 2;
+   uint16_t TempU16;
+
+   if(TempU8 >= 0x20) {
+      TempU16 = gFontIndexTbl[TempU8 - 0x20];
+      gCharWidth = TempU16 >> 12;
+      if(gLargeFont) {
+         gCharWidth = gCharWidth * 2;
+      }
+      gCharX += gCharWidth + 1;
    }
-   gCharX += gCharWidth + 1;
 }
 
 void epdpr(const char __code *fmt, ...) __reentrant 
@@ -44,12 +48,5 @@ void SetFontSize()
       gFontHeight = gLargeFont ? FONT_HEIGHT * 2 : FONT_HEIGHT;
       gCharWidth = gLargeFont ? FONT_WIDTH * 2 : FONT_WIDTH;
    }
-}
-
-void NextLine(uint8_t Lines)
-{
-   SetFontSize();
-   gCharY += Lines * gFontHeight;
-   gCharX = gLeftMargin;
 }
 

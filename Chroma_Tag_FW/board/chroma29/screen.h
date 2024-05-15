@@ -53,9 +53,6 @@ physical Y = 295 - logical x
 
 // UI screen layout constants for 2.9"
 
-// Number of blank lines between header line and Fw version
-#define SPLASH_HDR_SPACE         2
-
 // Location of OELP logo (CloudTop)
 #define LOGO_ON_RIGHT            1
 #define SPLASH_LOGO_X            DISPLAY_WIDTH

@@ -8,7 +8,6 @@ extern const uint16_t __code gFontIndexTbl[96];
 extern const uint16_t __code gPackedData[];
 
 void SetFontSize();
-void NextLine(uint8_t Lines);
 
 #pragma callee_saves CalcLineWidth
 void CalcLineWidth(uint32_t data) __reentrant;
