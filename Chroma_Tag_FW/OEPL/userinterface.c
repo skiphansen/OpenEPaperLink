@@ -287,8 +287,8 @@ void DrawAPFound()
 #endif
 #else
 // 2.9" or smaller
-// Don't have room for all three battery readings, display the lowest after LQI
-   epdpr(" VBat: %d mV\n",gRefreshBattV != 0 && gRefreshBattV < gTxBattV ? 
+// Don't have room for all three battery readings, display the lowest
+   epdpr("\nVBat: %d mV\n",gRefreshBattV != 0 && gRefreshBattV < gTxBattV ? 
          gRefreshBattV:gTxBattV);
 #ifndef FW_VERSION_SUFFIX
 // Don't show FW for BETAs, addOverlay will show it
