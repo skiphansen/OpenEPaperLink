@@ -302,7 +302,6 @@ void displayLoop()
    LOG("AP NOT Found\n");
    showNoAP();
    timerDelay(TIMER_TICKS_PER_SECOND * 4);
-#if 0
 
    LOG("afterFlashScreenSaver\n");
    afterFlashScreenSaver();
@@ -331,7 +330,7 @@ void displayLoop()
    LOG("NO EEPROM\n");
    showNoEEPROM();
    timerDelay(TIMER_TICKS_PER_SECOND * 4);
-#endif
+
    MAIN_LOG("done!\n");
    while(true);
 }
@@ -358,14 +357,6 @@ void main()
 // Log initial battery voltage and temperature
    LogSummary();
 
-#if 0
-// drawImageFromEeprom(1,0);
-   MAIN_LOG("Calling showApplyUpdate\n");
-   showApplyUpdate();
-   MAIN_LOG("done!\n");
-   while(true);
-#endif
-
 #ifdef DEBUGGUI
    displayLoop(); // never returns
 #else
@@ -391,8 +382,6 @@ void main()
 
 // get the highest slot number, number of slots
    initializeProto();
-
-   showSplashScreen();
 
    if(tagSettings.enableFastBoot) {
    // Fastboot
