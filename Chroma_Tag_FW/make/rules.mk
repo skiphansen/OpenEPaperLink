@@ -7,7 +7,7 @@ HDR_TOOL=$(HDR_TOOL_BUILD_DIR)/add_ota_hdr
 OBJS = $(patsubst %.c,$(BUILD_DIR)/%.$(OBJFILEEXT),$(notdir $(SOURCES)))
 
 $(BUILD_DIR)/%.$(OBJFILEEXT): %.c
-	$(CC) -c $^ $(FLAGS) -o $(BUILD_DIR)/$(notdir $@)
+	$(CC) -c $< $(FLAGS) -o $(BUILD_DIR)/$(notdir $@)
 
 $(BUILD_DIR)/main.ihx: $(OBJS)
 	rm -f $(BUILD_DIR)/$(notdir $@)
@@ -64,6 +64,8 @@ reset:
 
 release: all $(RELEASE_BINS)
 
+DEPFILES := $(SOURCES:%.c=$(BUILD_DIR)/%.d)
+
 debug:
 	@echo "FIRMWARE_ROOT=$(FIRMWARE_ROOT)"
 	@echo "SOC_DIR=$(SOC_DIR)"
@@ -80,4 +82,6 @@ debug:
 	@echo "HHDR_TOOL_BUILD_DIR=$(HDR_TOOL_BUILD_DIR)"
 	@echo "HDR_TOOL=$(HDR_TOOL)"
 	@echo "OTA_IMAGE_NAME=$(OTA_IMAGE_NAME)"
+	@echo "depend files=$(DEPFILES)"
 
+include $(wildcard $(DEPFILES))
