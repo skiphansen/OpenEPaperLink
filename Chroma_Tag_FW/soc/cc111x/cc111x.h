@@ -334,11 +334,19 @@ __sfr __at (0xF6) P1INP;
 
 // P2INP (0xF7) - Port 2 Input Mode
 __sfr __at (0xF7) P2INP;
-#define P2INP_PDUP2                       0x80
-#define P2INP_PDUP1                       0x40
-#define P2INP_PDUP0                       0x20
-#define P2INP_MDP2                        0x1F
 
+// Configure P2 as 0: pull-up or 1: pull-down
+#define P2INP_PDUP2                       0x80  // = P2
+
+// Configure P1:2 to P1:7 as 0: pull-up or 1: pull-down
+// P1:0 and P1:1 don't have pullup or pulldowns
+#define P2INP_PDUP1                       0x40
+
+// Configure all P0 pins as 0: pull-up or 1: pull-down
+#define P2INP_PDUP0                       0x20
+
+// P2.0 to P2.4 0: pull-up/pull-down, 1: tristate
+#define P2INP_MDP2                        0x1F
 #define P2INP_MDP2_0                      (0x01)
 #define P2INP_MDP2_1                      (0x02)
 #define P2INP_MDP2_2                      (0x04)

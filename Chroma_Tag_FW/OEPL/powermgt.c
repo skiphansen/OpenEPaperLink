@@ -137,6 +137,8 @@ void doSleep(uint32_t __xdata t)
 // sleepy time
    sleepForMsec(t);
    powerUp(INIT_BASE);
+   PRINT_CONFIG("Right after wakeup");
+   LOG_CONFIG("After INIT_BASE");
 #if defined(DEBUG_MAX_SLEEP) | defined(DEBUG_SLEEP)
    LOG("Awake\n");
 #endif

@@ -5,16 +5,16 @@
 
 #define FW_VERSION 0x0004        // version number
 #define FW_VERSION_SUFFIX "-BETA" // suffix, like -RC1 or whatever.
-// #define BAUD_115200              // Defaults to 1 megabaud this is not defined
+#define BAUD_115200              // Defaults to 1 megabaud this is not defined
 // #define DEBUGBLOCKS              // uncomment to enable extra debug information on the block transfers
 // #define FORCE_IMG_DL             // force tag to re-download every upload
 // #define DEBUGPROTO               // debug protocol
 // #define DEBUGOTA                 // debug OTA FW updates
-#define DEBUGDRAWING             // debug the drawing part
+// #define DEBUGDRAWING             // debug the drawing part
 // #define DEBUGEPD                 // debug the EPD driver
 #define DEBUGMAIN                // parts in the main loop
 // #define DEBUGNFC                 // debug NFC functions
-#define DEBUGGUI                 // debug GUI drawing (enabled)
+// #define DEBUGGUI                 // debug GUI drawing (enabled)
 // #define DEBUGSETTINGS            // debug settings module (preferences/eeprom)
 // #define DEBUGEEPROM              // eeprom-related debug messages
 // #define DEBUG_NV_DATA            // debug eeprom-related data accesses
@@ -23,12 +23,12 @@
 //#define DEBUG_TX_DATA            // display subgig tx packets
 // #define DEBUG_MAX_SLEEP 5000UL   // forced maximum sleep time for debugging 
 // #define DEBUG_AP_SEARCH          // log ap search details
-#define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
-// #define DEBUG_CHIP_CFG   // log chip configuration
+// #define DEBUG_FORCE_OVERLAY      // force low bat and no AP icons to display
+#define DEBUG_CHIP_CFG   // log chip configuration
 // #define LEAN_VERSION // disable bitmaps to save code space
 
 #define DISABLE_BARCODES   // barcodes are optional
-#define ISDEBUGBUILD          // disable clearing and resaving of settings on every reset
+// #define ISDEBUGBUILD          // disable clearing and resaving of settings on every reset
 
 #define SFDP_DISABLED         // Disable SFDP to save 1538 bytes.
 // #define DISABLE_UI         // when you need to debug and are out of flash

@@ -378,6 +378,18 @@ void epdPutchar(uint32_t data) __reentrant
             gCharX = gLeftMargin;
             break;
 
+         case '\b':  // toggle bold (large) characters
+            break;
+
+         case '\t':  // Save current position as left hand margin
+            break;
+
+         case '\v':  // Reset left hand margin
+            break;
+
+         case '\r':  // Tottle red / black
+            break;
+
          default:
             LOGE("Invalid char 0x%02x\n",OutMask);
             break;

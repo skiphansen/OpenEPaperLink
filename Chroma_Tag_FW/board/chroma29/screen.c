@@ -204,7 +204,6 @@ void SendEpdTbl(uint8_t const __code *pData)
          CmdBytes--;
       }
       einkDeselect();
-      einkDeselect1();
    }
 }
 
@@ -214,6 +213,7 @@ static void screenInitIfNeeded()
       return;
    }
    gScreenPowered = true;
+   screenInitGPIO(true);
    
 // Don't select the EPD yet
    P1 |= P1_EPD_nCS0;
@@ -247,7 +247,6 @@ static void screenInitIfNeeded()
 // wait for not busy
    while(!EPD_BUSY());
    einkDeselect();
-   einkDeselect1();
    
    SendEpdTbl(gSetupEpd);
 
@@ -255,9 +254,48 @@ static void screenInitIfNeeded()
    screenPrvSendCommand(CMD_VCOM_DC_SETTING);
    screenByteTx(mScreenVcom);
    einkDeselect();
-   einkDeselect1();
    
    LOG_CONFIG("screenInitIfNeeded");
+}
+
+void screenInitGPIO(bool bActivate)
+{
+   if(bActivate) {
+   // Nothing special to do
+      if(!(mSelfMac[3] & 0xf0)) {
+      // JA0xxxxxxx devices do not implement EPD power control.
+      // 
+      // Configure all control pins as outputs and disable pull-up resistors 
+         P0INP |= P0_EPD_BS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD;
+         P0DIR |= P0_EPD_BS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD;
+         P1INP |= P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI;
+         P1DIR |= P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI;
+      }
+   }
+   else {
+   // Reconfigure the EPD SPI pins as GPIO
+   // Disconnect the P1 EPD SPI pins from USART0 and connect them to GPIO
+      P1SEL &= ~(P1_EPD_SCK | P1_EPD_DI);
+
+      if(mSelfMac[3] & 0xf0) {
+      // JA1xxxxxxx devices implement EPD power control.
+      // Drive all of the control pins LOW to avoid back powering the EPD via the 
+      // control pins
+         P0 &= ~(P0_EPD_BS1 | P0_EPD_D_nCMD);
+         P1 &= ~(P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI);
+   // Turn off power to the EPD
+         SET_EPD_nENABLE(1);
+      }
+      else {
+      // JA0xxxxxxx devices do not implement EPD power control.
+      // Configure all control pins as inputs and enable pull-up 
+      // resistors to keep them from floating
+         P0INP &= ~(P0_EPD_BS1 | P0_EPD_nCS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD );
+         P0DIR &= ~(P0_EPD_BS1 | P0_EPD_nCS1 | P0_EPD_nENABLE | P0_EPD_D_nCMD );
+         P1INP &= ~(P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI);
+         P1DIR &= ~(P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI);
+      }
+   }
 }
 
 void screenShutdown(void)
@@ -265,21 +303,8 @@ void screenShutdown(void)
    if (!gScreenPowered) {
       return;
    }
-   
    SendEpdTbl(gPwrOffEpd);
-
-// Reconfigure the EPD SPI pins as GPIO
-// Disconnect the P1 EPD SPI pins from USART0 and connect them to GPIO
-   P1SEL &= ~(P1_EPD_SCK | P1_EPD_DI);
-
-// Drive all of the control pins LOW to avoid back powering the EPD via the 
-// control pins
-
-   P0 &= ~(P0_EPD_BS1 | P0_EPD_D_nCMD);
-   P1 &= ~(P1_EPD_nCS0 | P1_EPD_nRESET | P1_EPD_SCK | P1_EPD_DI);
-// Turn off power to the EPD
-   SET_EPD_nENABLE(1);
-   
+   screenInitGPIO(false);
    gScreenPowered = false;
 
    LOG_CONFIG("screenShutdown");
@@ -293,8 +318,7 @@ void screenTxStart()
    einkSelect();
    screenPrvSendCommand(gRedPass ? CMD_DISPLAY_START_TRANSMISSION_DTM2 :
                                    CMD_DISPLAY_START_TRANSMISSION_DTM1);
-   einkDeselect();     // Start with CS0
-   einkDeselect1();
+   einkDeselect();
 }
 
 #pragma callee_saves screenByteTx

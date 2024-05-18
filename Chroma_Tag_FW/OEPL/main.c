@@ -339,7 +339,10 @@ void displayLoop()
 
 void main() 
 {  
+   COPY_CFG();
    powerUp(INIT_BASE);
+   PRINT_CONFIG("After reset");
+   LOG_CONFIG("After INIT_BASE");
 
 // Save initial battery voltage
    ADCRead(ADC_CHAN_VDD_3);
@@ -351,7 +354,15 @@ void main()
 #endif
         ", compiled " __DATE__" " __TIME__ "\n",gBoardName,fwVersion);
 
+   doSleep(5000UL);
+   LOGA("Calling boardInitStage2()\n");
    boardInitStage2();
+   doSleep(5000UL);
+   LOGA("Done.\n");
+   doSleep(0);
+   LOGA("Forever came sooner than expected!\n");
+   while(true);
+
 
    UpdateVBatt();
 // Log initial battery voltage and temperature

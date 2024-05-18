@@ -57,7 +57,7 @@ void PortInit()
 // Port 0 output pins
    P0DIR = P0_EPD_BS1 | P0_EEPROM_CLK | P0_EEPROM_MOSI 
          | P0_EPD_nENABLE | P0_EPD_D_nCMD
-#if BUILD == chroma42r
+#if BOARD == chroma42
          | P0_EPD_nCS1
 #endif
       ;
@@ -81,38 +81,9 @@ void PortInit()
 // Set default output value EEPROM CS high
    P2 = P2_EEPROM_nCS;
    P2DIR = P2_EEPROM_nCS;
-   LOG_CONFIG("PortInit");
 }
 
 #ifdef DEBUG_CHIP_CFG
-void LogConfig(const char __code *Msg)
-{
-   uint8_t Status;
-   uint8_t P0Dir = P0DIR;
-   uint8_t P0Sel = P0SEL;
-   uint8_t P0Data = P0;
-   uint8_t P1Dir = P1DIR;
-   uint8_t P1Data = P1;
-   uint8_t P2Sel = P2SEL;
-   uint8_t PERCfg = PERCFG;
-   uint8_t P1Sel = P1SEL;
-   uint8_t U1Baud = U1BAUD;
-   uint8_t U1Gcr = U1GCR;
-   uint8_t U1Csr = U1CSR;
-   LOG("%s\n",Msg);
-   LOG("P0Dir 0x%x\n",P0Dir);
-   LOG("P0Sel 0x%x\n",P0Sel);
-   LOG("P0Data 0x%x\n",P0Data);
-   LOG("P1Dir 0x%x\n",P1Dir);
-   LOG("P1Data 0x%x\n",P1Data);
-   LOG("P2Sel 0x%x\n",P2Sel);
-   LOG("PERCfg 0x%x\n",PERCfg);
-   LOG("P1Sel 0x%x\n",P1Sel);
-   LOG("U1Baud 0x%x\n",U1Baud);
-   LOG("U1Gcr 0x%x\n",U1Gcr);
-   LOG("U1Csr 0x%x\n",U1Csr);
-   LOG("UartSelected 0x%x\n",gUartSelected);
-}
 
 static uint8_t g_Status;
 static uint8_t gP0Dir;
@@ -157,8 +128,9 @@ void CopyCfg()
    gU1Csr = U1CSR;
 }
 
-void PrintCfg()
+void PrintCfg(const char __code *Msg)
 {
+   LOG("Chip cfg %s\n",Msg);
    LOG("P0Sel 0x%x\n",gP0Sel);
    LOG("P0Dir 0x%x\n",gP0Dir);
    LOG("P0Data 0x%x\n",gP0Data);
@@ -181,33 +153,5 @@ void PrintCfg()
 }
 #endif
 
-void powerPortsDownForSleep(void)
-{
-   T1CTL = 0;  //timer off
-   U1GCR = 0;  // Disable Rx
-
-// Enable pull-up on P2_EEPROM_nCS
-// P0, P1 pins with have pull-up if enabled
-   P2INP = P2_DBG_DAT | P2_DBG_CLK | P2_XOSC32_Q1 | P2_XOSC32_Q2;
-
-// Tristate all P0 pins except P0_EEPROM_MOSI and P0_EPD_nENABLE
-   P0INP = (uint8_t) ~(P0_EEPROM_MOSI | P0_EPD_nENABLE);
-
-// Tristate all P1 pins except P1_SERIAL_OUT
-   P1INP = (uint8_t) ~P1_SERIAL_OUT;
-
-// Set all GPIO ports to input mode
-   P0DIR = 0;
-   P1DIR = 0;
-   P2DIR = 0;
-
-// Disconnect all perpherials from pins
-   P0SEL = 0;
-   P1SEL = 0;
-   P2SEL = 0;
-#ifdef DEBUG_CHIP_CFG
-   CopyCfg();
-#endif
-}
 
 

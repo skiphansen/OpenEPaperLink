@@ -75,8 +75,8 @@ physical Y = 295 - logical x
 #define EPD_SIZE_SINGLE          0
 #define EPD_SIZE_DOUBLE          1
 
+void screenInitGPIO(bool bActivate);
 void screenShutdown(void);
-void screenTest(void);
 void screenTxStart();
 
 #pragma callee_saves screenByteTx

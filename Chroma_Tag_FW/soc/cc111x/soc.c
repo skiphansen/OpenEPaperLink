@@ -93,7 +93,9 @@ void boardInitStage2(void)
 
    boardGetOwnMac();
    powerDown(INIT_EEPROM);
-
+// On some board (Chroma29 for example) we don't know how to deal
+// with the display's GPIO until we know the SN.
+   screenInitGPIO(false);
    irqsOn();
 }
 
