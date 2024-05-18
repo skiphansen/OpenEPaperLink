@@ -354,15 +354,7 @@ void main()
 #endif
         ", compiled " __DATE__" " __TIME__ "\n",gBoardName,fwVersion);
 
-   doSleep(5000UL);
-   LOGA("Calling boardInitStage2()\n");
    boardInitStage2();
-   doSleep(5000UL);
-   LOGA("Done.\n");
-   doSleep(0);
-   LOGA("Forever came sooner than expected!\n");
-   while(true);
-
 
    UpdateVBatt();
 // Log initial battery voltage and temperature

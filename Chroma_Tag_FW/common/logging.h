@@ -103,6 +103,7 @@ extern void DumpHex(const uint8_t *__xdata a, const uint16_t __xdata l);
    #define LOG_CONFIG(x)   CopyCfg();PrintCfg(x)
    #define PRINT_CONFIG(x) PrintCfg(x)
 #else
+   #define LOG_CONFIG(x)
    #define PRINT_CONFIG(x)
    #define COPY_CFG()
 #endif
