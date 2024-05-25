@@ -8,6 +8,10 @@
 #define BOARD_NAME "Chroma29"
 #define HW_TYPE    0x82
 
+#ifndef DISABLE_BARCODES
+#define DISABLE_BARCODES   // not supported on Chroma29 (yet ?)
+#endif
+
 extern const char * __code gBoardName;
 
 //eeprom spi

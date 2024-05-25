@@ -123,7 +123,7 @@ void DrawAfterFlashScreenSaver()
    epdpr("openepaperlink.de\n");
 // 1.5 line spacing
    gCharY += FONT_HEIGHT / 2;
-   epdpr("I'm fast\t asleep . . . to wake me:");
+   epdpr("I'm\t fast asleep . . . to wake me:");
    epdpr("\nRemove batteries, short battery\n");
    epdpr("contacts, reinsert batteries.");
 // 1.5 line spacing
@@ -163,13 +163,13 @@ void DisplayLogo(void);
 void DrawSplashScreen()
 {
    SetDrawingDefaults();
+   DisplayLogo();
 
 #if DISPLAY_WIDTH == 296
 // 2.9"
    epdpr("OpenEPaperLink\n\n");
 #elif DISPLAY_WIDTH >= 640
 // 7.4" or wider
-   DisplayLogo();
    epdpr("\t\b\nStarting . . .\n\n\b");
 #endif
    DrawFwVer();
@@ -247,7 +247,11 @@ void DrawAPFound()
 {
    SetDrawingDefaults();
    DisplayLogo();
+#if DISPLAY_WIDTH > 296
    epdpr("\f\t\bWaiting for data . . .\n\b");
+#else
+   epdpr("Waiting for data . . .\n");
+#endif
    gSaveX = gCharX;
    gSaveY = gCharY;
    epdpr("\nFound the following AP:\n");
@@ -301,14 +305,15 @@ void DrawNoAP()
 {
    SetDrawingDefaults();
    DisplayLogo();
-   epdpr("\f\bNo AP found :(\n\b\n");
 
 #if DISPLAY_WIDTH > 296
+   epdpr("\f\bNo AP found :(\n\b\n");
    epdpr("\fWe'll try again in a little while . . .");
 // receive bitmap is 56 x 56, center it on the display
    gBmpX = (DISPLAY_WIDTH - 56)/2;
    gBmpY = (DISPLAY_HEIGHT - 56)/2;
 #else
+   epdpr("\bNo AP found :(\n\b\n");
    epdpr("We'll try again in a");
 // receive bitmap is 56 x 56, center between the end of the current line
 // and the right side of the display
@@ -345,7 +350,11 @@ void DrawLongTermSleep()
    SetDrawingDefaults();
    DisplayLogo();
    gCharY += FONT_HEIGHT;
+#if DISPLAY_WIDTH > 296
    epdpr("\f\t\bzzZZZ . . .\n\b\n");
+#else
+   epdpr("\bzzZZZ . . .\n\b\n");
+#endif
    DisplayLowestVbat();
    addOverlay();
 }
@@ -363,7 +372,9 @@ void DrawNoEEPROM()
 {
    SetDrawingDefaults();
    DisplayLogo();
+#if DISPLAY_WIDTH > 296
    gLargeFont = EPD_SIZE_DOUBLE;
+#endif
 
    epdpr("\fEEPROM FAILED :(\n\n");
    epdpr("\fSleeping forever . . .\n\n");
@@ -409,8 +420,22 @@ void DisplayLogo()
 {
 #ifndef LEAN_VERSION
 #ifdef SPLASH_LOGO_X
+// Display logo on right hand of screen (2.9 inch only currently)
    gBmpX = SPLASH_LOGO_X;
    gBmpY = SPLASH_LOGO_Y;
+   gWinColor = EPD_COLOR_RED;
+   gBmpX = SPLASH_LOGO_X;
+   gBmpY = SPLASH_LOGO_Y;
+   gBmpX -= CloudTop[1];
+   loadRawBitmap(CloudTop);
+
+   gWinColor = EPD_COLOR_BLACK;
+   gBmpX -= oepli[1];
+   loadRawBitmap(oepli);
+
+   gBmpX -= CloudBottom[1];
+   gWinColor = EPD_COLOR_RED;
+   loadRawBitmap(CloudBottom);
 #else
 // Center Logo on top line
    gWinColor = EPD_COLOR_RED;
@@ -425,16 +450,12 @@ void DisplayLogo()
    gBmpY += oepli[1];
    gWinColor = EPD_COLOR_RED;
    loadRawBitmap(CloudBottom);
-   gWinColor = EPD_COLOR_BLACK;
-   gCharX = gBmpX;
-#endif
 
-#if DISPLAY_WIDTH > 296
 // Space down from logo a bit
+   gCharX = gBmpX;
    gCharY = gBmpY + CloudBottom[1] + (FONT_HEIGHT * 2);
-#else
-   gCharY = gBmpY + CloudBottom[1];
 #endif
+   gWinColor = EPD_COLOR_BLACK;
 #endif
 }
 

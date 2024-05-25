@@ -59,7 +59,7 @@ __xdata int16_t gWinY;
 __xdata int16_t gWinDrawX;
 __xdata int16_t gWinDrawY;
 __xdata int8_t gCharWidth;
-__xdata int8_t gFontHeight;
+__xdata int8_t gCharHeight;
 
 __xdata uint16_t gWinBufNdx;
 __bit gWinColor;
@@ -371,32 +371,10 @@ void epdPutchar(uint32_t data) __reentrant
    OutMask = (uint8_t) (data >> 24);   // Character we are displaying
 
    if(OutMask < 0x20) {
-      switch(OutMask) {
-         case '\n':
-            SetFontSize();
-            gCharY += gFontHeight;
-            gCharX = gLeftMargin;
-            break;
-
-         case '\b':  // toggle bold (large) characters
-            break;
-
-         case '\t':  // Save current position as left hand margin
-            break;
-
-         case '\v':  // Reset left hand margin
-            break;
-
-         case '\r':  // Tottle red / black
-            break;
-
-         default:
-            LOGE("Invalid char 0x%02x\n",OutMask);
-            break;
-      }
-
+      ProcessEscapes(OutMask);
       return;
    }
+
    TempU16 = gFontIndexTbl[OutMask - 0x20];
    gCharWidth = TempU16 >> 12;
    if(gLargeFont) {
@@ -408,7 +386,7 @@ void epdPutchar(uint32_t data) __reentrant
    if(gWinColor != gRedPass || setWindowX(TempU8,gCharWidth)) {
       return;
    }
-   setWindowY(gCharY,gFontHeight);
+   setWindowY(gCharY,gCharHeight);
    TempU16 &= 0xfff;
    InMask = 0x8000;
    LOGV("writeCharEPD '%c' gPhyX %d\n",OutMask,gPhyX);
@@ -424,9 +402,9 @@ void epdPutchar(uint32_t data) __reentrant
    }
    TempU16 += TempU8;
    FontBits = gPackedData[TempU16];
-   LOGV("TempU16 %d gFontHeight %d FontBits 0x%x\n",TempU16,gFontHeight,FontBits);
+   LOGV("TempU16 %d gCharHeight %d FontBits 0x%x\n",TempU16,gCharHeight,FontBits);
 
-   for(TempU8 = 0; TempU8 < gFontHeight; TempU8++) {
+   for(TempU8 = 0; TempU8 < gCharHeight; TempU8++) {
       if(FontBits & InMask) {
          blockbuffer[gWinBufNdx] |= OutMask;
       }
