@@ -7,7 +7,10 @@ typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24.
 extern const uint16_t __code gFontIndexTbl[96];
 extern const uint16_t __code gPackedData[];
 
+
+
 void SetFontSize();
+void ProcessEscapes(uint8_t Char);
 
 #pragma callee_saves CalcLineWidth
 void CalcLineWidth(uint32_t data) __reentrant;

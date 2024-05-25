@@ -23,6 +23,7 @@
 #include "../../oepl-proto.h"
 #include "syncedproto.h"
 #include "adc.h"
+#include "ota_hdr.h"
 
 __bit gTagAssociated;
 
@@ -316,6 +317,7 @@ void displayLoop()
    timerDelay(TIMER_TICKS_PER_SECOND * 4);
 
    LOG("Failed update screen\n");
+   gUpdateErr = OTA_ERR_INVALID_CRC;
    showFailedUpdate();
    timerDelay(TIMER_TICKS_PER_SECOND * 4);
 
@@ -339,10 +341,7 @@ void displayLoop()
 
 void main() 
 {  
-   COPY_CFG();
    powerUp(INIT_BASE);
-   PRINT_CONFIG("After reset");
-   LOG_CONFIG("After INIT_BASE");
 
 // Save initial battery voltage
    ADCRead(ADC_CHAN_VDD_3);

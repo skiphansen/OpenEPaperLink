@@ -10,10 +10,6 @@
 
 extern const char * __code gBoardName;
 
-#if BUILD == chroma74y
-#define BWY
-#endif
-
 //eeprom spi
 #define EEPROM_SIZE              0x00100000L
 #define EEPROM_4K_ERASE_OPCODE   0x20
@@ -74,6 +70,7 @@ Image slots: 10
 #define EEPROM_IMG_SECTORS          (EEPROM_IMG_EACH / EEPROM_ERZ_SECTOR_SZ)
 #define IMAGE_SLOTS                 ((EEPROM_SIZE - EEPROM_IMG_START)/EEPROM_IMG_EACH)
 
+#define screenInitGPIO(x)
 #include "../boardCommon.h"
 
 #endif

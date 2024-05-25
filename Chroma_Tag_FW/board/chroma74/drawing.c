@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
-typedef void (*StrFormatOutputFunc)(uint32_t param /* low byte is data, bits 24..31 is char */) __reentrant;
+#include "draw_common.h"
 #include "../oepl-definitions.h"
 #include "barcode.h"
 #include "asmUtil.h"
@@ -30,6 +30,10 @@ void prvPrintFormat(StrFormatOutputFunc formatF, uint16_t formatD, const char __
    #define LOG_HEXV(x,y)
 #endif
 
+__xdata int16_t gLeftMargin;
+
+__xdata int16_t gBmpX;
+__xdata int16_t gBmpY;
 // Line we are drawing currently 0 -> SCREEN_HEIGHT - 1
 __xdata int16_t gDrawX;
 __xdata int16_t gDrawY;
@@ -45,7 +49,7 @@ __xdata int16_t gWinDrawY;
 __xdata int16_t gCharX;
 __xdata int16_t gCharY;
 __xdata int8_t gCharWidth;
-__xdata int8_t gFontHeight;
+__xdata int8_t gCharHeight;
 __xdata int16_t gTempX;
 __xdata int16_t gTempY;
 
@@ -54,6 +58,7 @@ __bit gWinColor;
 __bit gLargeFont;
 __bit gDirectionY;
 __bit g2BitsPerPixel;
+__bit gCenterLine;
 
 // NB: 8051 data / code space saving KLUDGE!
 // Use the locally in a routine but DO NOT call anything if you care
@@ -219,27 +224,26 @@ void DrawScreen(DrawingFunction DrawIt)
 // bmp[0] =  bmp width in pixels (must be a multiple of 8)
 // bmp[1] =  bmp height in pixels
 // bmp[2...] = pixel data 1BBP
-void loadRawBitmap(uint8_t *bmp,uint16_t x,uint16_t y,bool color) 
+void loadRawBitmap(uint8_t *bmp)
 {
    uint8_t Width = bmp[0];
 
    LOGV("gDrawY %d\n",gDrawY);
-   LOGV("ld bmp x %d, y %d, color %d\n",x,y,color);
+   LOGV("ld bmp x %d, y %d, color %d\n",gBmpX,gBmpY,gWinColor);
 
-   if(setWindowY(y,bmp[1])) {
+   if(setWindowY(gBmpY,bmp[1])) {
    // Nothing to do Y limit are outside of what we're drawing at the moment
       return;
    }
-   gWinColor = color;
 #ifdef DEBUGDRAWING
-   if((x & 0x7) != 0) {
-      LOG("loadRawBitmap invaild x %x\n",x);
+   if((gBmpX & 0x7) != 0) {
+      LOG("loadRawBitmap invaild x %x\n",gBmpX);
    }
    if((Width & 0x7) != 0) {
       LOG("loadRawBitmap invaild Width %x\n",Width);
    }
 #endif
-   setWindowX(x,Width);
+   setWindowX(gBmpX,Width);
 
    TempU16 = gWinDrawY - gWinY;
    TempU16 = TempU16 * Width;
@@ -287,8 +291,10 @@ bool setWindowY(uint16_t start,uint16_t height)
       gWinDrawY = gDrawY;
       return false;
    }
+#if 0
    LOGV("Outside of window, gDrawY %d start %d end %d\n",
         gDrawY,start,gWinEndY);
+#endif
    return true;
 }
 
@@ -320,30 +326,40 @@ bool setWindowY(uint16_t start,uint16_t height)
 // +-- Top 
 // So 16 bits [byte1]:[Byte 0}
 #pragma callee_saves epdPutchar
-static void epdPutchar(uint32_t data) __reentrant 
+void epdPutchar(uint32_t data) __reentrant 
 {
    uint16_t InMask;
    uint16_t FontBits;
    uint8_t OutMask;
 
-   if(setWindowY(gCharY,gFontHeight)) {
+   OutMask = (uint8_t) (data >> 24);   // Character we are displaying
+
+   if(OutMask < 0x20) {
+      ProcessEscapes(OutMask);
       return;
    }
-   OutMask = (uint8_t) (data >> 24);   // Character we are displaying
+
    TempU16 = gFontIndexTbl[OutMask - 0x20];
    gCharWidth = TempU16 >> 12;
    if(gLargeFont) {
       gCharWidth = gCharWidth * 2;
    }
+
+   if(setWindowY(gCharY,gCharHeight)) {
+      gCharX += gCharWidth + 1;
+      return;
+   }
+
    setWindowX(gCharX,gCharWidth);
    TempU16 &= 0xfff;
 
-   LOGV("epdPutchar '%c' gDrawX %d\n",OutMask,gDrawX);
+   LOGV("epdPutchar '%c' gWinDrawX %d\n",OutMask,gWinDrawX);
    LOGV("  gDrawY %d gWinY %d gCharWidth %d\n",gDrawY,gWinY,gCharWidth);
    LOGV("  In byte blockbuffer[%d] 0x%x\n",gWinBufNdx,blockbuffer[gWinBufNdx]);
 
    OutMask = (0x80 >> (gCharX & 0x7));
    gCharX += gCharWidth + 1;
+
    if(gLargeFont) {
       InMask = 0x8000 >> ((gDrawY - gWinY) / 2);
    }
@@ -374,24 +390,6 @@ static void epdPutchar(uint32_t data) __reentrant
          OutMask = 0x80;
       }
    }
-}
-
-void epdPrintBegin(uint16_t x,uint16_t y,bool direction,bool fontsize,bool color) 
-{
-   gLargeFont = fontsize;
-   gDirectionY = direction;
-   gWinColor = color;
-   gCharX = x;
-   gCharY = y;
-}
-
-void epdpr(const char __code *fmt, ...) __reentrant 
-{
-    va_list vl;
-    va_start(vl, fmt);
-    LOGV("epdpr '%s'\n",fmt);
-    prvPrintFormat(epdPutchar, 0, fmt, vl);
-    va_end(vl);
 }
 
 #define BARCODE_ROWS    40

@@ -17,7 +17,7 @@ extern __xdata int16_t gBmpX;
 extern __xdata int16_t gBmpY;
 extern __xdata int16_t gLeftMargin;
 extern __xdata int8_t gCharWidth;
-extern __xdata int8_t gFontHeight;
+extern __xdata int8_t gCharHeight;
 extern __xdata int16_t gWinDrawX;
 
 typedef void (*DrawingFunction)(void) __reentrant;
