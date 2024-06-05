@@ -931,6 +931,7 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     spr.deleteSprite();
 }
 
+#if 0
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) {
     wsLog("get weather");
     getLocation(cfgobj);
@@ -1009,6 +1010,196 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     spr2buffer(spr, filename, imageParams);
     spr.deleteSprite();
 }
+#else
+
+/* 
+ 
+https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=20240603&end_date=20240605&station=8446613&product=predictions&datum=MLLW&time_zone=lst_ldt&units=english&format=json&interval=hilo
+  "predictions": [
+    {
+      "t": "2024-06-03 03:23",
+      "v": "-0.033",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-03 09:19",
+      "v": "10.288",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-03 15:39",
+      "v": "0.352",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-03 21:40",
+      "v": "11.600",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-04 04:21",
+      "v": "-0.469",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-04 10:18",
+      "v": "10.335",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-04 16:33",
+      "v": "0.359",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-04 22:32",
+      "v": "11.867",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-05 05:16",
+      "v": "-0.785",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-05 11:12",
+      "v": "10.345",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-05 17:25",
+      "v": "0.411",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-05 23:22",
+      "v": "11.966",
+      "type": "H"
+    }
+  ]
+} 
+*/ 
+
+void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) {
+    wsLog("Plot tides");
+
+    DynamicJsonDocument doc(2000);
+    String BeginDate = "20240603";
+    String EndDate = "20240605";
+    String StationID = "8446613";
+
+    String TideUrl = "https://api.tidesandcurrents.noaa.gov/"
+       "api/prod/datagetter?begin_date=" + BeginDate + 
+       "&end_date=" + EndDate + "&station=" + StationID +
+       "&product=predictions&datum=MLLW&time_zone=lst_ldt&units=english"
+       "&format=json&interval=hilo";
+
+
+    const bool success = util::httpGetJson(TideUrl,doc, 5000);
+    if (!success) {
+        return;
+    }
+
+#if 1
+
+// Need last high/low tide from yesterday and the first high/low tide
+// tomorrow plus todays values.
+// 
+    int Yesterday = 0;
+    int Today = 0;
+    int Tomorrow = 0;
+    int Entries = 0;
+    int Day;
+    float Height;
+    int Hrs;
+    int Mins;
+    String DateTime;
+    #define MAX_HIGH_LOW_ENTRIES    10
+    struct {
+       int  Time;    // Minutes before or after midnight yesterday
+       float Height; // MLLW (Mean Lower Low Water)
+    } HighLowArray[MAX_HIGH_LOW_ENTRIES];
+
+    JsonArray Predictions = doc["predictions"];
+    for(JsonObject Prediction : Predictions) {
+       DateTime = Prediction["t"].as<String>();
+       Height = Prediction["v"].as<float>();
+       Serial.println("{ t: " + DateTime
+                      + ", v: " + Height
+                      + ", type: " + (Prediction["type"].as<String>())
+                      + "}");
+       if(sscanf(DateTime.c_str(),"%*d-%*d-%d %d:%d",&Day,&Hrs,&Mins) != 3) {
+          Serial.println("Couldn't convert " + DateTime);
+          break;
+       }
+
+       Serial.printf("Day %d Hrs %d Mins %d\n",Day,Hrs,Mins);
+       Mins += Hrs * 60;
+
+       if(Yesterday == 0) {
+       // Must be the first high/low from yesterday
+          Serial.printf("Set Yesterday to %d\n",Day);
+          Yesterday = Day;
+       }
+       else if(Day != Yesterday && Today == 0) {
+       // must be today
+          Today = Day;
+          Serial.printf("Set Today to %d\n",Day);
+          Entries++;
+       }
+       else if(Day != Yesterday && Day != Today) {
+       // Not yesterday or today, must be tomorrow
+          Tomorrow = Day;
+          Serial.printf("Set Tomorrow to %d\n",Day);
+       }
+
+       if(Day == Yesterday) {
+       // Adjust time
+          Mins -= (24 * 60);
+       }
+       else if(Day == Tomorrow) {
+       // Adjust time
+          Mins += (24 * 60);
+       }
+       else if(Day != Today) {
+          Serial.printf("Internal error Day %d\n",Day);
+       }
+
+       Serial.printf("Set entry %d %f %d\n",Entries,Height,Mins);
+
+       HighLowArray[Entries].Height = Height;
+       HighLowArray[Entries].Time = Mins;
+       if(Day != Yesterday) {
+       // Just save the last value from yesterday
+          Entries++;
+       }
+
+       if(Day == Tomorrow) {
+       // We're done
+          break;
+       }
+    }
+
+    for(int i = 0; i < Entries; i++) {
+       Serial.printf("Entry %d: %f @ %d\n",
+                     i + 1, HighLowArray[i].Height,HighLowArray[i].Time);
+
+    }
+
+#else
+    const auto &predictions = doc["predictions"];
+
+    for(int i = 0; i < 4; i++) {
+       const auto &prediction = predictions[i];
+
+       Serial.println(String(i)
+                      + " t: " + (prediction["t"].as<String>())
+                      + ", v: " + (prediction["v"].as<String>())
+                      + ", type: " + (prediction["type"].as<String>()));
+    }
+#endif
+}
+#endif
 
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC) {
     // https://images.klari.net/kat-bw29.jpg
