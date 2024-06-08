@@ -29,11 +29,11 @@
 		},
 		"8": {
 			"location": [ 10, 10, "fonts/calibrib30" ],
-			"column": [ 6, 66 ],
 			"day": [ 33, 60, "fonts/bahnschrift20", 104, 230 ],
-			"rain": [ 34, 260 ],
-			"icon": [ 32, 145, 30 ],
 			"wind": [ 17, 90 ],
+			"column": [ 6, 66 ],
+			"icon": [ 32, 145, 30 ],
+			"rain": [ 34, 260 ],
 			"line": [ 50, 300 ]
 		},
 		"9": {
@@ -51,6 +51,9 @@
 			"mode": 1,
 			"days": 4,
 			"gridparam": [ 5, 17, 20, "calibrib16.vlw", "tahoma9.vlw", 14 ]
+		},
+		"250": {
+			"date": [ 10, 10, "fonts/bahnschrift20", 20 ]
 		}
 	}
 }
