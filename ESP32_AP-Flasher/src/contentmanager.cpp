@@ -1374,22 +1374,20 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    HeightIncrement = floor((HeightIncrement + 0.5) * 2.0) / 2.0;
    LOG("%f\n",HeightIncrement);
 
+// Adjust MaxHeight
+   MaxHeight = MinHeight + (HeightIncrement * (NUM_HEIGHT_LINES - 1));
+   LOG("New MaxHeight %f\n",MaxHeight);
+
 // Draw tide height at left first
 
    int MaxWidth = 0;
    int IncrementY = (GraphBottom - GraphTop) / NUM_HEIGHT_LINES;
 
-   Height = MinHeight;
    for(int i = 0; i < NUM_HEIGHT_LINES + 1; i++) {
-      if(Height > MaxHeight) {
-         Height = MaxHeight;
-         gDrawY = GraphTop;
-      }
-      else {
-         gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
-                  (GraphBottom - GraphTop);
-         gDrawY = GraphBottom - gDrawY;
-      }
+      Height = MinHeight + (i * HeightIncrement);
+      gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
+               (GraphBottom - GraphTop);
+      gDrawY = GraphBottom - gDrawY;
       String HeightS(Height);
       HeightS += " ft ";
       LOG("Drawing %2.1f @ %d %d %d\n",Height,gDrawX,gDrawY,i);
@@ -1399,7 +1397,6 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       if(MaxWidth < StringWidth) {
          MaxWidth = StringWidth;
       }
-      Height += HeightIncrement;
    }
    gDrawX += MaxWidth;
    uint16_t GraphLeft = gDrawX;
