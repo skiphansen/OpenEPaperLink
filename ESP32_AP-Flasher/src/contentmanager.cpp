@@ -41,6 +41,7 @@
 #include "truetype.h"
 #include "util.h"
 #include "web.h"
+#include "bezier.h"
 
 uint16_t gDrawX;
 uint16_t gDrawY;
@@ -1111,7 +1112,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    float MaxHeight = -1000.0;
    int Hrs;
    int Mins;
-   int MinsAterMidnight;
+   int MinsAfterMidnight;
    String DateTime;
    String TideType;
    uint16_t StringWidth;
@@ -1227,7 +1228,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       }
 
       LOG("Day %d Hrs %d Mins %d\n",Day,Hrs,Mins);
-      MinsAterMidnight = Mins + (Hrs * 60);
+      MinsAfterMidnight = Mins + (Hrs * 60);
 
       if(Yesterday == 0) {
          // Must be the first high/low from yesterday
@@ -1248,22 +1249,22 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
       if(Day == Yesterday) {
          // Adjust time
-         MinsAterMidnight -= (24 * 60);
+         MinsAfterMidnight -= (24 * 60);
       }
       else if(Day == Tomorrow) {
          // Adjust time
-         MinsAterMidnight += (24 * 60);
+         MinsAfterMidnight += (24 * 60);
       }
       else if(Day != Today) {
          LOG("Internal error Day %d\n",Day);
       }
 
-      LOG("Set entry %d %f %d\n",Entries,Height,Mins);
+      LOG("Set entry %d %f %d %d\n",Entries,Height,Mins,MinsAfterMidnight);
 
       HighLowArray[Entries].Height = Height;
       HighLowArray[Entries].Hrs = Hrs;
       HighLowArray[Entries].Mins = Mins;
-      HighLowArray[Entries].Time = MinsAterMidnight;
+      HighLowArray[Entries].Time = MinsAfterMidnight;
       if(TideType == "H") {
          HighLowArray[Entries].LowTide = false;
          if(Day == Today) {
@@ -1434,6 +1435,34 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    for(int i = TIME_LINE_INCREMENT; i < 24;  i += TIME_LINE_INCREMENT) {
 
    }
+   std::vector<bezier::Vec2> BezierPoints;
+
+   gDrawX = GraphLeft;
+   for(int i = 1; i < Entries; i++) {
+   // Start at the last high/low tide
+      double MidwayTime;
+      MidwayTime = (double) (HighLowArray[i].Time - HighLowArray[i-1].Time) / 2;
+      BezierPoints.push_back({(double)HighLowArray[i-1].Time,
+                         (double) HighLowArray[i-1].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i-1].Height});
+      BezierPoints.push_back({(double) HighLowArray[i].Time,
+                         (double) HighLowArray[i].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
+      bezier::Bezier<3> cubicBezier(BezierPoints);
+
+      int PlotPoints = (HighLowArray[i].Time - HighLowArray[i-1].Time) 
+                        * (GraphRight - GraphLeft)
+                        / (24 * 60);
+
+      LOG("i %d, %d points\n",i,PlotPoints);
+      for(int j = 0; j < PlotPoints; j++) {
+         double t = (1.0 * j) / PlotPoints;
+         LOG("  %d,%f\n",gDrawX++,cubicBezier.valueAt(t,1));
+      }
+      LOG("\n");
+      BezierPoints.clear();
+   }
+
 
    spr2buffer(spr, filename, imageParams);
    spr.deleteSprite();
