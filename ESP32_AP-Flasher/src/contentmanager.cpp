@@ -1,5 +1,7 @@
 #include "contentmanager.h"
 
+#define LOG(format, ... ) Serial.printf(format,## __VA_ARGS__)
+
 // possibility to turn off, to save space if needed
 #ifndef SAVE_SPACE
 #define CONTENT_QR
@@ -39,6 +41,10 @@
 #include "truetype.h"
 #include "util.h"
 #include "web.h"
+#include "bezier.h"
+
+uint16_t gDrawX;
+uint16_t gDrawY;
 
 // https://csvjson.com/json_beautifier
 
@@ -543,6 +549,12 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
                 taginfo->nextupdate = now + 300;
             }
             break;
+
+       case 250:  // Tides
+          drawNoaaTides(filename, cfgobj, taginfo, imageParams);
+          taginfo->nextupdate = now + interval;
+          updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
+          break;
 #endif
     }
 
@@ -608,7 +620,8 @@ void replaceVariables(String &format) {
     }
 }
 
-void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, String font, byte align, uint16_t color, uint16_t size, uint16_t bgcolor) {
+uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, String font, byte align, uint16_t color, uint16_t size, uint16_t bgcolor) {
+   uint16_t Ret = 0;
     // drawString(spr,"test",100,10,"bahnschrift30",TC_DATUM,TFT_RED);
 
     // backwards compitibility
@@ -644,16 +657,17 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
             File fontFile = contentFS->open(font, "r");
             if (!truetype.setTtfFile(fontFile)) {
                 Serial.println("read ttf failed");
-                return;
+                return 0;
             }
 
             truetype.setCharacterSize(size);
             truetype.setCharacterSpacing(0);
+            Ret = truetype.getStringWidth(content);
             if (align == TC_DATUM) {
-                posx -= truetype.getStringWidth(content) / 2;
+                posx -= Ret / 2;
             }
             if (align == TR_DATUM) {
-                posx -= truetype.getStringWidth(content);
+                posx -= Ret;
             }
             truetype.setTextBoundary(posx, spr.width(), spr.height());
             if (spr.getColorDepth() == 8) {
@@ -670,10 +684,11 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
             if (font != "") spr.loadFont(font.substring(1), *contentFS);
             spr.setTextColor(color, bgcolor);
             spr.setTextWrap(false, false);
-            spr.drawString(content, posx, posy);
+            Ret = spr.drawString(content, posx, posy);
             if (font != "") spr.unloadFont();
         }
     }
+    return Ret;
 }
 
 void drawTextBox(TFT_eSprite &spr, String &content, int16_t &posx, int16_t &posy, int16_t boxwidth, int16_t boxheight, String font, uint16_t color, uint16_t bgcolor, float lineheight) {
@@ -944,6 +959,9 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     }
 
     DynamicJsonDocument doc(2000);
+	 String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
+	 LOG("URL %s\n",URL.c_str());
+
     const bool success = util::httpGetJson("https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units, doc, 5000);
     if (!success) {
         return;
@@ -976,6 +994,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
                                   ? imageParams.highlightColor
                                   : TFT_BLACK;
         drawString(spr, getWeatherIcon(weathercode), loc["icon"][0].as<int>() + dag * column1, loc["icon"][1], "/fonts/weathericons.ttf", TC_DATUM, iconcolor, loc["icon"][2]);
+		  LOG("dag %d, column1 %d icon %d\n",dag,column1,loc["icon"][0].as<int>());
 
         drawString(spr, windDirectionIcon(daily["winddirection_10m_dominant"][dag]), loc["wind"][0].as<int>() + dag * column1, loc["wind"][1], "/fonts/weathericons.ttf", TC_DATUM, TFT_BLACK, loc["icon"][2]);
 
@@ -997,10 +1016,10 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
               }
            } else {
               double fRain = daily["precipitation_sum"][dag].as<double>();
-              fRain = round(fRain*100.0) / 100.0;
-              if (fRain > 0.0) {
-                 // inch, display if > .01 inches
-                  drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
+              if (fRain > 0.01) {
+              // inch, display if > .01 inches
+					  fRain = round(fRain*100.0) / 100.0;
+					  drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
               }
            }
         }
@@ -1017,6 +1036,524 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 
     spr2buffer(spr, filename, imageParams);
     spr.deleteSprite();
+}
+
+/* 
+ 
+https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=20240603&end_date=20240605&station=8446613&product=predictions&datum=MLLW&time_zone=lst_ldt&units=english&format=json&interval=hilo
+  "predictions": [
+    {
+      "t": "2024-06-03 03:23",
+      "v": "-0.033",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-03 09:19",
+      "v": "10.288",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-03 15:39",
+      "v": "0.352",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-03 21:40",
+      "v": "11.600",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-04 04:21",
+      "v": "-0.469",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-04 10:18",
+      "v": "10.335",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-04 16:33",
+      "v": "0.359",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-04 22:32",
+      "v": "11.867",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-05 05:16",
+      "v": "-0.785",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-05 11:12",
+      "v": "10.345",
+      "type": "H"
+    },
+    {
+      "t": "2024-06-05 17:25",
+      "v": "0.411",
+      "type": "L"
+    },
+    {
+      "t": "2024-06-05 23:22",
+      "v": "11.966",
+      "type": "H"
+    }
+  ]
+} 
+*/ 
+
+void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, imgParam &imageParams) 
+{
+   time_t Now;
+   struct tm Timeinfo;
+   struct tm TimeinfoToday;
+   char BeginDate[10];
+   char EndDate[10];  // for xample "20240605"
+   DynamicJsonDocument doc(2000);
+   StaticJsonDocument<512> loc;
+   int Yesterday = 0;
+   int Today = 0;
+   int Tomorrow = 0;
+   int Entries = 0;
+   int Day;
+   float Height;
+   float MinHeight = 1000.0;
+   float MaxHeight = -1000.0;
+   int Hrs;
+   int Mins;
+   int MinsAfterMidnight;
+   String DateTime;
+   String TideType;
+   uint16_t StringWidth;
+   int LowTides = 0;
+   int HighTides = 0;
+
+// eventually parameter read from template
+#define NUM_HEIGHT_LINES      5
+#define TIME_LINE_INCREMENT   4
+#define BOTTOM_MARGIN         10
+#define RIGHT_MARGIN          10
+#define GRAPH_LABEL_FONT      "REFSAN12"
+#define GRAPH_LABEL_SIZE      12
+
+#define MAX_HIGH_LOW_ENTRIES    10
+   struct {
+      int  Time;    // Minutes before or after midnight yesterday
+      int  Hrs;
+      int  Mins;
+      float Height; // MLLW (Mean Lower Low Water)
+      bool  LowTide;
+   } HighLowArray[MAX_HIGH_LOW_ENTRIES];
+   TFT_eSprite spr = TFT_eSprite(&tft);
+   String StationID = "8446613";
+
+   wsLog("Plot tides");
+   time(&Now);
+   localtime_r(&Now,&TimeinfoToday);
+
+// Begin predictions yesterday, ending tomorrow
+   Now -= 24*60*60;
+   LOG("Current time %d:%02d\n\n",TimeinfoToday.tm_hour,TimeinfoToday.tm_min);
+
+   localtime_r(&Now,&Timeinfo);
+   snprintf(BeginDate,sizeof(BeginDate),"%d%02d%02d",
+            Timeinfo.tm_year + 1900,Timeinfo.tm_mon+1,Timeinfo.tm_mday);
+
+   Now += 24*60*60*2;
+   localtime_r(&Now,&Timeinfo);
+   snprintf(EndDate,sizeof(EndDate),"%d%02d%02d",
+            Timeinfo.tm_year + 1900,Timeinfo.tm_mon+1,Timeinfo.tm_mday);
+
+   String TideUrl = "https://api.tidesandcurrents.noaa.gov/"
+                    "api/prod/datagetter?begin_date=";
+   TideUrl += BeginDate;
+   TideUrl += "&end_date=";
+   TideUrl += EndDate;
+   TideUrl += "&station=";
+   TideUrl += StationID;
+   TideUrl += "&product=predictions&datum=MLLW"
+              "&time_zone=lst_ldt&units=english"
+              "&format=json&interval=hilo";
+
+   const bool success = util::httpGetJson(TideUrl,doc, 5000);
+   if(!success) {
+      return;
+   }
+// Draw today's date
+   getTemplate(loc,250,taginfo->hwType); 
+   initSprite(spr,imageParams.width,imageParams.height,imageParams);
+
+   const auto &date = loc["date"];
+
+   String TodayS = languageDays[TimeinfoToday.tm_wday] 
+                   + " " + languageMonth[TimeinfoToday.tm_mon]
+                   + " " + String(TimeinfoToday.tm_mday);
+
+   String LocationS = "Wellfleet Tides";
+   LOG("Drawing %s @ %d, %d with %s font size %d\n",
+       TodayS.c_str(),(int) date[0],(int) date[1],(const char *) date[2],
+       (int)date[3]);
+
+   gDrawX = 10;
+   gDrawY = 10;
+   int CharHeight = (int) date[3];
+
+   StringWidth = drawString(spr,LocationS,gDrawX,gDrawY,date[2],TL_DATUM,TFT_BLACK,CharHeight);
+   LOG("LocationS width %u\n",StringWidth);
+   StringWidth = drawString(spr,TodayS,spr.width()-10,10,date[2],TR_DATUM,TFT_BLACK,CharHeight);
+   LOG("TodayS width %u\n",StringWidth);
+
+#if 0
+   // top line
+   spr.drawLine(0,0,imageParams.width-1,0, TFT_BLACK);
+// bottom line
+   spr.drawLine(0,imageParams.height-1,imageParams.width-1,imageParams.height-1, TFT_BLACK);
+// left side
+   spr.drawLine(0,0,0,imageParams.height-1, TFT_BLACK);
+// right side
+   spr.drawLine(imageParams.width-1,0,imageParams.width-1,imageParams.height-1, TFT_BLACK);
+// diagonal 1
+   spr.drawLine(0,0,imageParams.width-1,imageParams.height-1, TFT_BLACK);
+// diagonal 2
+   spr.drawLine(0,imageParams.height-1,imageParams.width-1,0, TFT_BLACK);
+#endif
+
+// Need last high/low tide from yesterday and the first high/low tide
+// tomorrow plus todays values.
+
+   JsonArray Predictions = doc["predictions"];
+   for(JsonObject Prediction : Predictions) {
+      DateTime = Prediction["t"].as<String>();
+      Height = Prediction["v"].as<float>();
+      TideType = Prediction["type"].as<String>();
+
+      Serial.println("{ t: " + DateTime
+                     + ", v: " + Height
+                     + ", type: " + (Prediction["type"].as<String>())
+                     + "}");
+      if(sscanf(DateTime.c_str(),"%*d-%*d-%d %d:%d",&Day,&Hrs,&Mins) != 3) {
+         Serial.println("Couldn't convert " + DateTime);
+         break;
+      }
+
+      LOG("Day %d Hrs %d Mins %d\n",Day,Hrs,Mins);
+      MinsAfterMidnight = Mins + (Hrs * 60);
+
+      if(Yesterday == 0) {
+         // Must be the first high/low from yesterday
+         LOG("Set Yesterday to %d\n",Day);
+         Yesterday = Day;
+      }
+      else if(Day != Yesterday && Today == 0) {
+      // must be today
+         Today = Day;
+         LOG("Set Today to %d\n",Day);
+         Entries++;
+      }
+      else if(Day != Yesterday && Day != Today) {
+         // Not yesterday or today, must be tomorrow
+         Tomorrow = Day;
+         LOG("Set Tomorrow to %d\n",Day);
+      }
+
+      if(Day == Yesterday) {
+         // Adjust time
+         MinsAfterMidnight -= (24 * 60);
+      }
+      else if(Day == Tomorrow) {
+         // Adjust time
+         MinsAfterMidnight += (24 * 60);
+      }
+      else if(Day != Today) {
+         LOG("Internal error Day %d\n",Day);
+      }
+
+      LOG("Set entry %d %f %d %d\n",Entries,Height,Mins,MinsAfterMidnight);
+
+      HighLowArray[Entries].Height = Height;
+      HighLowArray[Entries].Hrs = Hrs;
+      HighLowArray[Entries].Mins = Mins;
+      HighLowArray[Entries].Time = MinsAfterMidnight;
+      if(TideType == "H") {
+         HighLowArray[Entries].LowTide = false;
+         if(Day == Today) {
+            HighTides++; // count it
+            if(MaxHeight < Height) {
+               MaxHeight = Height;
+               LOG("New MaxHeight %f\n",MaxHeight);
+            }
+         }
+      }
+      else if(TideType == "L") {
+         HighLowArray[Entries].LowTide = true;
+         if(Day == Today) {
+            LowTides++; // count it
+            if(MinHeight > Height) {
+               MinHeight = Height;
+               LOG("New MinHeight %f\n",MinHeight);
+            }
+         }
+      }
+      else {
+         LOG("Unknown tide type %s\n",TideType.c_str());
+      }
+
+      if(Day != Yesterday) {
+         // Just save the last value from yesterday
+         Entries++;
+      }
+
+      if(Day == Tomorrow) {
+         // We're done
+         break;
+      }
+   }
+
+   String LowTidesS("Low tide: ");
+   String HighTidesS("High tide: ");
+
+   for(int i = 1; i < Entries - 1; i++) {
+      Mins = HighLowArray[i].Mins;
+      Hrs = HighLowArray[i].Hrs;
+      if(Hrs > 12) {
+      // PM
+         Hrs -= 12;
+      }
+      else if(Hrs == 0) {
+      // Midnight
+         Hrs = 12;
+      }
+      snprintf(BeginDate,sizeof(BeginDate),"%d:%02d",Hrs,Mins);
+      DateTime = BeginDate;
+      if(HighLowArray[i].Hrs > 11) {
+         DateTime += " pm";
+      }
+      else {
+         DateTime += " am";
+      }
+
+      if(HighLowArray[i].LowTide) {
+         LowTidesS += DateTime;
+         if(--LowTides) {
+         // More to come
+            LowTidesS += ", ";
+         }
+      }
+      else {
+         HighTidesS += DateTime;
+         if(--HighTides) {
+         // More to come
+            HighTidesS += ", ";
+         }
+      }
+
+      LOG("Entry %d: %f @ %d\n",
+                    i + 1, HighLowArray[i].Height,HighLowArray[i].Time);
+
+   }
+// Round MinHeight and MaxHeight to nearest .5 foot
+
+// 1.5 initial line spacing from title
+   gDrawY += CharHeight + (CharHeight / 2);
+   CharHeight = GRAPH_LABEL_SIZE;
+
+   drawString(spr,LowTidesS,gDrawX,gDrawY,
+              GRAPH_LABEL_FONT,TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+   drawString(spr,HighTidesS,spr.width()-10,gDrawY,
+              GRAPH_LABEL_FONT,TR_DATUM,TFT_BLACK);
+
+   gDrawY += CharHeight * 2;
+
+   uint16_t GraphTop = gDrawY;
+// Leave room for X axis labels below the graph
+   uint16_t GraphBottom = imageParams.height - 1 - (CharHeight *2) - BOTTOM_MARGIN;
+   uint16_t GraphRight = imageParams.width - 1 - RIGHT_MARGIN;
+
+   LOG("Min, max Height %f, %f -> ",MinHeight,MaxHeight);
+   MinHeight = -0.5 - floor((-MinHeight + 0.5) * 2.0) / 2.0;
+   MaxHeight = 0.5 + floor((MaxHeight + 0.5) * 2.0) / 2.0;
+   LOG("%f, %f\n",MinHeight,MaxHeight);
+
+// Draw Min height and max height lines plus NUM_HEIGHT_LINES - 2 
+
+   float HeightIncrement = (MaxHeight - MinHeight) / NUM_HEIGHT_LINES;
+// force labels to be on 1/2 foot boundaries
+// NB: This means that NUM_HEIGHT_LINES * HeightIncrement will be bigger
+// than the graph so the top value is a special case
+   LOG("HeightIncrement %f -> ",HeightIncrement);
+   HeightIncrement = floor((HeightIncrement + 0.5) * 2.0) / 2.0;
+   LOG("%f\n",HeightIncrement);
+
+// Adjust MaxHeight
+   MaxHeight = MinHeight + (HeightIncrement * (NUM_HEIGHT_LINES - 1));
+   LOG("New MaxHeight %f\n",MaxHeight);
+
+// Draw tide height at left first
+
+   int MaxWidth = 0;
+   int IncrementY = (GraphBottom - GraphTop) / NUM_HEIGHT_LINES;
+
+   for(int i = 0; i < NUM_HEIGHT_LINES; i++) {
+      Height = MinHeight + (i * HeightIncrement);
+      gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
+               (GraphBottom - GraphTop);
+      gDrawY = GraphBottom - gDrawY;
+      String HeightS(Height);
+      HeightS += " ft ";
+      LOG("Drawing %2.1f @ %d %d %d\n",Height,gDrawX,gDrawY,i);
+      StringWidth = drawString(spr,HeightS,gDrawX,gDrawY,
+                               GRAPH_LABEL_FONT,TL_DATUM,TFT_BLACK,
+                               GRAPH_LABEL_SIZE);
+      if(MaxWidth < StringWidth) {
+         MaxWidth = StringWidth;
+      }
+   }
+   gDrawX += MaxWidth;
+   uint16_t GraphLeft = gDrawX;
+	uint16_t GraphWidth = GraphRight - GraphLeft;
+
+   LOG("MaxWidth %d DrawX %d DrawY %d\n",MaxWidth,gDrawX,gDrawY);
+
+// Draw tide height values
+   LOG("Grid lines @ ");
+   Height = MinHeight;
+   for(int i = 0; i < NUM_HEIGHT_LINES + 1; i++) {
+      if(Height > MaxHeight) {
+         Height = MaxHeight;
+         gDrawY = GraphTop;
+      }
+      else {
+         gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
+                  (GraphBottom - GraphTop);
+         gDrawY = GraphBottom - gDrawY;
+      }
+      gDrawY += CharHeight / 2;  // Center line on label
+      LOG("%2.1f ",Height);
+      spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
+      Height += HeightIncrement;
+   }
+   LOG("\n");
+
+// Adjust GraphTop and GraphBottom to plot area
+   GraphTop += (CharHeight / 2);
+   GraphBottom += (CharHeight / 2);
+   spr.drawLine(GraphLeft,GraphTop,GraphLeft,GraphBottom,TFT_BLACK);
+   spr.drawLine(GraphRight,GraphTop,GraphRight,GraphBottom,TFT_BLACK);
+
+// Draw time at bottom 4 hour increments from midnight to midnight
+// |Midnight   4am   8am  noon   4pm   8pm  midnight|
+	gDrawX = GraphLeft;
+	gDrawY = GraphBottom + CharHeight;
+
+	MaxWidth = 0;
+   for(int i = 0; i <= 24;  i += TIME_LINE_INCREMENT) {
+		String TimeS(i);
+		
+		if(i == 0 || i == 24) {
+			TimeS = "12am";
+		}
+		else if(i < 12) {
+			TimeS += "am";
+		}
+		else if(i > 12) {
+			TimeS = i - 12;
+			TimeS += "pm";
+		}
+		else {
+			TimeS = "noon";
+		}
+	// draw it at x=0 to get width
+		StringWidth = drawString(spr,TimeS,0,gDrawY,GRAPH_LABEL_FONT,
+										 TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+      if(MaxWidth < StringWidth) {
+         MaxWidth = StringWidth;
+      }
+
+		if(i == 0) {
+		// draw at left side of graph
+			drawString(spr,TimeS,GraphLeft,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
+		else if(i == 24) {
+		// draw at right side of graph
+			gDrawX = GraphRight - StringWidth;
+			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
+		else {
+		// draw centered under time line
+			gDrawX = GraphLeft + ((i * GraphWidth) / 24);
+			spr.drawLine(gDrawX,GraphTop,gDrawX,GraphBottom,TFT_BLACK);
+			gDrawX -= StringWidth / 2;
+			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
+
+   }
+// stuff we wrote to measure the label widths
+	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
+
+   std::vector<bezier::Vec2> BezierPoints;
+
+   gDrawX = GraphLeft;
+   for(int i = 1; i < Entries; i++) {
+   // Start at the last high/low tide
+      double MidwayTime;
+      if(gDrawX > GraphRight) {
+      // We're done !
+         break;
+      }
+      
+      MidwayTime = (double) (HighLowArray[i].Time - HighLowArray[i-1].Time) / 2;
+      BezierPoints.push_back({(double)HighLowArray[i-1].Time,
+                         (double) HighLowArray[i-1].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i-1].Height});
+      BezierPoints.push_back({(double) HighLowArray[i].Time,
+                         (double) HighLowArray[i].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
+      bezier::Bezier<3> cubicBezier(BezierPoints);
+
+      int PlotPoints = (HighLowArray[i].Time - HighLowArray[i-1].Time) 
+                        * (GraphRight - GraphLeft)
+                        / (24 * 60);
+// case 1: Start of graph, there are off graph points before midnight
+// case 2: middle of graph, graph all points
+// case 3: end of graph, points after midnight
+
+		for(int j = 0; j < PlotPoints; j++) {
+
+		}
+
+      LOG("i %d, %d points\n",i,PlotPoints);
+      int j = 0;
+      bezier::Vec2 ThisPoint;
+      while(j < PlotPoints) {
+         double t = (1.0 * j) / PlotPoints;
+
+         ThisPoint = cubicBezier.valueAt(t);
+         if(ThisPoint.x >= 0.0) {
+#if 1
+            LOG("%f,%f\n",ThisPoint.x,ThisPoint.y);
+#else
+            LOG("  gDrawX %d time %f tide height %f\n",
+                gDrawX,ThisPoint.x,ThisPoint.y);
+#endif
+            gDrawX++;
+         }
+         j++;
+      }
+      LOG("\n");
+      BezierPoints.clear();
+   }
+
+
+   spr2buffer(spr, filename, imageParams);
+   spr.deleteSprite();
+
 }
 
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC) {
@@ -1929,7 +2466,7 @@ String extractValueFromJson(JsonDocument &json, const String &path) {
             int index = atoi(segment);
             currentObj = currentObj.as<JsonArray>()[index];
         } else {
-            Serial.printf("Invalid JSON structure at path segment: %s\r\n", segment);
+            LOG("Invalid JSON structure at path segment: %s\n", segment);
             return "";
         }
         segment = strtok(NULL, ".");
