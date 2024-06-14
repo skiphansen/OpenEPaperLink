@@ -664,7 +664,7 @@ uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy
             truetype.setCharacterSpacing(0);
             Ret = truetype.getStringWidth(content);
             if (align == TC_DATUM) {
-                posx -= Ret;
+                posx -= Ret / 2;
             }
             if (align == TR_DATUM) {
                 posx -= Ret;
@@ -959,6 +959,9 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     }
 
     DynamicJsonDocument doc(2000);
+	 String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
+	 LOG("URL %s\n",URL.c_str());
+
     const bool success = util::httpGetJson("https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units, doc, 5000);
     if (!success) {
         return;
@@ -991,6 +994,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
                                   ? imageParams.highlightColor
                                   : TFT_BLACK;
         drawString(spr, getWeatherIcon(weathercode), loc["icon"][0].as<int>() + dag * column1, loc["icon"][1], "/fonts/weathericons.ttf", TC_DATUM, iconcolor, loc["icon"][2]);
+		  LOG("dag %d, column1 %d icon %d\n",dag,column1,loc["icon"][0].as<int>());
 
         drawString(spr, windDirectionIcon(daily["winddirection_10m_dominant"][dag]), loc["wind"][0].as<int>() + dag * column1, loc["wind"][1], "/fonts/weathericons.ttf", TC_DATUM, TFT_BLACK, loc["icon"][2]);
 
@@ -1012,10 +1016,10 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
               }
            } else {
               double fRain = daily["precipitation_sum"][dag].as<double>();
-              fRain = round(fRain*100.0) / 100.0;
-              if (fRain > 0.0) {
-                 // inch, display if > .01 inches
-                  drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
+              if (fRain > 0.01) {
+              // inch, display if > .01 inches
+					  fRain = round(fRain*100.0) / 100.0;
+					  drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
               }
            }
         }
@@ -1393,7 +1397,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    int MaxWidth = 0;
    int IncrementY = (GraphBottom - GraphTop) / NUM_HEIGHT_LINES;
 
-   for(int i = 0; i < NUM_HEIGHT_LINES + 1; i++) {
+   for(int i = 0; i < NUM_HEIGHT_LINES; i++) {
       Height = MinHeight + (i * HeightIncrement);
       gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
                (GraphBottom - GraphTop);
@@ -1410,6 +1414,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    }
    gDrawX += MaxWidth;
    uint16_t GraphLeft = gDrawX;
+	uint16_t GraphWidth = GraphRight - GraphLeft;
 
    LOG("MaxWidth %d DrawX %d DrawY %d\n",MaxWidth,gDrawX,gDrawY);
 
@@ -1440,16 +1445,69 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    spr.drawLine(GraphRight,GraphTop,GraphRight,GraphBottom,TFT_BLACK);
 
 // Draw time at bottom 4 hour increments from midnight to midnight
-// |Midnight   4 am   8am  noon   4pm   8pm  midnight|
-   for(int i = TIME_LINE_INCREMENT; i < 24;  i += TIME_LINE_INCREMENT) {
+// |Midnight   4am   8am  noon   4pm   8pm  midnight|
+	gDrawX = GraphLeft;
+	gDrawY = GraphBottom + CharHeight;
+
+	MaxWidth = 0;
+   for(int i = 0; i <= 24;  i += TIME_LINE_INCREMENT) {
+		String TimeS(i);
+		
+		if(i == 0 || i == 24) {
+			TimeS = "12am";
+		}
+		else if(i < 12) {
+			TimeS += "am";
+		}
+		else if(i > 12) {
+			TimeS = i - 12;
+			TimeS += "pm";
+		}
+		else {
+			TimeS = "noon";
+		}
+	// draw it at x=0 to get width
+		StringWidth = drawString(spr,TimeS,0,gDrawY,GRAPH_LABEL_FONT,
+										 TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+      if(MaxWidth < StringWidth) {
+         MaxWidth = StringWidth;
+      }
+
+		if(i == 0) {
+		// draw at left side of graph
+			drawString(spr,TimeS,GraphLeft,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
+		else if(i == 24) {
+		// draw at right side of graph
+			gDrawX = GraphRight - StringWidth;
+			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
+		else {
+		// draw centered under time line
+			gDrawX = GraphLeft + ((i * GraphWidth) / 24);
+			spr.drawLine(gDrawX,GraphTop,gDrawX,GraphBottom,TFT_BLACK);
+			gDrawX -= StringWidth / 2;
+			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+		}
 
    }
+// stuff we wrote to measure the label widths
+	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
+
    std::vector<bezier::Vec2> BezierPoints;
 
    gDrawX = GraphLeft;
    for(int i = 1; i < Entries; i++) {
    // Start at the last high/low tide
       double MidwayTime;
+      if(gDrawX > GraphRight) {
+      // We're done !
+         break;
+      }
+      
       MidwayTime = (double) (HighLowArray[i].Time - HighLowArray[i-1].Time) / 2;
       BezierPoints.push_back({(double)HighLowArray[i-1].Time,
                          (double) HighLowArray[i-1].Height});
@@ -1462,11 +1520,31 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       int PlotPoints = (HighLowArray[i].Time - HighLowArray[i-1].Time) 
                         * (GraphRight - GraphLeft)
                         / (24 * 60);
+// case 1: Start of graph, there are off graph points before midnight
+// case 2: middle of graph, graph all points
+// case 3: end of graph, points after midnight
+
+		for(int j = 0; j < PlotPoints; j++) {
+
+		}
 
       LOG("i %d, %d points\n",i,PlotPoints);
-      for(int j = 0; j < PlotPoints; j++) {
+      int j = 0;
+      bezier::Vec2 ThisPoint;
+      while(j < PlotPoints) {
          double t = (1.0 * j) / PlotPoints;
-         LOG("  %d,%f\n",gDrawX++,cubicBezier.valueAt(t,1));
+
+         ThisPoint = cubicBezier.valueAt(t);
+         if(ThisPoint.x >= 0.0) {
+#if 1
+            LOG("%f,%f\n",ThisPoint.x,ThisPoint.y);
+#else
+            LOG("  gDrawX %d time %f tide height %f\n",
+                gDrawX,ThisPoint.x,ThisPoint.y);
+#endif
+            gDrawX++;
+         }
+         j++;
       }
       LOG("\n");
       BezierPoints.clear();
@@ -2104,7 +2182,7 @@ void drawQR(String &filename, String qrcontent, String title, tagRecord *&taginf
 #ifdef CONTENT_BUIENRADAR
 uint8_t drawBuienradar(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgParam &imageParams) {
     uint8_t refresh = 60;
-    wsLog("get weather");
+    wsLog("get buienradar");
 
     getLocation(cfgobj);
     HTTPClient http;
@@ -2112,7 +2190,7 @@ uint8_t drawBuienradar(String &filename, JsonObject &cfgobj, tagRecord *&taginfo
     String lat = cfgobj["#lat"];
     String lon = cfgobj["#lon"];
     // logLine("http drawBuienradar");
-    http.begin("https://gps.buienradar.nl/getrr.php?lat=" + lat + "&lon=" + lon);
+    http.begin("https://gadgets.buienradar.nl/data/raintext/?lat=" + lat + "&lon=" + lon);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.setTimeout(5000);
     int httpCode = http.GET();
@@ -2151,7 +2229,7 @@ uint8_t drawBuienradar(String &filename, JsonObject &cfgobj, tagRecord *&taginfo
         drawString(spr, "Buienradar", loc["title"][0], loc["title"][1], loc["title"][2]);
 
         for (int i = 0; i < 24; i++) {
-            const int startPos = i * 11;
+            const int startPos = i * 10;
             uint8_t value = response.substring(startPos, startPos + 3).toInt();
             const String timestring = response.substring(startPos + 4, startPos + 9);
             const int minutes = timestring.substring(3).toInt();
