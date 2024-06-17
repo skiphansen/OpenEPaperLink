@@ -1,9 +1,11 @@
 #!/bin/sh
 
-VPJ_FILE=../vs/ESP32_S3_16_8_YELLOW_AP.vpj
+ENV=OpenEPaperLink_Mini_AP_v4
 
-dot_d_2vs.sh ${VPJ_FILE} .pio/build/ESP32_S3_16_8_YELLOW_AP
+VPJ_FILE=../vs/${ENV}.vpj
+
+dot_d_2vs.sh ${VPJ_FILE} .pio/build/${ENV}
 cp ${VPJ_FILE} .
-cat ESP32_S3_16_8_YELLOW_AP.vpj | sed -e 's!\\ ! !'g > e.xml
+cat ${ENV}.vpj | sed -e 's!\\ ! !'g > e.xml
 mv e.xml ${VPJ_FILE}
 

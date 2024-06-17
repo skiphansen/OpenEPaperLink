@@ -1142,7 +1142,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 #define MAX_HIGH_LOW_ENTRIES    10
    struct {
-      int  Time;    // Minutes before or after midnight yesterday
+      int  Time;    // Start time, minutes before or after midnight 
       int  Hrs;
       int  Mins;
       float Height; // MLLW (Mean Lower Low Water)
@@ -1316,6 +1316,8 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    String LowTidesS("Low tide: ");
    String HighTidesS("High tide: ");
 
+	LOG("Entry 1: %f @ %d\n",HighLowArray[0].Height,HighLowArray[0].Time);
+
    for(int i = 1; i < Entries - 1; i++) {
       Mins = HighLowArray[i].Mins;
       Hrs = HighLowArray[i].Hrs;
@@ -1353,7 +1355,6 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
       LOG("Entry %d: %f @ %d\n",
                     i + 1, HighLowArray[i].Height,HighLowArray[i].Time);
-
    }
 // Round MinHeight and MaxHeight to nearest .5 foot
 
@@ -1374,8 +1375,13 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    uint16_t GraphRight = imageParams.width - 1 - RIGHT_MARGIN;
 
    LOG("Min, max Height %f, %f -> ",MinHeight,MaxHeight);
-   MinHeight = -0.5 - floor((-MinHeight + 0.5) * 2.0) / 2.0;
-   MaxHeight = 0.5 + floor((MaxHeight + 0.5) * 2.0) / 2.0;
+	if(MinHeight < 0.0) {
+		MinHeight = round(MinHeight * 2.0) / 2.0;
+	}
+	else {
+		MinHeight = floor(MinHeight * 2.0) / 2.0;
+	}
+   MaxHeight = round(MaxHeight * 2.0) / 2.0;
    LOG("%f, %f\n",MinHeight,MaxHeight);
 
 // Draw Min height and max height lines plus NUM_HEIGHT_LINES - 2 
@@ -1385,11 +1391,11 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 // NB: This means that NUM_HEIGHT_LINES * HeightIncrement will be bigger
 // than the graph so the top value is a special case
    LOG("HeightIncrement %f -> ",HeightIncrement);
-   HeightIncrement = floor((HeightIncrement + 0.5) * 2.0) / 2.0;
+   HeightIncrement = round((HeightIncrement + 0.499) * 2.0) / 2.0;
    LOG("%f\n",HeightIncrement);
 
 // Adjust MaxHeight
-   MaxHeight = MinHeight + (HeightIncrement * (NUM_HEIGHT_LINES - 1));
+   MaxHeight = MinHeight + (HeightIncrement * NUM_HEIGHT_LINES);
    LOG("New MaxHeight %f\n",MaxHeight);
 
 // Draw tide height at left first
@@ -1397,7 +1403,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    int MaxWidth = 0;
    int IncrementY = (GraphBottom - GraphTop) / NUM_HEIGHT_LINES;
 
-   for(int i = 0; i < NUM_HEIGHT_LINES; i++) {
+   for(int i = 0; i < NUM_HEIGHT_LINES + 1; i++) {
       Height = MinHeight + (i * HeightIncrement);
       gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
                (GraphBottom - GraphTop);
@@ -1453,8 +1459,12 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    for(int i = 0; i <= 24;  i += TIME_LINE_INCREMENT) {
 		String TimeS(i);
 		
-		if(i == 0 || i == 24) {
+		if(i == 0) {
 			TimeS = "12am";
+		}
+		else if(i == 24) {
+		// leave off "am" to save space
+			TimeS = 12;
 		}
 		else if(i < 12) {
 			TimeS += "am";
@@ -1473,12 +1483,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
          MaxWidth = StringWidth;
       }
 
-		if(i == 0) {
-		// draw at left side of graph
-			drawString(spr,TimeS,GraphLeft,gDrawY,GRAPH_LABEL_FONT,
-						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
-		}
-		else if(i == 24) {
+		if(i == 24) {
 		// draw at right side of graph
 			gDrawX = GraphRight - StringWidth;
 			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
@@ -1492,66 +1497,91 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
 						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
 		}
-
    }
 // stuff we wrote to measure the label widths
 	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
 
    std::vector<bezier::Vec2> BezierPoints;
+	bezier::Bezier<3> cubicBezier;
+	bezier::Vec2 ThisPoint;
 
    gDrawX = GraphLeft;
-   for(int i = 1; i < Entries; i++) {
+	int i = 0;
+#if 1
+	bool bFirst = true;
+	uint16_t LastY = 0;
+   for(int j = 0; j < GraphWidth; j++) {
    // Start at the last high/low tide
       double MidwayTime;
-      if(gDrawX > GraphRight) {
-      // We're done !
-         break;
-      }
-      
-      MidwayTime = (double) (HighLowArray[i].Time - HighLowArray[i-1].Time) / 2;
-      BezierPoints.push_back({(double)HighLowArray[i-1].Time,
-                         (double) HighLowArray[i-1].Height});
-      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i-1].Height});
-      BezierPoints.push_back({(double) HighLowArray[i].Time,
-                         (double) HighLowArray[i].Height});
-      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
-      bezier::Bezier<3> cubicBezier(BezierPoints);
+		double t = (double) j / GraphWidth;
+		int Time = (24*60) * t;
 
-      int PlotPoints = (HighLowArray[i].Time - HighLowArray[i-1].Time) 
-                        * (GraphRight - GraphLeft)
-                        / (24 * 60);
-// case 1: Start of graph, there are off graph points before midnight
-// case 2: middle of graph, graph all points
-// case 3: end of graph, points after midnight
-
-		for(int j = 0; j < PlotPoints; j++) {
-
+		if(bFirst || Time >= HighLowArray[i+1].Time) {
+			LOG("bFirst %d Time %d HighLowArray[%d].Time %d\n",
+				 bFirst,Time,i+1,HighLowArray[i+1].Time);
+			if(bFirst) {
+				bFirst = false;
+			}
+			else {
+			// move to next segment
+				LOG("%f > %d i %d\n",t,HighLowArray[i+1].Time,i);
+				i++;
+				BezierPoints.clear();
+			}
+			MidwayTime = (double) (HighLowArray[i+1].Time - HighLowArray[i].Time) / 2;
+			BezierPoints.push_back({(double)HighLowArray[i].Time,
+									 (double) HighLowArray[i].Height});
+			BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
+			BezierPoints.push_back({(double) HighLowArray[i+1].Time,
+									 (double) HighLowArray[i+1].Height});
+			BezierPoints.push_back({MidwayTime,(double) HighLowArray[i+1].Height});
+			if(BezierPoints.size() != 4) {
+				LOG("BezierPoints %d i %d\n",BezierPoints.size(),i);
+				return;
+			}
+			cubicBezier = bezier::Bezier<3>(BezierPoints);
 		}
 
-      LOG("i %d, %d points\n",i,PlotPoints);
-      int j = 0;
-      bezier::Vec2 ThisPoint;
-      while(j < PlotPoints) {
-         double t = (1.0 * j) / PlotPoints;
+		double SegmentTime;
+		LOG("i %d\n",i);
+		SegmentTime = Time - HighLowArray[i].Time;
+		LOG("SegmentTime %f i %d %d %d\n",SegmentTime,i,
+			 HighLowArray[i+i].Time,HighLowArray[i].Time);
 
-         ThisPoint = cubicBezier.valueAt(t);
-         if(ThisPoint.x >= 0.0) {
-#if 1
-            LOG("%f,%f\n",ThisPoint.x,ThisPoint.y);
-#else
-            LOG("  gDrawX %d time %f tide height %f\n",
-                gDrawX,ThisPoint.x,ThisPoint.y);
-#endif
-            gDrawX++;
-         }
-         j++;
-      }
-      LOG("\n");
-      BezierPoints.clear();
+		int SegmentDelta = HighLowArray[i+1].Time - HighLowArray[i].Time;
+		LOG("SegmentDelta %d\n",SegmentDelta);
+		SegmentTime /= SegmentDelta;
+		LOG("SegmentTime %f\n",SegmentTime);
+
+		if(SegmentTime < 0.0 || SegmentTime > 1.0) {
+			LOG("Invalid SegmentTime %f t %f HighLowArray[%d].Time %d\n",
+				 SegmentTime,t,i,HighLowArray[i].Time);
+			LOG("%d %f\n",HighLowArray[i+1],
+				 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
+			for(int k = 0; k < Entries; k++) {
+				LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
+			}
+			return;
+		}
+      ThisPoint = cubicBezier.valueAt(SegmentTime);
+		LOG("%d t %f (%f) = %f\n",gDrawX,t,SegmentTime,ThisPoint.y);
+      Height = ThisPoint.y;
+      gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
+               (GraphBottom - GraphTop);
+		LOG("gDrawY %d\n",gDrawY);
+      gDrawY = GraphBottom - gDrawY;
+		LOG("gDrawY %d\n",gDrawY);
+      gDrawY -= CharHeight / 2;
+		LOG("gDrawY %d\n",gDrawY);
+		if(LastY != 0) {
+			spr.drawLine(gDrawX,LastY,gDrawX + 1,gDrawY,TFT_BLACK);
+			gDrawX++;
+		}
+		LastY = gDrawY;
    }
+#endif
 
-
-   spr2buffer(spr, filename, imageParams);
+	spr2buffer(spr, filename, imageParams);
    spr.deleteSprite();
 
 }
