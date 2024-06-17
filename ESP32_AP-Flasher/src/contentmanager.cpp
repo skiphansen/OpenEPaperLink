@@ -1206,21 +1206,6 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    StringWidth = drawString(spr,TodayS,spr.width()-10,10,date[2],TR_DATUM,TFT_BLACK,CharHeight);
    LOG("TodayS width %u\n",StringWidth);
 
-#if 0
-   // top line
-   spr.drawLine(0,0,imageParams.width-1,0, TFT_BLACK);
-// bottom line
-   spr.drawLine(0,imageParams.height-1,imageParams.width-1,imageParams.height-1, TFT_BLACK);
-// left side
-   spr.drawLine(0,0,0,imageParams.height-1, TFT_BLACK);
-// right side
-   spr.drawLine(imageParams.width-1,0,imageParams.width-1,imageParams.height-1, TFT_BLACK);
-// diagonal 1
-   spr.drawLine(0,0,imageParams.width-1,imageParams.height-1, TFT_BLACK);
-// diagonal 2
-   spr.drawLine(0,imageParams.height-1,imageParams.width-1,0, TFT_BLACK);
-#endif
-
 // Need last high/low tide from yesterday and the first high/low tide
 // tomorrow plus todays values.
 
@@ -1447,7 +1432,16 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       }
       gDrawY += CharHeight / 2;  // Center line on label
       LOG("%2.1f ",Height);
-      spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
+		if(i == 0 || i == NUM_HEIGHT_LINES) {
+		// Solid top and bottom lines
+			spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
+		}
+		else {
+		// otherwise dotted line
+			for(uint16_t x = gDrawX; x < GraphRight; x += 2) {
+				spr.drawPixel(x,gDrawY,TFT_BLACK);
+			}
+		}
       Height += HeightIncrement;
    }
    LOG("\n");
@@ -1490,7 +1484,10 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 	// draw centered under time line
 		gDrawX = GraphLeft + ((i * GraphWidth) / 24);
-		spr.drawLine(gDrawX,GraphTop,gDrawX,GraphBottom,TFT_BLACK);
+		for(uint16_t y = GraphTop; y < GraphBottom; y+= 2) {
+			spr.drawPixel(gDrawX,y,TFT_BLACK);
+
+		}
 		gDrawX -= StringWidth / 2;
 		drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
 					  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
