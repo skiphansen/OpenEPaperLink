@@ -552,7 +552,6 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
 
        case 250:  // Tides
           drawNoaaTides(filename, cfgobj, taginfo, imageParams);
-          taginfo->nextupdate = now + interval;
           updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
           break;
 #endif
@@ -1424,6 +1423,15 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
    LOG("MaxWidth %d DrawX %d DrawY %d\n",MaxWidth,gDrawX,gDrawY);
 
+// adjust GraphRight and GraphWidth to make room for "12am" 
+// centered under right side
+	StringWidth = drawString(spr,"12am",0,
+									 GraphBottom + CharHeight + (CharHeight / 2),
+									 GRAPH_LABEL_FONT,TL_DATUM,TFT_BLACK,
+									 GRAPH_LABEL_SIZE);
+	GraphRight -= StringWidth / 2;
+	GraphWidth -= StringWidth / 2;
+
 // Draw tide height values
    LOG("Grid lines @ ");
    Height = MinHeight;
@@ -1447,11 +1455,12 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 // Adjust GraphTop and GraphBottom to plot area
    GraphTop += (CharHeight / 2);
    GraphBottom += (CharHeight / 2);
+
    spr.drawLine(GraphLeft,GraphTop,GraphLeft,GraphBottom,TFT_BLACK);
    spr.drawLine(GraphRight,GraphTop,GraphRight,GraphBottom,TFT_BLACK);
 
 // Draw time at bottom 4 hour increments from midnight to midnight
-// |Midnight   4am   8am  noon   4pm   8pm  midnight|
+// |12am 4am   8am  noon   4pm   8pm  12am|
 	gDrawX = GraphLeft;
 	gDrawY = GraphBottom + CharHeight;
 
@@ -1459,12 +1468,8 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    for(int i = 0; i <= 24;  i += TIME_LINE_INCREMENT) {
 		String TimeS(i);
 		
-		if(i == 0) {
+		if(i == 0 || i == 24) {
 			TimeS = "12am";
-		}
-		else if(i == 24) {
-		// leave off "am" to save space
-			TimeS = 12;
 		}
 		else if(i < 12) {
 			TimeS += "am";
@@ -1483,20 +1488,12 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
          MaxWidth = StringWidth;
       }
 
-		if(i == 24) {
-		// draw at right side of graph
-			gDrawX = GraphRight - StringWidth;
-			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
-						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
-		}
-		else {
-		// draw centered under time line
-			gDrawX = GraphLeft + ((i * GraphWidth) / 24);
-			spr.drawLine(gDrawX,GraphTop,gDrawX,GraphBottom,TFT_BLACK);
-			gDrawX -= StringWidth / 2;
-			drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
-						  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
-		}
+	// draw centered under time line
+		gDrawX = GraphLeft + ((i * GraphWidth) / 24);
+		spr.drawLine(gDrawX,GraphTop,gDrawX,GraphBottom,TFT_BLACK);
+		gDrawX -= StringWidth / 2;
+		drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+					  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
    }
 // stuff we wrote to measure the label widths
 	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
@@ -1583,7 +1580,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 	spr2buffer(spr, filename, imageParams);
    spr.deleteSprite();
-
+	taginfo->nextupdate = util::getMidnightTime();
 }
 
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC) {
