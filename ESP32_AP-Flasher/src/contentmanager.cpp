@@ -921,6 +921,8 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     initSprite(spr, imageParams.width, imageParams.height, imageParams);
     const auto &location = doc["location"];
     drawString(spr, cfgobj["location"], location[0], location[1], location[2]);
+
+
     const auto &wind = doc["wind"];
     drawString(spr, String(windval), wind[0], wind[1], wind[2], TR_DATUM, (beaufort > 4 ? imageParams.highlightColor : TFT_BLACK));
 
@@ -975,6 +977,17 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 
     const auto &location = loc["location"];
     drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK);
+
+    time_t now;
+    time(&now);
+    char timeStr[24];
+    strftime(timeStr,sizeof(timeStr),"%m/%d %H:%M",localtime(&now));
+
+	 String UpdateStr = "updated ";
+	 UpdateStr += timeStr;
+    drawString(spr,UpdateStr.c_str(),spr.width()-10,location[1],"REFSAN12",TR_DATUM,TFT_BLACK,20);
+	 LOG("UpdateStr '%s'\n",UpdateStr.c_str());
+
     const auto &daily = doc["daily"];
     const auto &column = loc["column"];
     const int column1 = column[1].as<int>();
