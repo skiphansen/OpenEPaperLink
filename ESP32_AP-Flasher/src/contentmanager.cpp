@@ -1385,15 +1385,17 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
    float HeightIncrement = (MaxHeight - MinHeight) / NUM_HEIGHT_LINES;
 // force labels to be on 1/2 foot boundaries
-// NB: This means that NUM_HEIGHT_LINES * HeightIncrement will be bigger
-// than the graph so the top value is a special case
    LOG("HeightIncrement %f -> ",HeightIncrement);
    HeightIncrement = round((HeightIncrement + 0.499) * 2.0) / 2.0;
    LOG("%f\n",HeightIncrement);
+	float Margin = (MinHeight + (HeightIncrement * NUM_HEIGHT_LINES)) - 
+					   (MaxHeight - MinHeight);
 
-// Adjust MaxHeight
-   MaxHeight = MinHeight + (HeightIncrement * NUM_HEIGHT_LINES);
-   LOG("New MaxHeight %f\n",MaxHeight);
+// Adjust MinHeight / MaxHeight
+   LOG("MinHeight/MaxHeight %f %f -> ",MinHeight,MaxHeight);
+   MaxHeight = MaxHeight + round(Margin / 2.0);
+	MinHeight =  MaxHeight - (HeightIncrement * NUM_HEIGHT_LINES);
+   LOG("%f %f\n",MinHeight,MaxHeight);
 
 // Draw tide height at left first
 
