@@ -99,22 +99,23 @@ bool checkCRC(void *p, uint8_t len) {
 
 uint8_t getPacketType(void *buffer) {
     struct MacFcs *fcs = buffer;
+#if 0
     printf("frameType %d destAddrType %d srcAddrType %d panIdCompressed %d\n",
            fcs->frameType,fcs->destAddrType,fcs->srcAddrType,fcs->panIdCompressed);
+#endif
 
     if ((fcs->frameType == 1) && (fcs->destAddrType == 2) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 0)) {
         // broadcast frame
         uint8_t type = ((uint8_t *) buffer)[sizeof(struct MacFrameBcast)];
-        printf("%s#%d: 0x%x\n",__FUNCTION__,__LINE__,type);
+        printf("%s: broadcast 0x%x\n",__FUNCTION__,type);
         return type;
     } else if ((fcs->frameType == 1) && (fcs->destAddrType == 3) && (fcs->srcAddrType == 3) && (fcs->panIdCompressed == 1)) {
         // normal frame
         uint8_t type = ((uint8_t *) buffer)[sizeof(struct MacFrameNormal)];
-        printf("%s#%d:\n",__FUNCTION__,__LINE__);
-        printf("%s#%d: 0x%x\n",__FUNCTION__,__LINE__,type);
+        printf("%s: unicast 0x%x\n",__FUNCTION__,type);
         return type;
     }
-    printf("%s#%d:\n",__FUNCTION__,__LINE__);
+    printf("%s#%d: WTF?\n",__FUNCTION__,__LINE__);
     return 0;
 }
 uint8_t getBlockDataLength() {
@@ -576,7 +577,10 @@ void processAvailDataReq(uint8_t *buffer) {
     struct MacFrameBcast *rxHeader     = (struct MacFrameBcast *) buffer;
     struct AvailDataReq  *availDataReq = (struct AvailDataReq *) (buffer + sizeof(struct MacFrameBcast) + 1);
 
-    if (!checkCRC(availDataReq, sizeof(struct AvailDataReq))) return;
+    if (!checkCRC(availDataReq, sizeof(struct AvailDataReq))) {
+		 LOG("processAvailDataReq CRC check failed\n");
+		 return;
+	 }
 
     // prepare tx buffer to send a response
     memset(radiotxbuffer, 0, sizeof(struct MacFrameNormal) + sizeof(struct AvailDataInfo) + 2);  // 120);
@@ -596,6 +600,8 @@ void processAvailDataReq(uint8_t *buffer) {
             }
         }
     }
+
+	 LOG("haveData %d\n",haveData);
 
     // couldn't find data for this mac
     if (!haveData) availDataInfo->dataType = DATATYPE_NOUPDATE;
@@ -782,10 +788,10 @@ void app_main(void) {
             int8_t ret = commsRxUnencrypted(radiorxbuffer);
             if (ret > 1) {
                 led_flash(0);
-                printf("%s#%d:\n",__FUNCTION__,__LINE__);
                 // received a packet, lets see what it is
                 switch (getPacketType(radiorxbuffer)) {
-                    case PKT_AVAIL_DATA_REQ:
+						 case PKT_AVAIL_DATA_REQ:
+							 LOG("Got PKT_AVAIL_DATA_REQ\n");
                         if (ret == 28) {
                             // old version of the AvailDataReq struct, set all the new fields to zero, so it will pass the CRC
                             memset(radiorxbuffer + 1 + sizeof(struct MacFrameBcast) + sizeof(struct oldAvailDataReq), 0,
@@ -803,6 +809,7 @@ void app_main(void) {
                         processBlockRequest(radiorxbuffer, 0);
                         break;
                     case PKT_XFER_COMPLETE:
+							  LOG("Got PKT_XFER_COMPLETE\n");
                         processXferComplete(radiorxbuffer);
                         break;
                     case PKT_PING:
@@ -812,10 +819,14 @@ void app_main(void) {
                         // a short AvailDataReq is basically a very short (1 byte payload) packet that requires little preparation on the tx side, for optimal
                         // battery use bytes of the struct are set 0, so it passes the checksum test, and the ESP32 can detect that no interesting payload is
                         // sent
+							  LOG("Got PKT_AVAIL_DATA_SHORTREQ\n");
                         if (ret == 18) {
                             memset(radiorxbuffer + 1 + sizeof(struct MacFrameBcast), 0, sizeof(struct AvailDataReq) + 2);
                             processAvailDataReq(radiorxbuffer);
                         }
+								else {
+									LOG("ret %d\n",ret);
+								}
                         break;
                     case PKT_TAG_RETURN_DATA:
                         processTagReturnData(radiorxbuffer, ret);
