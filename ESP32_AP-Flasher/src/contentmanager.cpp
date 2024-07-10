@@ -1143,6 +1143,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    uint16_t StringWidth;
    int LowTides = 0;
    int HighTides = 0;
+   int i;
 
 // eventually parameter read from template
 #define NUM_HEIGHT_LINES      5
@@ -1161,7 +1162,8 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       bool  LowTide;
    } HighLowArray[MAX_HIGH_LOW_ENTRIES];
    TFT_eSprite spr = TFT_eSprite(&tft);
-   String StationID = "8446613";
+//   String StationID = "8446613"; // Wellfleet
+   String StationID = "9415009"; // San Pedro
 
    wsLog("Plot tides");
    time(&Now);
@@ -1315,7 +1317,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 	LOG("Entry 1: %f @ %d\n",HighLowArray[0].Height,HighLowArray[0].Time);
 
-   for(int i = 1; i < Entries - 1; i++) {
+   for(i = 1; i < Entries - 1; i++) {
       Mins = HighLowArray[i].Mins;
       Hrs = HighLowArray[i].Hrs;
       if(Hrs > 12) {
@@ -1353,6 +1355,63 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       LOG("Entry %d: %f @ %d\n",
                     i + 1, HighLowArray[i].Height,HighLowArray[i].Time);
    }
+
+// Update Min/Max height for midnight
+   std::vector<bezier::Vec2> BezierPoints;
+	bezier::Bezier<3> cubicBezier;
+	bezier::Vec2 ThisPoint;
+   double MidwayTime;
+
+   for(i = 0; i < Entries; i += Entries - 1) {
+      MidwayTime = (double) (HighLowArray[i+1].Time - HighLowArray[i].Time) / 2;
+      BezierPoints.push_back({(double)HighLowArray[i].Time,
+                         (double) HighLowArray[i].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
+      BezierPoints.push_back({(double) HighLowArray[i+1].Time,
+                         (double) HighLowArray[i+1].Height});
+      BezierPoints.push_back({MidwayTime,(double) HighLowArray[i+1].Height});
+      cubicBezier = bezier::Bezier<3>(BezierPoints);
+
+		double SegmentTime;
+      if(i == 0) {
+      // Midnight yesterday
+         SegmentTime = -HighLowArray[0].Time;
+         int SegmentDelta = HighLowArray[1].Time - HighLowArray[0].Time;
+         LOG("i %d SegmentTime %f SegmentDelta %d\n",i,SegmentTime,SegmentDelta);
+         SegmentTime /= SegmentDelta;
+      }
+      else {
+      // Midnight today
+         SegmentTime = 1.0;
+      }
+
+		LOG("SegmentTime %f\n",SegmentTime);
+
+		if(SegmentTime < 0.0 || SegmentTime > 1.0) {
+			LOG("Invalid SegmentTime %f HighLowArray[%d].Time %d\n",
+				 SegmentTime,i,HighLowArray[i].Time);
+			LOG("%d %f\n",HighLowArray[i+1],
+				 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
+			for(int k = 0; k < Entries; k++) {
+				LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
+			}
+			return;
+		}
+      ThisPoint = cubicBezier.valueAt(SegmentTime);
+      Height = ThisPoint.y;
+		LOG("Height %f\n",Height);
+
+      if(MinHeight > Height) {
+         MinHeight = Height;
+         LOG("New MinHeight\n");
+      }
+      if(MaxHeight < Height) {
+         MaxHeight = Height;
+         LOG("New MaxHeight\n");
+      }
+      BezierPoints.clear();
+   }
+
 // Round MinHeight and MaxHeight to nearest .5 foot
 
 // 1.5 initial line spacing from title
@@ -1510,18 +1569,13 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 // stuff we wrote to measure the label widths
 	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
 
-   std::vector<bezier::Vec2> BezierPoints;
-	bezier::Bezier<3> cubicBezier;
-	bezier::Vec2 ThisPoint;
-
    gDrawX = GraphLeft;
-	int i = 0;
+	i = 0;
 #if 1
 	bool bFirst = true;
 	uint16_t LastY = 0;
    for(int j = 0; j < GraphWidth; j++) {
    // Start at the last high/low tide
-      double MidwayTime;
 		double t = (double) j / GraphWidth;
 		int Time = (24*60) * t;
 
@@ -1580,7 +1634,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 		LOG("gDrawY %d\n",gDrawY);
       gDrawY = GraphBottom - gDrawY;
 		LOG("gDrawY %d\n",gDrawY);
-      gDrawY -= CharHeight / 2;
+      gDrawY += CharHeight;
 		LOG("gDrawY %d\n",gDrawY);
 		if(LastY != 0) {
 			spr.drawLine(gDrawX,LastY,gDrawX + 1,gDrawY,TFT_BLACK);
