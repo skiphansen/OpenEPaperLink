@@ -1491,6 +1491,10 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 	GraphRight -= StringWidth / 2;
 	GraphWidth -= StringWidth / 2;
 
+// Adjust GraphTop and GraphBottom to plot area
+   GraphTop += (CharHeight / 2);
+   GraphBottom += (CharHeight / 2);
+
 // Draw tide height values
    LOG("Grid lines @ ");
    Height = MinHeight;
@@ -1505,7 +1509,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
          gDrawY = GraphBottom - gDrawY;
       }
       gDrawY += CharHeight / 2;  // Center line on label
-      LOG("%2.1f ",Height);
+      LOG("%2.1f gDrawY %d",Height,gDrawY);
 		if(i == 0 || i == NUM_HEIGHT_LINES) {
 		// Solid top and bottom lines
 			spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
@@ -1519,10 +1523,6 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       Height += HeightIncrement;
    }
    LOG("\n");
-
-// Adjust GraphTop and GraphBottom to plot area
-   GraphTop += (CharHeight / 2);
-   GraphBottom += (CharHeight / 2);
 
    spr.drawLine(GraphLeft,GraphTop,GraphLeft,GraphBottom,TFT_BLACK);
    spr.drawLine(GraphRight,GraphTop,GraphRight,GraphBottom,TFT_BLACK);
@@ -1634,7 +1634,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 		LOG("gDrawY %d\n",gDrawY);
       gDrawY = GraphBottom - gDrawY;
 		LOG("gDrawY %d\n",gDrawY);
-      gDrawY += CharHeight;
+      gDrawY += CharHeight / 2;
 		LOG("gDrawY %d\n",gDrawY);
 		if(LastY != 0) {
 			spr.drawLine(gDrawX,LastY,gDrawX + 1,gDrawY,TFT_BLACK);
