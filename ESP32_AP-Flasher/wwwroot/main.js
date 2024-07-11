@@ -1015,6 +1015,13 @@ function contentselected() {
 					input.classList.add("geoselect");
 					input.setAttribute("autocomplete", "off");
 					break;
+
+				case 'noaaselect':
+					input.type = "text";
+					input.classList.add("noaaselect");
+					input.setAttribute("autocomplete", "off");
+					break;
+
 			}
 			input.id = 'opt' + element.key;
 			input.title = element.desc;
@@ -1024,6 +1031,12 @@ function contentselected() {
 			p.appendChild(input);
 			if (element.type == 'geoselect') {
 				input.addEventListener('input', debounce(searchLocations, 300));
+				const resultsContainer = document.createElement('div');
+				resultsContainer.id = 'georesults';
+				p.appendChild(resultsContainer);
+			}
+			else if (element.type == 'noaaselect') {
+				input.addEventListener('input', debounce(NoaaSearch, 300));
 				const resultsContainer = document.createElement('div');
 				resultsContainer.id = 'georesults';
 				p.appendChild(resultsContainer);
@@ -1754,6 +1767,23 @@ async function searchLocations() {
 	}
 }
 
+async function NoaaSearch() {
+	const query = $(".noaaselect").value.trim();
+	if (query.length < 2) {
+		$('#georesults').innerHTML = '';
+		return;
+	}
+
+	try {
+		const response = await fetch(`https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/tidepredstations.json?q=${query}`);
+		const data = await response.json();
+		displaygeoresults(data.stationList);
+	} catch (error) {
+		console.error('Error fetching data:', error);
+	}
+}
+
+
 function displayResults(results) {
 	$('#georesults').innerHTML = '';
 	$('#georesults').style.top = $(".geoselect").offsetTop + $(".geoselect").offsetHeight + "px";
@@ -1769,6 +1799,21 @@ function displayResults(results) {
 	}
 }
 
+function displaygeoresults(results) {
+	$('#georesults').innerHTML = '';
+	$('#georesults').style.top = $(".noaaselect").offsetTop + $(".noaaselect").offsetHeight + "px";
+	$('#georesults').style.left = $(".noaaselect").offsetLeft + 'px';
+	if (results) {
+		results.forEach(result => {
+			const option = document.createElement('div');
+			option.textContent = result.etidesStnName;
+			option.addEventListener('click', () => selectNoaaLocation(result));
+			$('#georesults').appendChild(option);
+		});
+	}
+}
+
+
 function selectLocation(location) {
 	$(".geoselect").value = location.name;
 	document.getElementById('opt#lat').value = location.latitude;
@@ -1776,6 +1821,13 @@ function selectLocation(location) {
 	if (document.getElementById('opt#tz')) document.getElementById('opt#tz').value = location.timezone;
 	$('#georesults').innerHTML = '';
 }
+
+function selectNoaaLocation(location) {
+	$(".noaaselect").value = location.stationId;
+	document.getElementById('opttitle').value = location.etidesStnName;
+	$('#georesults').innerHTML = '';
+}
+
 
 function debounce(func, delay) {
 	let timeoutId;

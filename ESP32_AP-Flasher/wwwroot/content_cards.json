@@ -731,8 +731,24 @@
       {
         "key": "StationID",
         "name": "Station ID",
-        "desc": "See https://tidesandcurrents.noaa.gov/tide_predictions.html",
-        "type": "int"
+        "desc": "Station ID or location to search. See https://tidesandcurrents.noaa.gov/tide_predictions.html",
+        "type": "noaaselect"
+      },
+      {
+        "key": "title",
+        "name": "Title",
+        "desc": "Displayed title",
+        "type": "text"
+      },
+      {
+        "key": "PlotHeightValue",
+        "name": "Display height",
+        "desc": "Add water level height to graph",
+        "type": "select",
+        "options": {
+          "0": "no",
+          "1": "yes"
+        }
       }
     ]
   }
