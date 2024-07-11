@@ -1163,7 +1163,14 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    } HighLowArray[MAX_HIGH_LOW_ENTRIES];
    TFT_eSprite spr = TFT_eSprite(&tft);
 //   String StationID = "8446613"; // Wellfleet
-   String StationID = "9415009"; // San Pedro
+//   String StationID = "9415009"; // San Pedro
+   String StationID = cfgobj["StationID"].as<String>();
+   String LocationS = cfgobj["title"].as<String>();
+   int bAddWaterLevel = cfgobj["PlotHeightValue"].as<int>();
+
+   LOG("StationID %s\n",StationID.c_str());
+   LOG("Location %s\n",LocationS.c_str());
+   LOG("bAddWaterLevel %d\n",bAddWaterLevel);
 
    wsLog("Plot tides");
    time(&Now);
@@ -1207,7 +1214,6 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
                    + " " + languageMonth[TimeinfoToday.tm_mon]
                    + " " + String(TimeinfoToday.tm_mday);
 
-   String LocationS = "Wellfleet Tides";
    LOG("Drawing %s @ %d, %d with %s font size %d\n",
        TodayS.c_str(),(int) date[0],(int) date[1],(const char *) date[2],
        (int)date[3]);
@@ -1499,16 +1505,9 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    LOG("Grid lines @ ");
    Height = MinHeight;
    for(int i = 0; i < NUM_HEIGHT_LINES + 1; i++) {
-      if(Height > MaxHeight) {
-         Height = MaxHeight;
-         gDrawY = GraphTop;
-      }
-      else {
-         gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
-                  (GraphBottom - GraphTop);
-         gDrawY = GraphBottom - gDrawY;
-      }
-      gDrawY += CharHeight / 2;  // Center line on label
+      gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
+               (GraphBottom - GraphTop);
+      gDrawY = GraphBottom - gDrawY;
       LOG("%2.1f gDrawY %d",Height,gDrawY);
 		if(i == 0 || i == NUM_HEIGHT_LINES) {
 		// Solid top and bottom lines
