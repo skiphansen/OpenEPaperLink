@@ -97,21 +97,21 @@
     },
     "80": {
       "type": "chroma74y_ota",
-      "version": "0009",
-      "md5": "7f883dbe73e1574dff42afe017a88ab7"
+      "version": "0010",
+      "md5": "4baff1e9eba6949c26ea11dbbd105039"
     },
     "82": {
       "type": "chroma29_ota",
-      "version": "0009",
-      "md5": "087f5c29f8d9595793099085e24d02b7"
+      "version": "0010",
+      "md5": "0d4af3e5285ca20ac56926e6fdd71dbc"
     },
     "83": {
       "type": "chroma42_ota",
-      "version": "0009",
-      "md5": "02111ee06adb488736853d89ee5204ba",
+      "version": "0010",
+      "md5": "bf4b7dad8acfab2f1504c4b57b8806db",
       "type_1": "chroma42_8176_ota",
-      "version_1": "0009",
-      "md5_1": "ed36389e2dda3027846d88e74cc56dd8"
+      "version_1": "0010",
+      "md5_1": "f375b65ada9bc48deefe80d46f883508"
     }
   }
 ]
