@@ -549,12 +549,16 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
                 taginfo->nextupdate = now + 300;
             }
             break;
+#endif
 
        case 250:  // Tides
           drawNoaaTides(filename, cfgobj, taginfo, imageParams);
           updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
           break;
-#endif
+
+       case 251:  // Adafruit Quote
+          drawAdaFruitQuote(filename, cfgobj, taginfo, imageParams);
+          updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
     }
 
     taginfo->modeConfigJson = doc.as<String>();
