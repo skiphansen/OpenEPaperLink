@@ -42,6 +42,7 @@
 #include "util.h"
 #include "web.h"
 #include "bezier.h"
+#include "adafruit_quote.h"
 
 uint16_t gDrawX;
 uint16_t gDrawY;
@@ -556,9 +557,14 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
           updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
           break;
 
-       case 251:  // Adafruit Quote
-          drawAdaFruitQuote(filename, cfgobj, taginfo, imageParams);
-          updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
+       case 251:  {
+       // Adafruit Quote
+          TFT_eSprite spr = TFT_eSprite(&tft);
+          AdaFruitQuote Quote(spr,cfgobj,taginfo,imageParams);
+          Quote.Draw();
+//        updateTagImage(filename,mac,interval / 60,taginfo,imageParams);
+          break;
+       }
     }
 
     taginfo->modeConfigJson = doc.as<String>();

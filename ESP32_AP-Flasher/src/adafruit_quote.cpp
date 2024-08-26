@@ -1,4 +1,35 @@
+/***************************************************
+   This code is heavily based on adafruit_feather_quote.ino
+   from https://github.com/adafruit/Adafruit_Learning_System_Guides.git
+ 
+   Ported to OEPL by Skip Hansen 2024
+ 
+   Original file header:
+*/
+
+// SPDX-FileCopyrightText: 2019 Dan Cogliano for Adafruit Industries
+//
+// SPDX-License-Identifier: MIT
+
+/***************************************************
+ * Quote Display for Adafruit ePaper FeatherWings
+ * For use with Adafruit tricolor and monochrome ePaper FeatherWings
+ * 
+ * Adafruit invests time and resources providing this open source code.
+ * Please support Adafruit and open source hardware by purchasing
+ * products from Adafruit!
+ * 
+ * Written by Dan Cogliano for Adafruit Industries
+ * Copyright (c) 2019 Adafruit Industries
+ * 
+ * Notes: 
+ * Update the secrets.h file with your WiFi details
+ * Uncomment the ePaper display type you are using below.
+ * Change the SLEEP setting to define the time between quotes
+ */
+
 #include "contentmanager.h"
+#include "adafruit_quote.h"
 
 #define LOG(format, ... ) Serial.printf(format,## __VA_ARGS__)
 #include <Arduino.h>
@@ -27,20 +58,21 @@
 // set text font prior to calling this
 int getStringLength(const char *str, int strlength = 0)
 {
-  char buff[1024];
-  int16_t x, y;
-  uint16_t w, h;
-  if(strlength == 0)
-  {
-    strcpy(buff, str);
-  }
-  else
-  {
-    strncpy(buff, str, strlength);
-    buff[strlength] = '\0';
-  }
-  epd.getTextBounds(buff, 0, 0, &x, &y, &w, &h);
-  return(w);  
+   char buff[1024];
+   int16_t x, y;
+   uint16_t w, h;
+   uint16_t StringWidth;
+
+   if(strlength == 0) {
+      strcpy(buff, str);
+   }
+   else {
+      strncpy(buff, str, strlength);
+      buff[strlength] = '\0';
+   }
+   StringWidth = drawString(spr,LocationS,gDrawX,gDrawY,date[2],TL_DATUM,TFT_BLACK,CharHeight);
+   epd.getTextBounds(buff, 0, 0, &x, &y, &w, &h);
+   return(w);  
 }
 
 // word wrap routine
@@ -49,57 +81,59 @@ int getStringLength(const char *str, int strlength = 0)
 // returns substring of wrapped text.
 char *wrapWord(const char *str, int linesize)
 {
-  static char buff[1024];
-  int linestart = 0;
-  static int lineend = 0;
-  static int bufflen = 0;
-  if(strlen(str) == 0)
-  {
-    // additional line from original string
-    linestart = lineend + 1;
-    lineend = bufflen;
-    Serial.println("existing string to wrap, starting at position " + String(linestart) + ": " + String(&buff[linestart]));
-  }
-  else
-  {
-    Serial.println("new string to wrap: " + String(str));
-    memset(buff,0,sizeof(buff));
-    // new string to wrap
-    linestart = 0;
-    strcpy(buff,str);
-    lineend = strlen(buff);
-    bufflen = strlen(buff);
-  }
-  uint16_t w;
-  int lastwordpos = linestart;
-  int wordpos = linestart + 1;
-  while(true)
-  {
-    while(buff[wordpos] == ' ' && wordpos < bufflen)
-      wordpos++;
-    while(buff[wordpos] != ' ' && wordpos < bufflen)
-      wordpos++;
-    if(wordpos < bufflen)
-      buff[wordpos] = '\0';
-    w = getStringLength(&buff[linestart]);
-    if(wordpos < bufflen)
-      buff[wordpos] = ' ';
-    if(w > linesize)
-    {
-      buff[lastwordpos] = '\0';
-      lineend = lastwordpos;
-      return &buff[linestart];
-    }
-    else if(wordpos >= bufflen)
-    {
+   static char buff[1024];
+   int linestart = 0;
+   static int lineend = 0;
+   static int bufflen = 0;
+   if(strlen(str) == 0) {
+   // additional line from original string
+      linestart = lineend + 1;
+      lineend = bufflen;
+      LOG("existing string to wrap, starting at position %d: %s\n",
+          linestart,&buff[linestart]);
+   }
+   else {
+      LOG("new string to wrap: %s\n",str);
+      memset(buff,0,sizeof(buff));
+      // new string to wrap
+      linestart = 0;
+      strcpy(buff,str);
+      lineend = strlen(buff);
+      bufflen = strlen(buff);
+   }
+   uint16_t w;
+   int lastwordpos = linestart;
+   int wordpos = linestart + 1;
+   while(true) {
+   // Skip spaces
+      while(buff[wordpos] == ' ' && wordpos < bufflen) {
+         wordpos++;
+      }
+   // Skip to end of word
+      while(buff[wordpos] != ' ' && wordpos < bufflen) {
+         wordpos++;
+      }
+      if(wordpos < bufflen) {
+         buff[wordpos] = '\0';
+      }
+      w = getStringLength(&buff[linestart]);
+      if(wordpos < bufflen) {
+         buff[wordpos] = ' ';
+      }
+      if(w > linesize) {
+         buff[lastwordpos] = '\0';
+         lineend = lastwordpos;
+         return &buff[linestart];
+      } 
+      else if(wordpos >= bufflen) {
       // first word too long or end of string, send it anyway
-      buff[wordpos] = '\0';
-      lineend = wordpos;
-      return &buff[linestart];        
-    }
-    lastwordpos = wordpos;
-    wordpos++;
-  }
+         buff[wordpos] = '\0';
+         lineend = wordpos;
+         return &buff[linestart];        
+      }
+      lastwordpos = wordpos;
+      wordpos++;
+   }
 }
 
 // return # of lines created from word wrap
@@ -108,8 +142,7 @@ int getLineCount(const char *str, int scrwidth)
   int linecount = 0;
   String line = wrapWord(str,scrwidth);
 
-  while(line.length() > 0)
-  {
+  while(line.length() > 0) {
     linecount++;
     line = wrapWord("",scrwidth);
   }
@@ -196,73 +229,70 @@ void getQuote(String &quote, String &author)
   }
 }
 
-void printQuote(String &quote)
+void printQuote(TFT_eSprite spr,String &quote)
 {
-  int x = 0;
-  int y = 0;
-  bool bsmallfont = false;
-  epd.setTextColor(EPD_BLACK);
-  epd.setFont(qfont);
-  epd.setTextSize(1);
+   int x = 0;
+   int y = 0;
+   bool bsmallfont = false;
+#if 0
+   epd.setTextColor(EPD_BLACK);
+   epd.setFont(qfont);
+   epd.setTextSize(1);
+#endif
 
-  int scrwidth = epd.width() - 8;
-  Serial.println("Screen width is " + String(scrwidth));
-  Serial.println("Screen height is " + String(epd.height()));
-  int linecount = getLineCount(quote.c_str(),scrwidth);
-  int lineheightquote = getLineHeight(qfont);
-  int lineheightauthor = getLineHeight(afont);
-  int lineheightother = getLineHeight(ofont);
-  int maxlines = (epd.height() - (lineheightauthor + lineheightother)) / lineheightquote;
-  Serial.println("maxlines is " + String(maxlines));
-  Serial.println("line height is " +String(lineheightquote));
-  Serial.println("linecount is " +String(linecount));
-  int topmargin = 0;
-  if(linecount > maxlines)
-  {
-    // too long for default font size
-    // next attempt, reduce lineheight to .8 size
-    lineheightquote = .8 * lineheightquote;
-    maxlines = (epd.height() - (lineheightauthor + lineheightother)) / lineheightquote;
-    if(linecount > maxlines)
-    {
-      // next attempt, use small font
-      epd.setFont(smallfont);
-      bsmallfont = true;
-      epd.setTextSize(1);
-      lineheightquote = getLineHeight(smallfont);
+   int scrwidth = imageParams.width - 8;
+   LOG("Screen width %d\n",scrwidth);
+   LOG("Screen height %d\n",imageParams.height);
+   int linecount = getLineCount(quote.c_str(),scrwidth);
+   int lineheightquote = getLineHeight(qfont);
+   int lineheightauthor = getLineHeight(afont);
+   int lineheightother = getLineHeight(ofont);
+   int maxlines = (epd.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+   LOG("maxlines %d\n",maxlines);
+   LOG("line height %d\n",lineheightquote);
+   LOG("linecount %d\n",linecount);
+   int topmargin = 0;
+   if(linecount > maxlines) {
+      // too long for default font size
+      // next attempt, reduce lineheight to .8 size
+      lineheightquote = .8 * lineheightquote;
       maxlines = (epd.height() - (lineheightauthor + lineheightother)) / lineheightquote;
-      linecount = getLineCount(quote.c_str(),scrwidth);
-      if(linecount > maxlines)
-      {
-        // final attempt, last resort is to reduce the lineheight to make it fit
-        lineheightquote = (epd.height() - (lineheightauthor + lineheightother)) / linecount;
+      if(linecount > maxlines) {
+         // next attempt, use small font
+         epd.setFont(smallfont);
+         bsmallfont = true;
+         epd.setTextSize(1);
+         lineheightquote = getLineHeight(smallfont);
+         maxlines = (epd.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+         linecount = getLineCount(quote.c_str(),scrwidth);
+         if(linecount > maxlines) {
+            // final attempt, last resort is to reduce the lineheight to make it fit
+            lineheightquote = (epd.height() - (lineheightauthor + lineheightother)) / linecount;
+         }
       }
-    }
-    Serial.println("maxlines has changed to " + String(maxlines));
-    Serial.println("line height has changed to " +String(lineheightquote));
-    Serial.println("linecount has changed to " +String(linecount));
-  }
-  if(linecount <= maxlines)
-  {
+      LOG("maxlines has changed to %d\n",maxlines);
+      LOG("line height has changed to %d\n",lineheightquote);
+      LOG("linecount has changed to %d\n",linecount);
+   }
 
-    topmargin = (epd.height() - (lineheightauthor + lineheightother) - linecount*lineheightquote)/2;
-    if(!bsmallfont)
-      topmargin+=lineheightquote-4;
-    //Serial.println("topmargin = " + String(topmargin));
-  }
-  String line = wrapWord(quote.c_str(),scrwidth);
+   if(linecount <= maxlines) {
+      topmargin = (epd.height() - (lineheightauthor + lineheightother) - linecount*lineheightquote)/2;
+      if(!bsmallfont)
+         topmargin+=lineheightquote-4;
+      //Serial.println("topmargin = " + String(topmargin));
+   }
+   String line = wrapWord(quote.c_str(),scrwidth);
 
-  int counter = 0;
-  epd.setTextColor(EPD_BLACK);
-  while(line.length() > 0)
-  {
-    counter++;
-    Serial.println("printing line " + String(counter) + ": '" + line + String("'"));
-    epd.setCursor(x +4, y + topmargin);
-    epd.print(line);
-    y += lineheightquote;
-    line = wrapWord("",scrwidth);
-  }
+   int counter = 0;
+   epd.setTextColor(EPD_BLACK);
+   while(line.length() > 0) {
+      counter++;
+      LOG("printing line %d: \"%s\"\n",counter,line.c_str);
+      epd.setCursor(x +4, y + topmargin);
+      epd.print(line);
+      y += lineheightquote;
+      line = wrapWord("",scrwidth);
+   }
 }
 
 void printAuthor(String author)
@@ -300,7 +330,7 @@ void printOther(String other)
 }
 #endif
 
-void drawAdaFruitQuote(String &filename, JsonObject &cfgobj, tagRecord *taginfo, imgParam &imageParams) 
+void AdaFruitQuote::Draw() 
 {
    String QuoteUrl = "https://www.adafruit.com/api/quotes.php";
    DynamicJsonDocument doc(2000);
@@ -317,10 +347,10 @@ void drawAdaFruitQuote(String &filename, JsonObject &cfgobj, tagRecord *taginfo,
    String Quote = QuoteData["text"].as<String>();
    String Author = QuoteData["author"].as<String>();
 
-   LOG("Quote: \"%s\"\n",Quote.c_str());
+   Quote = "\"" + Quote + "\"";
+
+   LOG("Quote: %s\n",Quote.c_str());
    LOG("Author: \"%s\"\n",Author.c_str());
-
-
 }
 
 
