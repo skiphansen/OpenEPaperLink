@@ -2,19 +2,6 @@
 
 #define LOG(format, ... ) Serial.printf(format,## __VA_ARGS__)
 
-// possibility to turn off, to save space if needed
-#ifndef SAVE_SPACE
-#define CONTENT_QR
-#define CONTENT_RSS
-#define CONTENT_BIGCAL
-#define CONTENT_NFCLUT
-#define CONTENT_DAYAHEAD
-#define CONTENT_TIMESTAMP
-#endif
-#define CONTENT_CAL
-#define CONTENT_BUIENRADAR
-#define CONTENT_TAGCFG
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -1810,7 +1797,7 @@ char *epoch_to_display(time_t utc) {
 #ifdef CONTENT_CAL
 bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgParam &imageParams) {
     // google apps scripts method to retrieve calendar
-    // see https://github.com/jjwbruijn/OpenEPaperLink/wiki/Google-Apps-Scripts for description
+    // see https://github.com/OpenEPaperLink/OpenEPaperLink/wiki/Google-Apps-Scripts for description
 
     wsLog("get calendar");
 

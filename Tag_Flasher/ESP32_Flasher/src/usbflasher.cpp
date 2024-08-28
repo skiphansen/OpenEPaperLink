@@ -297,6 +297,7 @@ typedef enum {
 
     CMD_ERASE_FLASH = 26,
     CMD_ERASE_INFOPAGE = 27,
+    CMD_ERASE_ALL = 28,
     CMD_SAVE_MAC_FROM_FW = 40,
     CMD_PASS_THROUGH = 50,
 
