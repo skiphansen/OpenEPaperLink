@@ -4,3 +4,5 @@
 .vscode/launch.json
 .vscode/ipch
 wwwroot/content_cards.json
+data/tagtypes
+

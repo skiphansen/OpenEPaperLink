@@ -25,7 +25,9 @@ void drawDate(String &filename, tagRecord *&taginfo, imgParam &imageParams);
 void drawNumber(String &filename, int32_t count, int32_t thresholdred, tagRecord *&taginfo, imgParam &imageParams);
 void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
+#ifdef CONTENT_NOAA_TIDES
 void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, imgParam &imageParams);
+#endif
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC);
 bool getRssFeed(String &filename, String URL, String title, tagRecord *&taginfo, imgParam &imageParams);
 bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgParam &imageParams);

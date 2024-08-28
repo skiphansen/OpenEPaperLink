@@ -741,8 +741,9 @@
         "type": "binfile"
       }
     ]
-  },
-  {
+  }
+#ifdef CONTENT_NOAA_TIDES
+  ,{
     "id": 250,
     "name": "NOAA Tide Prediction",
     "desc": "Tide Prediction for today (US only).",
@@ -770,10 +771,12 @@
         }
       }
     ]
-  },
-  {
+  }
+#ifdef CONTENT_QUOTES
+  ,{
     "id": 251,
     "name": "Adafruit Quote",
     "desc": "Quotes from Adafruit quote API"
   }
+#endif
 ]

@@ -547,9 +547,14 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
        case 251:  {
        // Adafruit Quote
           TFT_eSprite spr = TFT_eSprite(&tft);
-          AdaFruitQuote Quote(spr,cfgobj,taginfo,imageParams);
+          initSprite(spr,imageParams.width,imageParams.height,imageParams);
+          StaticJsonDocument<512> Template;
+          getTemplate(Template,251,taginfo->hwType); 
+          AdaFruitQuote Quote(spr,Template);
           Quote.Draw();
-//        updateTagImage(filename,mac,interval / 60,taginfo,imageParams);
+          spr2buffer(spr,filename,imageParams);
+          spr.deleteSprite();
+          updateTagImage(filename,mac,interval / 60,taginfo,imageParams);
           break;
        }
     }
@@ -957,8 +962,8 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     }
 
     DynamicJsonDocument doc(2000);
-	 String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
-	 LOG("URL %s\n",URL.c_str());
+     String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
+     LOG("URL %s\n",URL.c_str());
 
     const bool success = util::httpGetJson("https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units, doc, 5000);
     if (!success) {
@@ -980,10 +985,10 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     char timeStr[24];
     strftime(timeStr,sizeof(timeStr),"%m/%d %H:%M",localtime(&now));
 
-	 String UpdateStr = "updated ";
-	 UpdateStr += timeStr;
+     String UpdateStr = "updated ";
+     UpdateStr += timeStr;
     drawString(spr,UpdateStr.c_str(),spr.width()-10,location[1],"REFSAN12",TR_DATUM,TFT_BLACK,20);
-	 LOG("UpdateStr '%s'\n",UpdateStr.c_str());
+     LOG("UpdateStr '%s'\n",UpdateStr.c_str());
 
     const auto &daily = doc["daily"];
     const auto &column = loc["column"];
@@ -1003,7 +1008,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
                                   ? imageParams.highlightColor
                                   : TFT_BLACK;
         drawString(spr, getWeatherIcon(weathercode), loc["icon"][0].as<int>() + dag * column1, loc["icon"][1], "/fonts/weathericons.ttf", TC_DATUM, iconcolor, loc["icon"][2]);
-		  LOG("dag %d, column1 %d icon %d\n",dag,column1,loc["icon"][0].as<int>());
+          LOG("dag %d, column1 %d icon %d\n",dag,column1,loc["icon"][0].as<int>());
 
         drawString(spr, windDirectionIcon(daily["winddirection_10m_dominant"][dag]), loc["wind"][0].as<int>() + dag * column1, loc["wind"][1], "/fonts/weathericons.ttf", TC_DATUM, TFT_BLACK, loc["icon"][2]);
 
@@ -1027,8 +1032,8 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
               double fRain = daily["precipitation_sum"][dag].as<double>();
               if (fRain > 0.01) {
               // inch, display if > .01 inches
-					  fRain = round(fRain*100.0) / 100.0;
-					  drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
+                      fRain = round(fRain*100.0) / 100.0;
+                      drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
               }
            }
         }
@@ -1115,6 +1120,7 @@ https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=20240603&en
 } 
 */ 
 
+#ifdef CONTENT_NOAA_TIDES
 void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, imgParam &imageParams) 
 {
    time_t Now;
@@ -1318,7 +1324,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    String LowTidesS("Low tide: ");
    String HighTidesS("High tide: ");
 
-	LOG("Entry 1: %f @ %d\n",HighLowArray[0].Height,HighLowArray[0].Time);
+    LOG("Entry 1: %f @ %d\n",HighLowArray[0].Height,HighLowArray[0].Time);
 
    for(i = 1; i < Entries - 1; i++) {
       Mins = HighLowArray[i].Mins;
@@ -1361,8 +1367,8 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 // Update Min/Max height for midnight
    std::vector<bezier::Vec2> BezierPoints;
-	bezier::Bezier<3> cubicBezier;
-	bezier::Vec2 ThisPoint;
+    bezier::Bezier<3> cubicBezier;
+    bezier::Vec2 ThisPoint;
    double MidwayTime;
 
    for(i = 0; i < Entries; i += Entries - 1) {
@@ -1375,7 +1381,7 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
       BezierPoints.push_back({MidwayTime,(double) HighLowArray[i+1].Height});
       cubicBezier = bezier::Bezier<3>(BezierPoints);
 
-		double SegmentTime;
+        double SegmentTime;
       if(i == 0) {
       // Midnight yesterday
          SegmentTime = -HighLowArray[0].Time;
@@ -1388,21 +1394,21 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
          SegmentTime = 1.0;
       }
 
-		LOG("SegmentTime %f\n",SegmentTime);
+        LOG("SegmentTime %f\n",SegmentTime);
 
-		if(SegmentTime < 0.0 || SegmentTime > 1.0) {
-			LOG("Invalid SegmentTime %f HighLowArray[%d].Time %d\n",
-				 SegmentTime,i,HighLowArray[i].Time);
-			LOG("%d %f\n",HighLowArray[i+1],
-				 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
-			for(int k = 0; k < Entries; k++) {
-				LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
-			}
-			return;
-		}
+        if(SegmentTime < 0.0 || SegmentTime > 1.0) {
+            LOG("Invalid SegmentTime %f HighLowArray[%d].Time %d\n",
+                 SegmentTime,i,HighLowArray[i].Time);
+            LOG("%d %f\n",HighLowArray[i+1],
+                 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
+            for(int k = 0; k < Entries; k++) {
+                LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
+            }
+            return;
+        }
       ThisPoint = cubicBezier.valueAt(SegmentTime);
       Height = ThisPoint.y;
-		LOG("Height %f\n",Height);
+        LOG("Height %f\n",Height);
 
       if(MinHeight > Height) {
          MinHeight = Height;
@@ -1434,12 +1440,12 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    uint16_t GraphRight = imageParams.width - 1 - RIGHT_MARGIN;
 
    LOG("Min, max Height %f, %f -> ",MinHeight,MaxHeight);
-	if(MinHeight < 0.0) {
-		MinHeight = round(MinHeight * 2.0) / 2.0;
-	}
-	else {
-		MinHeight = floor(MinHeight * 2.0) / 2.0;
-	}
+    if(MinHeight < 0.0) {
+        MinHeight = round(MinHeight * 2.0) / 2.0;
+    }
+    else {
+        MinHeight = floor(MinHeight * 2.0) / 2.0;
+    }
    MaxHeight = round(MaxHeight * 2.0) / 2.0;
    LOG("%f, %f\n",MinHeight,MaxHeight);
 
@@ -1450,13 +1456,13 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    LOG("HeightIncrement %f -> ",HeightIncrement);
    HeightIncrement = round((HeightIncrement + 0.499) * 2.0) / 2.0;
    LOG("%f\n",HeightIncrement);
-	float Margin = (MinHeight + (HeightIncrement * NUM_HEIGHT_LINES)) - 
-					   (MaxHeight - MinHeight);
+    float Margin = (MinHeight + (HeightIncrement * NUM_HEIGHT_LINES)) - 
+                       (MaxHeight - MinHeight);
 
 // Adjust MinHeight / MaxHeight
    LOG("MinHeight/MaxHeight %f %f -> ",MinHeight,MaxHeight);
    MaxHeight = MaxHeight + round(Margin / 2.0);
-	MinHeight =  MaxHeight - (HeightIncrement * NUM_HEIGHT_LINES);
+    MinHeight =  MaxHeight - (HeightIncrement * NUM_HEIGHT_LINES);
    LOG("%f %f\n",MinHeight,MaxHeight);
 
 // Draw tide height at left first
@@ -1481,18 +1487,18 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
    }
    gDrawX += MaxWidth;
    uint16_t GraphLeft = gDrawX;
-	uint16_t GraphWidth = GraphRight - GraphLeft;
+    uint16_t GraphWidth = GraphRight - GraphLeft;
 
    LOG("MaxWidth %d DrawX %d DrawY %d\n",MaxWidth,gDrawX,gDrawY);
 
 // adjust GraphRight and GraphWidth to make room for "12am" 
 // centered under right side
-	StringWidth = drawString(spr,"12am",0,
-									 GraphBottom + CharHeight + (CharHeight / 2),
-									 GRAPH_LABEL_FONT,TL_DATUM,TFT_BLACK,
-									 GRAPH_LABEL_SIZE);
-	GraphRight -= StringWidth / 2;
-	GraphWidth -= StringWidth / 2;
+    StringWidth = drawString(spr,"12am",0,
+                                     GraphBottom + CharHeight + (CharHeight / 2),
+                                     GRAPH_LABEL_FONT,TL_DATUM,TFT_BLACK,
+                                     GRAPH_LABEL_SIZE);
+    GraphRight -= StringWidth / 2;
+    GraphWidth -= StringWidth / 2;
 
 // Adjust GraphTop and GraphBottom to plot area
    GraphTop += (CharHeight / 2);
@@ -1506,16 +1512,16 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
                (GraphBottom - GraphTop);
       gDrawY = GraphBottom - gDrawY;
       LOG("%2.1f gDrawY %d",Height,gDrawY);
-		if(i == 0 || i == NUM_HEIGHT_LINES) {
-		// Solid top and bottom lines
-			spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
-		}
-		else {
-		// otherwise dotted line
-			for(uint16_t x = gDrawX; x < GraphRight; x += 2) {
-				spr.drawPixel(x,gDrawY,TFT_BLACK);
-			}
-		}
+        if(i == 0 || i == NUM_HEIGHT_LINES) {
+        // Solid top and bottom lines
+            spr.drawLine(gDrawX,gDrawY,GraphRight,gDrawY,TFT_BLACK);
+        }
+        else {
+        // otherwise dotted line
+            for(uint16_t x = gDrawX; x < GraphRight; x += 2) {
+                spr.drawPixel(x,gDrawY,TFT_BLACK);
+            }
+        }
       Height += HeightIncrement;
    }
    LOG("\n");
@@ -1525,125 +1531,126 @@ void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, img
 
 // Draw time at bottom 4 hour increments from midnight to midnight
 // |12am 4am   8am  noon   4pm   8pm  12am|
-	gDrawX = GraphLeft;
-	gDrawY = GraphBottom + CharHeight;
+    gDrawX = GraphLeft;
+    gDrawY = GraphBottom + CharHeight;
 
-	MaxWidth = 0;
+    MaxWidth = 0;
    for(int i = 0; i <= 24;  i += TIME_LINE_INCREMENT) {
-		String TimeS(i);
-		
-		if(i == 0 || i == 24) {
-			TimeS = "12am";
-		}
-		else if(i < 12) {
-			TimeS += "am";
-		}
-		else if(i > 12) {
-			TimeS = i - 12;
-			TimeS += "pm";
-		}
-		else {
-			TimeS = "noon";
-		}
-	// draw it at x=0 to get width
-		StringWidth = drawString(spr,TimeS,0,gDrawY,GRAPH_LABEL_FONT,
-										 TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+        String TimeS(i);
+        
+        if(i == 0 || i == 24) {
+            TimeS = "12am";
+        }
+        else if(i < 12) {
+            TimeS += "am";
+        }
+        else if(i > 12) {
+            TimeS = i - 12;
+            TimeS += "pm";
+        }
+        else {
+            TimeS = "noon";
+        }
+    // draw it at x=0 to get width
+        StringWidth = drawString(spr,TimeS,0,gDrawY,GRAPH_LABEL_FONT,
+                                         TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
       if(MaxWidth < StringWidth) {
          MaxWidth = StringWidth;
       }
 
-	// draw centered under time line
-		gDrawX = GraphLeft + ((i * GraphWidth) / 24);
-		for(uint16_t y = GraphTop; y < GraphBottom; y+= 2) {
-			spr.drawPixel(gDrawX,y,TFT_BLACK);
+    // draw centered under time line
+        gDrawX = GraphLeft + ((i * GraphWidth) / 24);
+        for(uint16_t y = GraphTop; y < GraphBottom; y+= 2) {
+            spr.drawPixel(gDrawX,y,TFT_BLACK);
 
-		}
-		gDrawX -= StringWidth / 2;
-		drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
-					  TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
+        }
+        gDrawX -= StringWidth / 2;
+        drawString(spr,TimeS,gDrawX,gDrawY,GRAPH_LABEL_FONT,
+                      TL_DATUM,TFT_BLACK,GRAPH_LABEL_SIZE);
    }
 // stuff we wrote to measure the label widths
-	spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
+    spr.fillRect(0,gDrawY,MaxWidth,CharHeight,TFT_WHITE);
 
    gDrawX = GraphLeft;
-	i = 0;
+    i = 0;
 #if 1
-	bool bFirst = true;
-	uint16_t LastY = 0;
+    bool bFirst = true;
+    uint16_t LastY = 0;
    for(int j = 0; j < GraphWidth; j++) {
    // Start at the last high/low tide
-		double t = (double) j / GraphWidth;
-		int Time = (24*60) * t;
+        double t = (double) j / GraphWidth;
+        int Time = (24*60) * t;
 
-		if(bFirst || Time >= HighLowArray[i+1].Time) {
-			LOG("bFirst %d Time %d HighLowArray[%d].Time %d\n",
-				 bFirst,Time,i+1,HighLowArray[i+1].Time);
-			if(bFirst) {
-				bFirst = false;
-			}
-			else {
-			// move to next segment
-				LOG("%f > %d i %d\n",t,HighLowArray[i+1].Time,i);
-				i++;
-				BezierPoints.clear();
-			}
-			MidwayTime = (double) (HighLowArray[i+1].Time - HighLowArray[i].Time) / 2;
-			BezierPoints.push_back({(double)HighLowArray[i].Time,
-									 (double) HighLowArray[i].Height});
-			BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
-			BezierPoints.push_back({(double) HighLowArray[i+1].Time,
-									 (double) HighLowArray[i+1].Height});
-			BezierPoints.push_back({MidwayTime,(double) HighLowArray[i+1].Height});
-			if(BezierPoints.size() != 4) {
-				LOG("BezierPoints %d i %d\n",BezierPoints.size(),i);
-				return;
-			}
-			cubicBezier = bezier::Bezier<3>(BezierPoints);
-		}
+        if(bFirst || Time >= HighLowArray[i+1].Time) {
+            LOG("bFirst %d Time %d HighLowArray[%d].Time %d\n",
+                 bFirst,Time,i+1,HighLowArray[i+1].Time);
+            if(bFirst) {
+                bFirst = false;
+            }
+            else {
+            // move to next segment
+                LOG("%f > %d i %d\n",t,HighLowArray[i+1].Time,i);
+                i++;
+                BezierPoints.clear();
+            }
+            MidwayTime = (double) (HighLowArray[i+1].Time - HighLowArray[i].Time) / 2;
+            BezierPoints.push_back({(double)HighLowArray[i].Time,
+                                     (double) HighLowArray[i].Height});
+            BezierPoints.push_back({MidwayTime,(double) HighLowArray[i].Height});
+            BezierPoints.push_back({(double) HighLowArray[i+1].Time,
+                                     (double) HighLowArray[i+1].Height});
+            BezierPoints.push_back({MidwayTime,(double) HighLowArray[i+1].Height});
+            if(BezierPoints.size() != 4) {
+                LOG("BezierPoints %d i %d\n",BezierPoints.size(),i);
+                return;
+            }
+            cubicBezier = bezier::Bezier<3>(BezierPoints);
+        }
 
-		double SegmentTime;
-		LOG("i %d\n",i);
-		SegmentTime = Time - HighLowArray[i].Time;
-		LOG("SegmentTime %f i %d %d %d\n",SegmentTime,i,
-			 HighLowArray[i+i].Time,HighLowArray[i].Time);
+        double SegmentTime;
+        LOG("i %d\n",i);
+        SegmentTime = Time - HighLowArray[i].Time;
+        LOG("SegmentTime %f i %d %d %d\n",SegmentTime,i,
+             HighLowArray[i+i].Time,HighLowArray[i].Time);
 
-		int SegmentDelta = HighLowArray[i+1].Time - HighLowArray[i].Time;
-		LOG("SegmentDelta %d\n",SegmentDelta);
-		SegmentTime /= SegmentDelta;
-		LOG("SegmentTime %f\n",SegmentTime);
+        int SegmentDelta = HighLowArray[i+1].Time - HighLowArray[i].Time;
+        LOG("SegmentDelta %d\n",SegmentDelta);
+        SegmentTime /= SegmentDelta;
+        LOG("SegmentTime %f\n",SegmentTime);
 
-		if(SegmentTime < 0.0 || SegmentTime > 1.0) {
-			LOG("Invalid SegmentTime %f t %f HighLowArray[%d].Time %d\n",
-				 SegmentTime,t,i,HighLowArray[i].Time);
-			LOG("%d %f\n",HighLowArray[i+1],
-				 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
-			for(int k = 0; k < Entries; k++) {
-				LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
-			}
-			return;
-		}
+        if(SegmentTime < 0.0 || SegmentTime > 1.0) {
+            LOG("Invalid SegmentTime %f t %f HighLowArray[%d].Time %d\n",
+                 SegmentTime,t,i,HighLowArray[i].Time);
+            LOG("%d %f\n",HighLowArray[i+1],
+                 (double)(HighLowArray[i+i].Time - HighLowArray[i].Time));
+            for(int k = 0; k < Entries; k++) {
+                LOG("HighLowArray[%d].Time %d\n",k,HighLowArray[k].Time);
+            }
+            return;
+        }
       ThisPoint = cubicBezier.valueAt(SegmentTime);
-		LOG("%d t %f (%f) = %f\n",gDrawX,t,SegmentTime,ThisPoint.y);
+        LOG("%d t %f (%f) = %f\n",gDrawX,t,SegmentTime,ThisPoint.y);
       Height = ThisPoint.y;
       gDrawY = ((Height - MinHeight) / (MaxHeight - MinHeight)) *
                (GraphBottom - GraphTop);
-		LOG("gDrawY %d\n",gDrawY);
+        LOG("gDrawY %d\n",gDrawY);
       gDrawY = GraphBottom - gDrawY;
-		LOG("gDrawY %d\n",gDrawY);
+        LOG("gDrawY %d\n",gDrawY);
       gDrawY += CharHeight / 2;
-		LOG("gDrawY %d\n",gDrawY);
-		if(LastY != 0) {
-			spr.drawLine(gDrawX,LastY,gDrawX + 1,gDrawY,TFT_BLACK);
-			gDrawX++;
-		}
-		LastY = gDrawY;
+        LOG("gDrawY %d\n",gDrawY);
+        if(LastY != 0) {
+            spr.drawLine(gDrawX,LastY,gDrawX + 1,gDrawY,TFT_BLACK);
+            gDrawX++;
+        }
+        LastY = gDrawY;
    }
 #endif
 
-	spr2buffer(spr, filename, imageParams);
+    spr2buffer(spr, filename, imageParams);
    spr.deleteSprite();
-	taginfo->nextupdate = util::getMidnightTime();
+    taginfo->nextupdate = util::getMidnightTime();
 }
+#endif
 
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC) {
     // https://images.klari.net/kat-bw29.jpg
