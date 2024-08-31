@@ -5,7 +5,8 @@ public:
    AdaFruitQuote(TFT_eSprite &spr,JsonDocument &Template) : 
       spr(spr), 
       Template(Template),
-      WordBuf(NULL) 
+      WordBuf(NULL),
+      Text(NULL) 
    {}
    ~AdaFruitQuote();
 
@@ -19,6 +20,7 @@ private:
    JsonArray afont;
    JsonArray ofont;
    char *WordBuf;
+   char *Text;
    int lineend;
    int bufflen;
    uint16_t height;
@@ -29,8 +31,10 @@ private:
    int FontSize;
 
    uint16_t getStringLength(const char *str, int strlength = 0);
+   void Unicode2Ascii(char *str);
    char *wrapWord(const char *str, int linesize);
    int getLineCount(const char *str, int scrwidth);
+   void printQuote(const char *quote);
    void printQuote(String &quote);
    void printAuthor(String author);
    void printOther(String other);

@@ -73,6 +73,76 @@ uint16_t AdaFruitQuote::getStringLength(const char *str, int strlength)
    return GetStringWidth(spr,Temp,FontName,FontSize);
 }
 
+// Convert Unicode characters to ASCII
+void AdaFruitQuote::Unicode2Ascii(char *str)
+{
+   char *pIn = str;
+   char *pOut = str;
+   char Char;
+   char Ascii;
+   uint32_t Ucode;
+   int Bytes = 0;
+
+   while((Char = *pIn++)) {
+      if(Char < 0x80) {
+      // Plain old ASCII
+         *pOut++ = Char;
+      }
+      else if(Char < 0xc0) {
+         Ucode = Char;
+         Bytes = 1;
+      }
+      else if(Char <= 0xe0) {
+      // 2 byte sequence
+         Bytes = 2;
+         Ucode = ((Char & 0xf) << 12) | ((*pIn++ & 0x3f) << 6) | (*pIn++ & 0x3f);
+      }
+      else if(Char <= 0xf0) {
+      // 3 byte sequence
+         Bytes = 3;
+         Ucode = ((Char & 0xf) << 12) | ((*pIn++ & 0x3f) << 6) | (*pIn++ & 0x3f);
+      }
+      else {
+         Bytes = 3;
+         Ucode = ((Char & 0x7) << 18) | ((*pIn++ & 0x3f) << 12) | 
+            ((*pIn++ & 0x3f) << 6) | (*pIn++ & 0x3f);
+      }
+
+      if(Bytes > 0) {
+         Ascii = 0;
+         if(Ucode >= 0x20 && Ucode < 0x7f) {
+         // Plain old ASCII
+            Ascii = (char) Ucode;
+         }
+         else switch(Ucode) {
+            case 0x2018: // Single left quote
+            case 0x2019: // Single right quote
+               Ascii = '\'';
+               break;
+
+            case 0x201c:   // left double quote
+            case 0x201d:   // right double quote
+               Ascii = '\"';
+               break;
+
+            default:
+               break;
+         }
+
+         LOG("%d byte Unicode U+%04lx -> ",Bytes,Ucode);
+         if(Ascii != 0) {
+            LOG("'%c'\n",Ascii);
+            *pOut++ = Ascii;
+         }
+         else {
+            LOG("ignored\n");
+         }
+         Bytes = 0;
+      }
+   }
+   *pOut = 0;
+}
+
 // word wrap routine
 // first time send string to wrap
 // 2nd and additional times: use empty string
@@ -88,6 +158,9 @@ char *AdaFruitQuote::wrapWord(const char *str, int linesize)
       lineend = bufflen;
    }
    else {
+      if(WordBuf != NULL) {
+         free(WordBuf);
+      }
       WordBuf = strdup(str);
       linestart = 0;
       lineend = strlen(WordBuf);
@@ -154,7 +227,7 @@ int AdaFruitQuote::getLineCount(const char *str, int scrwidth)
   return linecount;  
 }
 
-void AdaFruitQuote::printQuote(String &quote)
+void AdaFruitQuote::printQuote(const char *quote)
 {
    int x = 0;
    int y = 0;
@@ -170,7 +243,7 @@ void AdaFruitQuote::printQuote(String &quote)
    int scrwidth = spr.width();
    LOG("Screen width %d\n",scrwidth);
    LOG("Screen height %d\n",spr.height());
-   int linecount = getLineCount(quote.c_str(),scrwidth);
+   int linecount = getLineCount(quote,scrwidth);
    int lineheightquote = qfont[1].as<int>();
    int lineheightauthor = afont[1].as<int>();
    int lineheightother = ofont[1].as<int>();
@@ -192,7 +265,7 @@ void AdaFruitQuote::printQuote(String &quote)
 
          lineheightquote = FontSize;
          maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
-         linecount = getLineCount(quote.c_str(),scrwidth);
+         linecount = getLineCount(quote,scrwidth);
          if(linecount > maxlines) {
          // final attempt, last resort is to reduce the lineheight to make it fit
             lineheightquote = (spr.height() - (lineheightauthor + lineheightother)) / linecount;
@@ -209,7 +282,7 @@ void AdaFruitQuote::printQuote(String &quote)
          topmargin+=lineheightquote-4;
       //Serial.println("topmargin = " + String(topmargin));
    }
-   String line = wrapWord(quote.c_str(),scrwidth);
+   String line = wrapWord(quote,scrwidth);
 
    int counter = 0;
    y += topmargin;
@@ -267,6 +340,10 @@ AdaFruitQuote::~AdaFruitQuote()
    if(WordBuf != NULL) {
       free(WordBuf);
    }
+
+   if(Text != NULL) {
+      free(Text);
+   }
 }
 
 void AdaFruitQuote::SelectFont(JsonArray &Font)
@@ -291,13 +368,19 @@ void AdaFruitQuote::Draw()
       return;
    }
    JsonObject QuoteData = doc[0];
+   LOG("Raw Json:\n");
+   serializeJson(doc, Serial);
+   LOG("\n");
 
    String Quote = QuoteData["text"].as<String>();
    String Author = QuoteData["author"].as<String>();
 
    Quote = "\"" + Quote + "\"";
 
-   LOG("Quote: %s\n",Quote.c_str());
+   Text = strdup(Quote.c_str());
+   Unicode2Ascii(Text);
+
+   LOG("Quote: %s\n",Text);
    LOG("Author: \"%s\"\n",Author.c_str());
 
    qfont = Template["qfont"];
@@ -305,7 +388,7 @@ void AdaFruitQuote::Draw()
    afont = Template["afont"];
    ofont = Template["ofont"];
 
-   printQuote(Quote);
+   printQuote(Text);
 }
 
 
