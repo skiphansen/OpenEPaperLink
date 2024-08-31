@@ -555,6 +555,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
           spr2buffer(spr,filename,imageParams);
           spr.deleteSprite();
           updateTagImage(filename,mac,interval / 60,taginfo,imageParams);
+          taginfo->nextupdate = now + interval;
+          LOG("Next update in %ld minutes\n",interval/60);
           break;
        }
     }
@@ -691,6 +693,58 @@ uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy
     }
     return Ret;
 }
+
+uint16_t GetStringWidth(TFT_eSprite &spr,String content,String font,uint16_t size) 
+{
+   uint16_t Ret = 0;
+
+    if (font.startsWith("fonts/calibrib")) {
+        String numericValueStr = font.substring(14);
+        int calibriSize = numericValueStr.toInt();
+        if (calibriSize != 30 && calibriSize != 16) {
+            font = "Signika-SB.ttf";
+            size = calibriSize;
+        }
+    }
+    if (font == "glasstown_nbp_tf") {
+        font = "tahoma9.vlw";
+    }
+    if (font == "7x14_tf") {
+        font = "REFSAN12.vlw";
+    }
+    if (font == "t0_14b_tf") {
+        font = "calibrib16.vlw";
+    }
+
+    switch (processFontPath(font)) {
+        case 2: {
+            // truetype
+            truetypeClass truetype = truetypeClass();
+            File fontFile = contentFS->open(font, "r");
+            if (!truetype.setTtfFile(fontFile)) {
+                Serial.println("read ttf failed");
+                return 0;
+            }
+
+            truetype.setCharacterSize(size);
+            truetype.setCharacterSpacing(0);
+            Ret = truetype.getStringWidth(content);
+        } break;
+        case 3: {
+            // vlw bitmap font
+            if(font != "") {
+               spr.loadFont(font.substring(1), *contentFS);
+               Ret = spr.textWidth(content);
+               spr.unloadFont();
+            }
+            else {
+               Ret = spr.textWidth(content);
+            }
+        }
+    }
+    return Ret;
+}
+
 
 void drawTextBox(TFT_eSprite &spr, String &content, int16_t &posx, int16_t &posy, int16_t boxwidth, int16_t boxheight, String font, uint16_t color, uint16_t bgcolor, float lineheight) {
     replaceVariables(content);

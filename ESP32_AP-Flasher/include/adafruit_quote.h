@@ -14,20 +14,28 @@ public:
 private:
    TFT_eSprite &spr;
    JsonDocument &Template;
+   JsonArray qfont;
+   JsonArray sfont;
+   JsonArray afont;
+   JsonArray ofont;
    char *WordBuf;
    int lineend;
    int bufflen;
    uint16_t height;
    uint16_t DrawX;
    uint16_t DrawY;
+   bool bsmallfont;
+   const char *FontName;
+   int FontSize;
 
-   int getStringLength(const char *str, int strlength = 0);
+   uint16_t getStringLength(const char *str, int strlength = 0);
    char *wrapWord(const char *str, int linesize);
    int getLineCount(const char *str, int scrwidth);
-//   int getLineHeight(const GFXfont *font = NULL);
-   void printQuote(TFT_eSprite spr,String &quote);
+   void printQuote(String &quote);
    void printAuthor(String author);
    void printOther(String other);
+   void SelectFont(JsonArray &Font);
+
 
 };
 

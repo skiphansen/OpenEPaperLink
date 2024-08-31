@@ -772,11 +772,25 @@
       }
     ]
   }
+#endif
 #ifdef CONTENT_QUOTES
   ,{
     "id": 251,
     "name": "Adafruit Quote",
-    "desc": "Quotes from Adafruit quote API"
+    "desc": "Quotes from Adafruit quote API",
+    "param": [
+      {
+        "key": "interval",
+        "name": "Interval",
+        "desc": "How often the forecast is being refreshed.",
+        "type": "select",
+        "options": {
+          "60": "Every hour",
+          "180": "-Every three hours",
+          "-1440": "At midnight"
+        }
+      }
+    ]
   }
 #endif
 ]

@@ -60,26 +60,17 @@
 #include "util.h"
 #include "web.h"
 
-#if 0
+#if 1
 // get string length in pixels
 // set text font prior to calling this
-int AdaFruitQuote::getStringLength(const char *str, int strlength = 0)
+uint16_t AdaFruitQuote::getStringLength(const char *str, int strlength)
 {
-   char buff[1024];
-   int16_t x, y;
-   uint16_t w, h;
-   uint16_t StringWidth;
+   String Temp = str;
 
-   if(strlength == 0) {
-      strcpy(buff, str);
+   if(strlength != 0) {
+      Temp = Temp.substring(0,strlength);
    }
-   else {
-      strncpy(buff, str, strlength);
-      buff[strlength] = '\0';
-   }
-   StringWidth = drawString(spr,LocationS,gDrawX,gDrawY,date[2],TL_DATUM,TFT_BLACK,CharHeight);
-   epd.getTextBounds(buff, 0, 0, &x, &y, &w, &h);
-   return(w);  
+   return GetStringWidth(spr,Temp,FontName,FontSize);
 }
 
 // word wrap routine
@@ -89,25 +80,34 @@ int AdaFruitQuote::getStringLength(const char *str, int strlength = 0)
 char *AdaFruitQuote::wrapWord(const char *str, int linesize)
 {
    int linestart = 0;
-   if(strlen(str) == 0) {
+   char *Ret;
+
+   if(str == NULL) {
    // additional line from original string
       linestart = lineend + 1;
       lineend = bufflen;
-      LOG("existing string to wrap, starting at position %d: %s\n",
-          linestart,&WordBuf[linestart]);
    }
    else {
-      LOG("new string to wrap: %s\n",str);
       WordBuf = strdup(str);
       linestart = 0;
-      lineend = strlen(buff);
+      lineend = strlen(WordBuf);
       bufflen = lineend;
+      LOG("new string to wrap: %s bufflen %d\n",str,bufflen);
    }
    uint16_t w;
    int lastwordpos = linestart;
    int wordpos = linestart + 1;
+   if(str == NULL && linestart < bufflen) {
+      LOG("existing string to wrap, starting at position %d: %s\n",
+          linestart,&WordBuf[linestart]);
+   }
    while(true) {
    // Skip spaces
+      if(linestart > bufflen) {
+      // End of line
+         linestart = bufflen;
+         break;
+      }
       while(WordBuf[wordpos] == ' ' && wordpos < bufflen) {
          wordpos++;
       }
@@ -125,17 +125,20 @@ char *AdaFruitQuote::wrapWord(const char *str, int linesize)
       if(w > linesize) {
          WordBuf[lastwordpos] = '\0';
          lineend = lastwordpos;
-         return &WordBuf[linestart];
+         break;
       } 
       else if(wordpos >= bufflen) {
       // first word too long or end of string, send it anyway
          WordBuf[wordpos] = '\0';
          lineend = wordpos;
-         return &WordBuf[linestart];        
+         break;
       }
       lastwordpos = wordpos;
       wordpos++;
    }
+   Ret = &WordBuf[linestart];
+   LOG("Returning '%s'\n",Ret);
+   return Ret;
 }
 
 // return # of lines created from word wrap
@@ -146,62 +149,53 @@ int AdaFruitQuote::getLineCount(const char *str, int scrwidth)
 
   while(line.length() > 0) {
     linecount++;
-    line = wrapWord("",scrwidth);
+    line = wrapWord(NULL,scrwidth);
   }
   return linecount;  
 }
 
-int AdaFruitQuote::getLineHeight(const GFXfont *font = NULL)
-{
-  int height;
-  if(font == NULL) {
-    height = 12;
-  }
-  else {
-    height = (uint8_t)pgm_read_byte(&font->yAdvance);
-  }
-  return height;
-}
-
-void AdaFruitQuote::printQuote(TFT_eSprite spr,String &quote)
+void AdaFruitQuote::printQuote(String &quote)
 {
    int x = 0;
    int y = 0;
-   bool bsmallfont = false;
+   bsmallfont = false;
 #if 0
    epd.setTextColor(EPD_BLACK);
    epd.setFont(qfont);
    epd.setTextSize(1);
 #endif
+// Try quote font first
+   SelectFont(qfont);
 
-   int scrwidth = imageParams.width - 8;
+   int scrwidth = spr.width();
    LOG("Screen width %d\n",scrwidth);
-   LOG("Screen height %d\n",imageParams.height);
+   LOG("Screen height %d\n",spr.height());
    int linecount = getLineCount(quote.c_str(),scrwidth);
-   int lineheightquote = getLineHeight(qfont);
-   int lineheightauthor = getLineHeight(afont);
-   int lineheightother = getLineHeight(ofont);
-   int maxlines = (imageParams.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+   int lineheightquote = qfont[1].as<int>();
+   int lineheightauthor = afont[1].as<int>();
+   int lineheightother = ofont[1].as<int>();
+   int maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
    LOG("maxlines %d\n",maxlines);
    LOG("line height %d\n",lineheightquote);
    LOG("linecount %d\n",linecount);
    int topmargin = 0;
+
    if(linecount > maxlines) {
    // too long for default font size
    // next attempt, reduce lineheight to .8 size
       lineheightquote = .8 * lineheightquote;
-      maxlines = (imageParams.height - (lineheightauthor + lineheightother)) / lineheightquote;
+      maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
       if(linecount > maxlines) {
       // next attempt, use small font
-         epd.setFont(smallfont);
          bsmallfont = true;
-         epd.setTextSize(1);
-         lineheightquote = getLineHeight(smallfont);
-         maxlines = (imageParams.height- (lineheightauthor + lineheightother)) / lineheightquote;
+         SelectFont(sfont);
+
+         lineheightquote = FontSize;
+         maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
          linecount = getLineCount(quote.c_str(),scrwidth);
          if(linecount > maxlines) {
-            // final attempt, last resort is to reduce the lineheight to make it fit
-            lineheightquote = (epd.imageParams - (lineheightauthor + lineheightother)) / linecount;
+         // final attempt, last resort is to reduce the lineheight to make it fit
+            lineheightquote = (spr.height() - (lineheightauthor + lineheightother)) / linecount;
          }
       }
       LOG("maxlines has changed to %d\n",maxlines);
@@ -210,7 +204,7 @@ void AdaFruitQuote::printQuote(TFT_eSprite spr,String &quote)
    }
 
    if(linecount <= maxlines) {
-      topmargin = (imageParams.height - (lineheightauthor + lineheightother) - linecount*lineheightquote)/2;
+      topmargin = (spr.height() - (lineheightauthor + lineheightother) - linecount*lineheightquote)/2;
       if(!bsmallfont)
          topmargin+=lineheightquote-4;
       //Serial.println("topmargin = " + String(topmargin));
@@ -218,19 +212,20 @@ void AdaFruitQuote::printQuote(TFT_eSprite spr,String &quote)
    String line = wrapWord(quote.c_str(),scrwidth);
 
    int counter = 0;
-   epd.setTextColor(EPD_BLACK);
+   y += topmargin;
+   x += 4;
    while(line.length() > 0) {
       counter++;
-      LOG("printing line %d: \"%s\"\n",counter,line.c_str);
-      epd.setCursor(x +4, y + topmargin);
-      epd.print(line);
+      LOG("printing line %d: \"%s\"\n",counter,line.c_str());
+      drawString(spr,line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
       y += lineheightquote;
-      line = wrapWord("",scrwidth);
+      line = wrapWord(NULL,scrwidth);
    }
 }
 
 void AdaFruitQuote::printAuthor(String author)
 {
+#if 0
   epd.setTextColor(EPD_BLACK);
   epd.setFont(afont);
   int lineheightauthor = getLineHeight(afont);
@@ -249,10 +244,12 @@ void AdaFruitQuote::printAuthor(String author)
   }
   epd.setCursor(cursorx, cursory);
   epd.print(author);
+#endif
 }
 
 void AdaFruitQuote::printOther(String other)
 {
+#if 0
   epd.setFont(ofont);
   int lineheightother = getLineHeight(ofont);
   int ypos = epd.height() - 2;
@@ -261,12 +258,8 @@ void AdaFruitQuote::printOther(String other)
   epd.setTextColor(EPD_BLACK);
   epd.setCursor(4,ypos);
   epd.print(other);
+#endif
 }
-#else
-void AdaFruitQuote::printQuote(TFT_eSprite spr,String &quote)
-{
-}
-
 #endif
 
 AdaFruitQuote::~AdaFruitQuote()
@@ -276,8 +269,17 @@ AdaFruitQuote::~AdaFruitQuote()
    }
 }
 
+void AdaFruitQuote::SelectFont(JsonArray &Font)
+{
+   FontName = Font[0].as<const char *>();
+   FontSize = Font[1].as<int>();
+
+}
+
 void AdaFruitQuote::Draw() 
 {
+   uint16_t LineWidth;
+
    String QuoteUrl = "https://www.adafruit.com/api/quotes.php";
    DynamicJsonDocument doc(2000);
 
@@ -298,31 +300,12 @@ void AdaFruitQuote::Draw()
    LOG("Quote: %s\n",Quote.c_str());
    LOG("Author: \"%s\"\n",Author.c_str());
 
-   const auto &qfont = Template["qfont"];
-   const auto &sfont = Template["sfont"];
-   const auto &afont = Template["afont"];
-   const auto &ofont = Template["ofont"];
+   qfont = Template["qfont"];
+   sfont = Template["sfont"];
+   afont = Template["afont"];
+   ofont = Template["ofont"];
 
-
-   LOG("qFont: %s %d\n",(const char *) qfont[0],(int) qfont[1]);
-   LOG("sFont: %s %d\n",(const char *) sfont[0],(int) sfont[1]);
-   LOG("aFont: %s %d\n",(const char *) afont[0],(int) afont[1]);
-   LOG("oFont: %s %d\n",(const char *) ofont[0],(int) ofont[1]);
-
-   DrawX = 0;
-   DrawY = 0;
-   drawString(spr,qfont[0],DrawX,DrawY,qfont[0],TL_DATUM,TFT_BLACK,qfont[1]);
-   DrawY += (int) qfont[1];
-
-   drawString(spr,sfont[0],DrawX,DrawY,sfont[0],TL_DATUM,TFT_BLACK,sfont[1]);
-   DrawY += (int) sfont[1];
-
-   drawString(spr,afont[0],DrawX,DrawY,afont[0],TL_DATUM,TFT_BLACK,afont[1]);
-   DrawY += (int) afont[1];
-
-   drawString(spr,ofont[0],DrawX,DrawY,ofont[0],TL_DATUM,TFT_BLACK,ofont[1]);
-
-//    printQuote(Quote);
+   printQuote(Quote);
 }
 
 

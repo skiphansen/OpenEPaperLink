@@ -1,6 +1,6 @@
 #!/bin/sh
 
-ENV=ESP32_S3_16_8_YELLOW_AP
+ENV=LOCAL_YELLOW_AP
 
 VPJ_FILE=../vs/${ENV}.vpj
 
