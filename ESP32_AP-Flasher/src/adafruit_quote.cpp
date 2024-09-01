@@ -242,9 +242,8 @@ void AdaFruitQuote::printQuote(const char *quote)
    int linecount = getLineCount(quote,scrwidth);
    int lineheightquote = FontSize;
    LOG("line height quote %d\n",lineheightquote);
-   int lineheightauthor = afont[1].as<int>();
-   LOG("line height author %d\n",lineheightauthor);
-   int maxlines = (spr.height() - lineheightauthor) / lineheightquote;
+   LOG("line height author %d\n",AuthorFontSize);
+   int maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
    LOG("maxlines %d\n",maxlines);
    LOG("linecount %d\n",linecount);
    int topmargin = 0;
@@ -254,7 +253,7 @@ void AdaFruitQuote::printQuote(const char *quote)
    // next attempt, reduce lineheight to .8 size
       LOG("linecount too big, reduce lineheight\n");
       lineheightquote = .8 * lineheightquote;
-      maxlines = (spr.height() - lineheightauthor) / lineheightquote;
+      maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
       if(linecount > maxlines) {
       // next attempt, use small font
          LOG("linecount still too big, try small font\n");
@@ -262,11 +261,11 @@ void AdaFruitQuote::printQuote(const char *quote)
          SelectFont(sfont);
 
          lineheightquote = FontSize;
-         maxlines = (spr.height() - lineheightauthor) / lineheightquote;
+         maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
          linecount = getLineCount(quote,scrwidth);
          if(linecount > maxlines) {
          // final attempt, last resort is to reduce the lineheight to make it fit
-            lineheightquote = (spr.height() - lineheightauthor) / linecount;
+            lineheightquote = (spr.height() - AuthorFontSize) / linecount;
          }
       }
       LOG("maxlines changed to %d\n",maxlines);
@@ -275,7 +274,7 @@ void AdaFruitQuote::printQuote(const char *quote)
    }
 
    if(linecount <= maxlines) {
-      topmargin = (spr.height() - lineheightauthor - linecount*lineheightquote)/2;
+      topmargin = (spr.height() - AuthorFontSize - linecount*lineheightquote)/2;
 #if 0
       if(!bsmallfont) {
          topmargin+=lineheightquote-4;
@@ -355,7 +354,7 @@ void AdaFruitQuote::Draw()
    LOG("AdaFruitQuote\n");
    LOG("spr %d X %d\n",spr.width(),spr.height());
 
-#if 1
+#if 0
    const bool success = util::httpGetJson(QuoteUrl,doc,5000);
    if(!success) {
       LOG("httpGetJson failed\n");
@@ -384,13 +383,22 @@ void AdaFruitQuote::Draw()
 
    qfont = Template["qfont"];
    sfont = Template["sfont"];
-   afont = Template["afont"];
+   if(Template.containsKey("afont")) {
+      afont = Template["afont"];
+      AuthorFontName = afont[0].as<const char *>();
+      AuthorFontSize = afont[1].as<int>();
+   }
+   else {
+      AuthorFontSize = 0;
+   }
 
    printQuote(Text);
    free(Text);
-   Text = strdup(Author.c_str());
-   Unicode2Ascii(Text);
-   printAuthor(Text);
-}
 
+   if(AuthorFontSize > 0) {
+      Text = strdup(Author.c_str());
+      Unicode2Ascii(Text);
+      printAuthor(Text);
+   }
+}
 

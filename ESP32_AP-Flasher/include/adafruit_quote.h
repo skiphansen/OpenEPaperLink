@@ -28,6 +28,8 @@ private:
    bool bsmallfont;
    const char *FontName;
    int FontSize;
+   int AuthorFontSize;
+   const char *AuthorFontName;
 
    uint16_t getStringLength(const char *str, int strlength = 0);
    void Unicode2Ascii(char *str);
