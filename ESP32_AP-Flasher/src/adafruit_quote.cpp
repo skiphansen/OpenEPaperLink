@@ -60,7 +60,6 @@
 #include "util.h"
 #include "web.h"
 
-#if 1
 // get string length in pixels
 // set text font prior to calling this
 uint16_t AdaFruitQuote::getStringLength(const char *str, int strlength)
@@ -192,6 +191,8 @@ char *AdaFruitQuote::wrapWord(const char *str, int linesize)
          WordBuf[wordpos] = '\0';
       }
       w = getStringLength(&WordBuf[linestart]);
+      LOG("width %d '%s'\n",w,&WordBuf[linestart]);
+
       if(wordpos < bufflen) {
          WordBuf[wordpos] = ' ';
       }
@@ -232,11 +233,6 @@ void AdaFruitQuote::printQuote(const char *quote)
    int x = 0;
    int y = 0;
    bsmallfont = false;
-#if 0
-   epd.setTextColor(EPD_BLACK);
-   epd.setFont(qfont);
-   epd.setTextSize(1);
-#endif
 // Try quote font first
    SelectFont(qfont);
 
@@ -244,49 +240,52 @@ void AdaFruitQuote::printQuote(const char *quote)
    LOG("Screen width %d\n",scrwidth);
    LOG("Screen height %d\n",spr.height());
    int linecount = getLineCount(quote,scrwidth);
-   int lineheightquote = qfont[1].as<int>();
+   int lineheightquote = FontSize;
+   LOG("line height quote %d\n",lineheightquote);
    int lineheightauthor = afont[1].as<int>();
-   int lineheightother = ofont[1].as<int>();
-   int maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+   LOG("line height author %d\n",lineheightauthor);
+   int maxlines = (spr.height() - lineheightauthor) / lineheightquote;
    LOG("maxlines %d\n",maxlines);
-   LOG("line height %d\n",lineheightquote);
    LOG("linecount %d\n",linecount);
    int topmargin = 0;
 
    if(linecount > maxlines) {
    // too long for default font size
    // next attempt, reduce lineheight to .8 size
+      LOG("linecount too big, reduce lineheight\n");
       lineheightquote = .8 * lineheightquote;
-      maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+      maxlines = (spr.height() - lineheightauthor) / lineheightquote;
       if(linecount > maxlines) {
       // next attempt, use small font
+         LOG("linecount still too big, try small font\n");
          bsmallfont = true;
          SelectFont(sfont);
 
          lineheightquote = FontSize;
-         maxlines = (spr.height() - (lineheightauthor + lineheightother)) / lineheightquote;
+         maxlines = (spr.height() - lineheightauthor) / lineheightquote;
          linecount = getLineCount(quote,scrwidth);
          if(linecount > maxlines) {
          // final attempt, last resort is to reduce the lineheight to make it fit
-            lineheightquote = (spr.height() - (lineheightauthor + lineheightother)) / linecount;
+            lineheightquote = (spr.height() - lineheightauthor) / linecount;
          }
       }
-      LOG("maxlines has changed to %d\n",maxlines);
-      LOG("line height has changed to %d\n",lineheightquote);
-      LOG("linecount has changed to %d\n",linecount);
+      LOG("maxlines changed to %d\n",maxlines);
+      LOG("line height changed to %d\n",lineheightquote);
+      LOG("linecount changed to %d\n",linecount);
    }
 
    if(linecount <= maxlines) {
-      topmargin = (spr.height() - (lineheightauthor + lineheightother) - linecount*lineheightquote)/2;
-      if(!bsmallfont)
+      topmargin = (spr.height() - lineheightauthor - linecount*lineheightquote)/2;
+#if 0
+      if(!bsmallfont) {
          topmargin+=lineheightquote-4;
-      //Serial.println("topmargin = " + String(topmargin));
+      }
+#endif
    }
    String line = wrapWord(quote,scrwidth);
 
    int counter = 0;
    y += topmargin;
-   x += 4;
    while(line.length() > 0) {
       counter++;
       LOG("printing line %d: \"%s\"\n",counter,line.c_str());
@@ -296,44 +295,38 @@ void AdaFruitQuote::printQuote(const char *quote)
    }
 }
 
-void AdaFruitQuote::printAuthor(String author)
-{
-#if 0
-  epd.setTextColor(EPD_BLACK);
-  epd.setFont(afont);
-  int lineheightauthor = getLineHeight(afont);
-  int lineheightother = getLineHeight(ofont);
-  int x = getStringLength(author.c_str());
-  // draw line above author
-  epd.drawLine(epd.width() - x - 10, epd.height() - (lineheightauthor + lineheightother) + 2, epd.width(), epd.height() - (lineheightauthor + lineheightother) + 2, EPD_RED);
-  epd.drawLine(epd.width() - x - 10, epd.height() - (lineheightauthor + lineheightother) + 2, epd.width() - x - 10,epd.height() - lineheightother - lineheightauthor/3, EPD_RED);
-  epd.drawLine(0, epd.height() - lineheightother - lineheightauthor/3, epd.width() - x - 10,epd.height() - lineheightother - lineheightauthor/3, EPD_RED);
-  // draw author text
-  int cursorx = epd.width() - x - 4;
-  int cursory = epd.height() - lineheightother - 2;
-  if(afont == NULL)
-  {
-    cursory = epd.height() - lineheightother - lineheightauthor - 2 ;
-  }
-  epd.setCursor(cursorx, cursory);
-  epd.print(author);
-#endif
-}
+#define AUTHOR_RIGHT_MARGIN   2  // to edge of display
+#define AUTHOR_LEFT_MARGIN    2  // from accent  line
+#define AUTHOR_TOP_MARGIN     2  // from accent  line
+#define AUTHOR_BOTTOM_MARGIN  2  // from bottom edge of display
 
-void AdaFruitQuote::printOther(String other)
+void AdaFruitQuote::printAuthor(const char *author)
 {
-#if 0
-  epd.setFont(ofont);
-  int lineheightother = getLineHeight(ofont);
-  int ypos = epd.height() - 2;
-  if (ofont == NULL)
-    ypos = epd.height() - (lineheightother - 2);
-  epd.setTextColor(EPD_BLACK);
-  epd.setCursor(4,ypos);
-  epd.print(other);
-#endif
+   int32_t x0 = 0;
+   int32_t y0;
+   int32_t x1;
+   int32_t y1;
+
+   SelectFont(afont);
+   int x = getStringLength(author);
+   y0 = spr.height() - 1 - (FontSize/2) - AUTHOR_BOTTOM_MARGIN;
+   x1 = spr.width() - 1 - x - AUTHOR_LEFT_MARGIN - AUTHOR_RIGHT_MARGIN;
+   y1 = spr.height() - 1 - FontSize - AUTHOR_BOTTOM_MARGIN - AUTHOR_TOP_MARGIN;
+
+// draw line from left edge of screen to middle of the author
+   spr.drawLine(x0,y0,x1,y0,TFT_BLACK);
+// draw line from middle of the author to top of author
+   spr.drawLine(x1,y0,x1,y1,TFT_BLACK);
+// draw line from top of the author to right edige of screen
+   spr.drawLine(x1,y1,spr.width()-1,y1,TFT_BLACK);
+   x1 += AUTHOR_LEFT_MARGIN;
+   y1 += AUTHOR_TOP_MARGIN;
+
+   LOG("author width %d x1 %ld y1 %ld\n",x,x1,y1);
+
+   LOG("printing author: \"%s\"\n",author);
+   drawString(spr,author,x1,y1,FontName,TL_DATUM,TFT_RED,FontSize);
 }
-#endif
 
 AdaFruitQuote::~AdaFruitQuote()
 {
@@ -350,7 +343,6 @@ void AdaFruitQuote::SelectFont(JsonArray &Font)
 {
    FontName = Font[0].as<const char *>();
    FontSize = Font[1].as<int>();
-
 }
 
 void AdaFruitQuote::Draw() 
@@ -361,7 +353,9 @@ void AdaFruitQuote::Draw()
    DynamicJsonDocument doc(2000);
 
    LOG("AdaFruitQuote\n");
+   LOG("spr %d X %d\n",spr.width(),spr.height());
 
+#if 1
    const bool success = util::httpGetJson(QuoteUrl,doc,5000);
    if(!success) {
       LOG("httpGetJson failed\n");
@@ -371,6 +365,11 @@ void AdaFruitQuote::Draw()
    LOG("Raw Json:\n");
    serializeJson(doc, Serial);
    LOG("\n");
+#else
+   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
+   deserializeJson(doc,Raw);
+   JsonObject QuoteData = doc[0];
+#endif
 
    String Quote = QuoteData["text"].as<String>();
    String Author = QuoteData["author"].as<String>();
@@ -386,9 +385,12 @@ void AdaFruitQuote::Draw()
    qfont = Template["qfont"];
    sfont = Template["sfont"];
    afont = Template["afont"];
-   ofont = Template["ofont"];
 
    printQuote(Text);
+   free(Text);
+   Text = strdup(Author.c_str());
+   Unicode2Ascii(Text);
+   printAuthor(Text);
 }
 
 

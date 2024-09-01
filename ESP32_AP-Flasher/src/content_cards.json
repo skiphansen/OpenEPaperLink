@@ -776,16 +776,17 @@
 #ifdef CONTENT_QUOTES
   ,{
     "id": 251,
-    "name": "Adafruit Quote",
-    "desc": "Quotes from Adafruit quote API",
+    "name": "Quote & Jokes",
+    "desc": "Quotes and jokes from various on line sources",
     "param": [
       {
         "key": "interval",
         "name": "Interval",
-        "desc": "How often the forecast is being refreshed.",
+        "desc": "How often the quote or joke is updated",
         "type": "select",
         "options": {
           "60": "Every hour",
+          "1200": "Every two hours",
           "180": "-Every three hours",
           "-1440": "At midnight"
         }

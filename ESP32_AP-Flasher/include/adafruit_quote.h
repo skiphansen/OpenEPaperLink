@@ -18,7 +18,6 @@ private:
    JsonArray qfont;
    JsonArray sfont;
    JsonArray afont;
-   JsonArray ofont;
    char *WordBuf;
    char *Text;
    int lineend;
@@ -36,11 +35,8 @@ private:
    int getLineCount(const char *str, int scrwidth);
    void printQuote(const char *quote);
    void printQuote(String &quote);
-   void printAuthor(String author);
-   void printOther(String other);
+   void printAuthor(const char *author);
    void SelectFont(JsonArray &Font);
-
-
 };
 
 #endif   // _ADAFRUIT_QUOTE_H_

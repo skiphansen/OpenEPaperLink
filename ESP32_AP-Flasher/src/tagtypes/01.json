@@ -80,13 +80,11 @@
 		},
 		"251": {
 		     // Font for quote
-			"qfont": [ "calibrib16.vlw", 16],
+			"qfont": [ "bahnschrift20.vlw", 20 ],
 		     // Small font if quote doesn't fit with qfont
-			"sfont": [ "tahoma9.vlw", 9 ],
+			"sfont": [ "calibrib16.vlw", 16 ],
 		     // Font for author
-			"afont": [ "bahnschrift20.vlw", 20 ],
-		     // Font for other
-			"ofont": [ "Signika-SB.ttf", 20 ]
+			"afont": [ "calibrib16.vlw", 16]
 		}
 	}
 }
