@@ -142,155 +142,154 @@ void AdaFruitQuote::Unicode2Ascii(char *str)
    *pOut = 0;
 }
 
-// word wrap routine
-// first time send string to wrap
-// 2nd and additional times: use empty string
-// returns substring of wrapped text.
-char *AdaFruitQuote::wrapWord(const char *str, int linesize)
+void AdaFruitQuote::BreakIntoLines(const char *str, int linesize)
 {
-   int linestart = 0;
-   char *Ret;
+   char *cp;
+   char *pLastEnd;
+   bool bEnd = false;
+   uint16_t LineWidth;
+   DisplayLine Line;
 
-   if(str == NULL) {
-   // additional line from original string
-      linestart = lineend + 1;
-      lineend = bufflen;
+   Lines.clear();
+   if(WordBuf != NULL) {
+      free(WordBuf);
    }
-   else {
-      if(WordBuf != NULL) {
-         free(WordBuf);
-      }
-      WordBuf = strdup(str);
-      linestart = 0;
-      lineend = strlen(WordBuf);
-      bufflen = lineend;
-      LOG("new string to wrap: %s bufflen %d\n",str,bufflen);
-   }
-   uint16_t w;
-   int lastwordpos = linestart;
-   int wordpos = linestart + 1;
-   if(str == NULL && linestart < bufflen) {
-      LOG("existing string to wrap, starting at position %d: %s\n",
-          linestart,&WordBuf[linestart]);
-   }
-   while(true) {
+   WordBuf = strdup(str);
+   cp = WordBuf;
+   Line.Line = cp;
+
+   Line.LineWidth = 0;
+   LOG("new string to wrap: '%s'\n",str);
+
+   while(!bEnd) {
    // Skip spaces
-      if(linestart > bufflen) {
-      // End of line
-         linestart = bufflen;
-         break;
+      while(*cp == ' ') {
+         cp++;
       }
-      while(WordBuf[wordpos] == ' ' && wordpos < bufflen) {
-         wordpos++;
+   // Skip to the end of word
+      while(true) {
+         if(*cp == ' ') {
+            *cp = 0;
+            break;
+         }
+         if(!*cp) {
+            bEnd = true;
+            break;
+         }
+         cp++;
       }
-   // Skip to end of word
-      while(WordBuf[wordpos] != ' ' && wordpos < bufflen) {
-         wordpos++;
-      }
-      if(wordpos < bufflen) {
-         WordBuf[wordpos] = '\0';
-      }
-      w = getStringLength(&WordBuf[linestart]);
-      LOG("width %d '%s'\n",w,&WordBuf[linestart]);
+      LineWidth = getStringLength(Line.Line);
+      LOG("width '%s' = %d\n",Line.Line,LineWidth);
 
-      if(wordpos < bufflen) {
-         WordBuf[wordpos] = ' ';
+      if(LineWidth > linesize) {
+      // Too wide
+         if(Line.LineWidth == 0) {
+         // first word on line is too long, truncate it
+            Line.Line[linesize] = 0;
+            cp++;
+            Line.LineWidth = getStringLength(Line.Line);
+         }
+         else {
+         // Last word doesn't fit, remove last word from line
+            if(!bEnd) {
+               *cp = ' ';
+            }
+            bEnd = false;
+            cp = pLastEnd;
+            *cp++ = 0;
+         }
+         Lines.push_back(Line);  // Add line
+         LOG("Added line %d '%s'\n",Lines.size(),Line.Line);
+         Line.Line = cp;
       }
-      if(w > linesize) {
-         WordBuf[lastwordpos] = '\0';
-         lineend = lastwordpos;
-         break;
-      } 
-      else if(wordpos >= bufflen) {
-      // first word too long or end of string, send it anyway
-         WordBuf[wordpos] = '\0';
-         lineend = wordpos;
-         break;
+      else {
+      // Still fits, continue scanning
+         Line.LineWidth = LineWidth;
+         if(bEnd) {
+            Lines.push_back(Line);  // Add line
+            LOG("Added line %d '%s'\n",Lines.size(),Line.Line);
+         }
+         else {
+            pLastEnd = cp;
+            *cp++ = ' ';
+         }
       }
-      lastwordpos = wordpos;
-      wordpos++;
    }
-   Ret = &WordBuf[linestart];
-   LOG("Returning '%s'\n",Ret);
-   return Ret;
-}
-
-// return # of lines created from word wrap
-int AdaFruitQuote::getLineCount(const char *str, int scrwidth)
-{
-  int linecount = 0;
-  String line = wrapWord(str,scrwidth);
-
-  while(line.length() > 0) {
-    linecount++;
-    line = wrapWord(NULL,scrwidth);
-  }
-  return linecount;  
 }
 
 void AdaFruitQuote::printQuote(const char *quote)
 {
-   int x = 0;
-   int y = 0;
+   int lineheightquote;
+   int scrwidth;
+   int Height;
+   int linecount;
+   int maxlines;
+
    bsmallfont = false;
 // Try quote font first
    SelectFont(qfont);
+   lineheightquote = FontSize;
+   scrwidth = spr.width();
+   Height = spr.height() - AuthorFontSize;
 
-   int scrwidth = spr.width();
-   LOG("Screen width %d\n",scrwidth);
-   LOG("Screen height %d\n",spr.height());
-   int linecount = getLineCount(quote,scrwidth);
-   int lineheightquote = FontSize;
-   LOG("line height quote %d\n",lineheightquote);
+   LOG("Sprite width %d\n",scrwidth);
+   LOG("Sprite height %d\n",spr.height());
+   LOG("line height quote %d\n",FontSize);
    LOG("line height author %d\n",AuthorFontSize);
-   int maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
+
+   BreakIntoLines(quote,scrwidth);
+
+   maxlines = Height / lineheightquote;
+   linecount = Lines.size();
    LOG("maxlines %d\n",maxlines);
    LOG("linecount %d\n",linecount);
-   int topmargin = 0;
-
-   if(linecount > maxlines) {
+   
+   if(Lines.size() > maxlines) {
    // too long for default font size
    // next attempt, reduce lineheight to .8 size
       LOG("linecount too big, reduce lineheight\n");
       lineheightquote = .8 * lineheightquote;
-      maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
+      maxlines = Height / lineheightquote;
       if(linecount > maxlines) {
       // next attempt, use small font
          LOG("linecount still too big, try small font\n");
          bsmallfont = true;
          SelectFont(sfont);
-
          lineheightquote = FontSize;
-         maxlines = (spr.height() - AuthorFontSize) / lineheightquote;
-         linecount = getLineCount(quote,scrwidth);
+         maxlines = Height / lineheightquote;
+         BreakIntoLines(quote,scrwidth);
+         linecount = Lines.size();
          if(linecount > maxlines) {
          // final attempt, last resort is to reduce the lineheight to make it fit
-            lineheightquote = (spr.height() - AuthorFontSize) / linecount;
+            LOG("linecount still too big, lineheightquote %d",lineheightquote);
+            lineheightquote = Height / linecount;
+            LOG(" reduced to %d\n",lineheightquote);
          }
       }
-      LOG("maxlines changed to %d\n",maxlines);
-      LOG("line height changed to %d\n",lineheightquote);
-      LOG("linecount changed to %d\n",linecount);
+      LOG("Final linecount %d\n",linecount);
+      LOG("Final maxlines %d\n",maxlines);
+      LOG("Final line height %d\n",lineheightquote);
    }
 
+   int y = 0;
    if(linecount <= maxlines) {
-      topmargin = (spr.height() - AuthorFontSize - linecount*lineheightquote)/2;
-#if 0
-      if(!bsmallfont) {
-         topmargin+=lineheightquote-4;
-      }
-#endif
+      y = (Height - linecount*lineheightquote)/2;
    }
-   String line = wrapWord(quote,scrwidth);
 
-   int counter = 0;
-   y += topmargin;
-   while(line.length() > 0) {
-      counter++;
-      LOG("printing line %d: \"%s\"\n",counter,line.c_str());
-      drawString(spr,line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
+   int MaxWidth = 0;
+   for(int i = 0; i < Lines.size(); i++) {
+      if(MaxWidth < Lines[i].LineWidth) {
+         MaxWidth = Lines[i].LineWidth;
+      }
+   }
+// Center longest line from quote in sprite
+   int x = (scrwidth - MaxWidth) / 2;
+   LOG("Quote indent %d\n",x);
+
+   for(int i = 0; i < Lines.size(); i++) {
+      LOG("printing line %d: \"%s\"\n",i + 1,Lines[i].Line);
+      drawString(spr,Lines[i].Line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
       y += lineheightquote;
-      line = wrapWord(NULL,scrwidth);
    }
 }
 
@@ -354,7 +353,7 @@ void AdaFruitQuote::Draw()
    LOG("AdaFruitQuote\n");
    LOG("spr %d X %d\n",spr.width(),spr.height());
 
-#if 0
+#if 1
    const bool success = util::httpGetJson(QuoteUrl,doc,5000);
    if(!success) {
       LOG("httpGetJson failed\n");
@@ -365,7 +364,8 @@ void AdaFruitQuote::Draw()
    serializeJson(doc, Serial);
    LOG("\n");
 #else
-   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
+//   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
+   const char *Raw = "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
    deserializeJson(doc,Raw);
    JsonObject QuoteData = doc[0];
 #endif

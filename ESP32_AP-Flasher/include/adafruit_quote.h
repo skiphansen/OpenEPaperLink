@@ -13,6 +13,12 @@ public:
 
    void Draw();
 private:
+   typedef struct {
+      int   LineWidth;  // pixels
+      char *Line;
+   } DisplayLine;
+
+   std::vector<DisplayLine> Lines;
    TFT_eSprite &spr;
    JsonDocument &Template;
    JsonArray qfont;
@@ -32,9 +38,8 @@ private:
    const char *AuthorFontName;
 
    uint16_t getStringLength(const char *str, int strlength = 0);
-   void Unicode2Ascii(char *str);
-   char *wrapWord(const char *str, int linesize);
-   int getLineCount(const char *str, int scrwidth);
+   static void Unicode2Ascii(char *str);
+   void BreakIntoLines(const char *str, int linesize);
    void printQuote(const char *quote);
    void printQuote(String &quote);
    void printAuthor(const char *author);
