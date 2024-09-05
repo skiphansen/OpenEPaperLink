@@ -30,6 +30,7 @@ sdcc/sdcc
 *.vpwhist
 *.vtg
 *.bin
+resources/tagtypes/*.json
 
 ESP32_AP-Flasher/.vscode/extensions.json
 # ignore any $PROJECT_DIR directories (from incorrect interpolation variables)

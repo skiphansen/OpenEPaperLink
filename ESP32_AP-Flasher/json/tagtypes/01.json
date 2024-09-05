@@ -78,5 +78,17 @@
 			"yaxis": [ "tahoma9.vlw", 0, 6 ],
 			"head": [ "calibrib30.vlw" ]
 		}
+#ifdef CONTENT_QUOTES
+		,"251": {
+		     // position upper left x,y, width, height
+			"position": [ 0, 0, 296, 128],
+		     // Font for quote
+			"qfont": [ "bahnschrift20.vlw", 20 ],
+		     // Small font if quote doesn't fit with qfont
+			"sfont": [ "calibrib16.vlw", 16 ],
+		     // Font for author
+			"afont": [ "calibrib16.vlw", 16]
+		}
+#endif
 	}
 }

@@ -161,6 +161,18 @@
           "-1440": "At midnight"
         }
       },
+#ifdef CONTENT_QUOTES
+      {
+        "key": "QuoteType",
+        "name": "Addional content",
+        "desc": "Additional content below weather forecast",
+        "type": "select",
+        "options": {
+          "0": "None",
+          "1": "Quotes from AdaFruit"
+        }
+      },
+#endif
       {
         "key": "#lat",
         "name": "Lat",
@@ -779,6 +791,16 @@
     "name": "Quote & Jokes",
     "desc": "Quotes and jokes from various on line sources",
     "param": [
+      {
+        "key": "QuoteType",
+        "name": "Content",
+        "desc": "Content type",
+        "type": "select",
+        "options": {
+          "1": "Quotes from AdaFruit",
+          "2": "Jokes from jokeapi.dev"
+        }
+      },
       {
         "key": "interval",
         "name": "Interval",

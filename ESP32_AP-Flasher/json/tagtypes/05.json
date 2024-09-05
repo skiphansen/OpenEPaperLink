@@ -28,14 +28,53 @@
 			"dir": [ 120, 60, 180 ],
 			"umbrella": [ 575, 250, 102 ]
 		},
+		// Weather forecast
 		"8": {
+#ifdef CONTENT_QUOTES
+			"quote": {
+			   // line[0,1] = Start location of vertical line 
+			   // that separates daily entries y, end y
+			   // when quotes are enabled 
+			   // 285 + 30 = 315
+			      "line": [ 95, 315 ],
+			   // position upper left x,y, width, height
+			   // 285 + 30 + 5 = 320
+			      "position": [ 10, 320, 283, 383 ],
+			   // Font for quote
+			      "qfont": [ "bahnschrift20.vlw", 20 ],
+			   // Small font if quote doesn't fit with qfont
+			      "sfont": [ "calibrib16.vlw", 16 ],
+			   // Font for author
+			      "afont": [ "calibrib16.vlw", 16]
+			 },
+#endif
+		     // location[0,1] = location x,y
+		     // location[2] = font for location
 			"location": [ 10, 0, "fonts/calibrib80" ],
-			"column": [ 7, 91 ],
+
+		     // column[0] = number of days
+		     // column[1] = column start x
+			"column": [ 7, 91 ],	
+
+		     // day[0] = day of week x, day[1] = y, 
+		     // day[2] = font used for day of week, wind speed, temp
+		     // day[3] = y wind speed
+		     // day[4] = y for temp
 			"day": [ 42, 110, "fonts/calibrib30", 150, 285 ],
-			"rain": [ 48, 340 ],
-			"icon": [ 45, 180, 60 ],
-			"wind": [ 17, 120 ],
-			"line": [ 95, 370 ]
+
+		     // rain[0,1] = location for rain fall amount x,y
+			"rain": [ 48, 340 ],	
+
+		     // icon[0,1] = location of weather icon x, y, size
+		     // icon[2] = icon size
+			"icon": [ 45, 180, 60 ], 
+
+		     // wind[0,1] = Start location of wind x, y
+			"wind": [ 17, 120 ],	
+
+		     // line[0,1] = Start location of vertical line 
+		     // that separates daily entries y, end y
+			"line": [ 95, 370 ]	
 		},
 		"9": {
 			"title": [ 6, 0, "Signika-SB.ttf", 32 ],

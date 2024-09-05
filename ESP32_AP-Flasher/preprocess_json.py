@@ -4,6 +4,8 @@ import os
 import subprocess
 import glob
 
+content_defines = []
+
 def preprocess_files(source_folder, destination_folder):
     # Create the destination folder if it doesn't exist
     if not os.path.exists(destination_folder):
@@ -16,19 +18,34 @@ def preprocess_files(source_folder, destination_folder):
         file = os.path.basename(source_file_path)
         destination_file_path = os.path.join(destination_folder, file)
 
-        print(f"preprocessing: {file}")
+        #print(f"preprocessing: {file}")
         cmd_line = [ 'cpp', '-P',f'{source_file_path}','-o' f'{destination_file_path}' ]
-        if 'Import' in globals() and callable(Import):
-            Import("env")
-            for define in env.get('BUILD_FLAGS', []):
-                if define.startswith('-D CONTENT'):
-                    cmd_line.append(define)
-        print(f'Running {cmd_line}')
+        cmd_line += content_defines
+
+        #print(f'Running {cmd_line}')
 
         subprocess.run(cmd_line)
 
+if 'Import' in globals() and callable(Import):
+    Import("env")
+    for define in env.get('BUILD_FLAGS', []):
+        if define.startswith('-D CONTENT'):
+            content_defines.append(define)
+
+print('preprocessing json files with ',end = '')
+first = True
+for define in content_defines:
+    if not first:
+        print(', ',end = '')
+    print(define,end = '')
+    first = False
+print('.')
+
 # create runtime wwwroot/*.json from src/*.json
-preprocess_files('src','wwwroot')
-preprocess_files('src/tagtypes','data/tagtypes')
+preprocess_files('json/wwwroot','wwwroot')
+# create runtime resources/tagtypes/ from src/tagtypes/*.json
+# NB: the contents of resources/tagtypes/ are normally downloaded by the AP as 
+# needed, they are not part of the FS image.
+preprocess_files('json/tagtypes','../resources/tagtypes/')
 
 
