@@ -1027,9 +1027,43 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     TFT_eSprite spr = TFT_eSprite(&tft);
     tft.setTextWrap(false, false);
 
-    StaticJsonDocument<512> loc;
+    DynamicJsonDocument loc(2048);
     getTemplate(loc, 8, taginfo->hwType);
     initSprite(spr, imageParams.width, imageParams.height, imageParams);
+
+    int LineStartY = loc["line"][0];
+    int LineEndY = loc["line"][1];
+
+#ifdef CONTENT_QUOTES
+    LOG("LineStartY %d LineEndY %d\n",LineStartY,LineEndY);
+    bool bAddQuote = false;
+    StaticJsonDocument<512> QuoteTemplate;
+    if(cfgobj.containsKey("QuoteType") && cfgobj["QuoteType"].as<int>() != 0) {
+       bAddQuote = true;
+       LOG("loc:\n");
+       serializeJson(loc,Serial);
+       LOG("\n");
+       LOG("loc[\"quote\"]:\n");
+       serializeJson(loc["quote"],Serial);
+       LOG("\n");
+
+       QuoteTemplate.set(loc["quote"].as<JsonObject>());
+       QuoteTemplate["QuoteType"] = cfgobj["QuoteType"];
+       LOG("QuoteTemplate:\n");
+       serializeJson(QuoteTemplate,Serial);
+       LOG("\n");
+
+       LOG("QuoteType %d\n",QuoteTemplate["QuoteType"].as<int>());
+
+    // set divider lines start/end values from QuoteTemplate
+       LineStartY = QuoteTemplate["line"][0];
+       LineEndY = QuoteTemplate["line"][1];
+    }
+    else {
+       LOG("Quotes not enabled\n");
+    }
+    LOG("LineStartY %d LineEndY %d\n",LineStartY,LineEndY);
+#endif
 
     const auto &location = loc["location"];
     drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK);
@@ -1096,11 +1130,19 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
         drawString(spr, String(" ") + String(tmax), dag * column1 + day[0].as<int>(), day[4], day[2], TL_DATUM, (tmax < 0 ? imageParams.highlightColor : TFT_BLACK));
         drawString(spr, String(wind), dag * column1 + column1 - 10, day[3], day[2], TR_DATUM, (beaufort > 5 ? imageParams.highlightColor : TFT_BLACK));
         if (dag > 0) {
-            for (int i = loc["line"][0]; i < loc["line"][1]; i += 3) {
+            for (int i = LineStartY; i < LineEndY; i += 3) {
                 spr.drawPixel(dag * column1, i, TFT_BLACK);
             }
         }
     }
+#ifdef CONTENT_QUOTES
+ // Add quotes
+    if(bAddQuote) {
+    // set divider lines start/end values from QuoteTemplate
+       AdaFruitQuote Quote(spr,QuoteTemplate);
+       Quote.Draw();
+    }
+#endif
 
     spr2buffer(spr, filename, imageParams);
     spr.deleteSprite();
@@ -3011,6 +3053,8 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
 
     char filename[20];
     snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
+    LOG("Getting template from %s\n",filename);
+
     File jsonFile = contentFS->open(filename, "r");
 
     if (jsonFile) {
@@ -3018,8 +3062,11 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
         filter["usetemplate"] = true;
         const DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
         jsonFile.close();
+
         if (!error && doc.containsKey(templateKey) && doc[templateKey].containsKey(idstr)) {
-            json.set(doc[templateKey][idstr]);
+            if(!json.set(doc[templateKey][idstr])) {
+               LOG("set failed, %d bytes required\n",doc.memoryUsage());
+            }
             return;
         }
         if (!error && doc.containsKey("usetemplate")) {

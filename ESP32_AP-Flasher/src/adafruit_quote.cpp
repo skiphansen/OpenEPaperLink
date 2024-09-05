@@ -220,7 +220,6 @@ void AdaFruitQuote::BreakIntoLines(const char *str, int linesize)
 void AdaFruitQuote::printQuote(const char *quote)
 {
    int lineheightquote;
-   int scrwidth;
    int Height;
    int linecount;
    int maxlines;
@@ -229,15 +228,14 @@ void AdaFruitQuote::printQuote(const char *quote)
 // Try quote font first
    SelectFont(qfont);
    lineheightquote = FontSize;
-   scrwidth = spr.width();
-   Height = spr.height() - AuthorFontSize;
+   Height = AreaHeight - AuthorFontSize;
 
-   LOG("Sprite width %d\n",scrwidth);
-   LOG("Sprite height %d\n",spr.height());
+   LOG("Sprite width %d\n",AreaWidth);
+   LOG("Sprite height %d\n",AreaHeight);
    LOG("line height quote %d\n",FontSize);
    LOG("line height author %d\n",AuthorFontSize);
 
-   BreakIntoLines(quote,scrwidth);
+   BreakIntoLines(quote,AreaWidth);
 
    maxlines = Height / lineheightquote;
    linecount = Lines.size();
@@ -257,7 +255,7 @@ void AdaFruitQuote::printQuote(const char *quote)
          SelectFont(sfont);
          lineheightquote = FontSize;
          maxlines = Height / lineheightquote;
-         BreakIntoLines(quote,scrwidth);
+         BreakIntoLines(quote,AreaWidth);
          linecount = Lines.size();
          if(linecount > maxlines) {
          // final attempt, last resort is to reduce the lineheight to make it fit
@@ -275,6 +273,7 @@ void AdaFruitQuote::printQuote(const char *quote)
    if(linecount <= maxlines) {
       y = (Height - linecount*lineheightquote)/2;
    }
+   y += OffsetY;
 
    int MaxWidth = 0;
    for(int i = 0; i < Lines.size(); i++) {
@@ -283,11 +282,12 @@ void AdaFruitQuote::printQuote(const char *quote)
       }
    }
 // Center longest line from quote in sprite
-   int x = (scrwidth - MaxWidth) / 2;
+   int x = (AreaWidth - MaxWidth) / 2;
    LOG("Quote indent %d\n",x);
+   x += OffsetX;
 
    for(int i = 0; i < Lines.size(); i++) {
-      LOG("printing line %d: \"%s\"\n",i + 1,Lines[i].Line);
+      LOG("printing line %d: '%s' @ %d, %d\n",i + 1,Lines[i].Line,x,y);
       drawString(spr,Lines[i].Line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
       y += lineheightquote;
    }
@@ -307,16 +307,17 @@ void AdaFruitQuote::printAuthor(const char *author)
 
    SelectFont(afont);
    int x = getStringLength(author);
-   y0 = spr.height() - 1 - (FontSize/2) - AUTHOR_BOTTOM_MARGIN;
-   x1 = spr.width() - 1 - x - AUTHOR_LEFT_MARGIN - AUTHOR_RIGHT_MARGIN;
-   y1 = spr.height() - 1 - FontSize - AUTHOR_BOTTOM_MARGIN - AUTHOR_TOP_MARGIN;
+   y0 = OffsetY + AreaHeight - 1 - (FontSize/2) - AUTHOR_BOTTOM_MARGIN;
+   x1 = AreaWidth - 1 - x - AUTHOR_LEFT_MARGIN - AUTHOR_RIGHT_MARGIN;
+   y1 = OffsetY + AreaHeight - 1 - FontSize - AUTHOR_BOTTOM_MARGIN 
+        - AUTHOR_TOP_MARGIN;
 
 // draw line from left edge of screen to middle of the author
    spr.drawLine(x0,y0,x1,y0,TFT_BLACK);
 // draw line from middle of the author to top of author
    spr.drawLine(x1,y0,x1,y1,TFT_BLACK);
 // draw line from top of the author to right edige of screen
-   spr.drawLine(x1,y1,spr.width()-1,y1,TFT_BLACK);
+   spr.drawLine(x1,y1,AreaWidth-1,y1,TFT_BLACK);
    x1 += AUTHOR_LEFT_MARGIN;
    y1 += AUTHOR_TOP_MARGIN;
 
@@ -363,12 +364,23 @@ void AdaFruitQuote::Draw()
    LOG("Raw Json:\n");
    serializeJson(doc, Serial);
    LOG("\n");
+   File f = contentFS->open("/quote.txt","a");
+   serializeJson(doc,f);
+   f.write((const uint8_t *)"\n",1);
+   f.close();
 #else
 //   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
-   const char *Raw = "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
+//  const char *Raw = "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
+   const char *Raw = "[{\"text\":\"What we call the beginning is often the end. And to make an end is to make a beginning. The end is where we start from\",\"author\":\"T. S. Eliot\"}]";
    deserializeJson(doc,Raw);
    JsonObject QuoteData = doc[0];
 #endif
+
+   OffsetX = Template["position"][0];
+   OffsetY = Template["position"][1];
+   AreaWidth = Template["position"][2];
+   AreaHeight = Template["position"][3];
+   LOG("Area %d x %d @ %d, %d\n",AreaWidth,AreaHeight,OffsetX,OffsetY);
 
    String Quote = QuoteData["text"].as<String>();
    String Author = QuoteData["author"].as<String>();

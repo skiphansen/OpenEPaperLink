@@ -30,24 +30,6 @@
 		},
 		// Weather forecast
 		"8": {
-#ifdef CONTENT_QUOTES
-			"quote": {
-			   // line[0,1] = Start location of vertical line 
-			   // that separates daily entries y, end y
-			   // when quotes are enabled 
-			   // 285 + 30 = 315
-			      "line": [ 95, 315 ],
-			   // position upper left x,y, width, height
-			   // 285 + 30 + 5 = 320
-			      "position": [ 10, 320, 283, 383 ],
-			   // Font for quote
-			      "qfont": [ "bahnschrift20.vlw", 20 ],
-			   // Small font if quote doesn't fit with qfont
-			      "sfont": [ "calibrib16.vlw", 16 ],
-			   // Font for author
-			      "afont": [ "calibrib16.vlw", 16]
-			 },
-#endif
 		     // location[0,1] = location x,y
 		     // location[2] = font for location
 			"location": [ 10, 0, "fonts/calibrib80" ],
@@ -72,9 +54,28 @@
 		     // wind[0,1] = Start location of wind x, y
 			"wind": [ 17, 120 ],	
 
-		     // line[0,1] = Start location of vertical line 
-		     // that separates daily entries y, end y
+		     // line[0,1] = Start y, end y of vertical line that 
+		     // separates daily entries 
 			"line": [ 95, 370 ]	
+		#ifdef CONTENT_QUOTES
+			,"quote": {
+			   // end lines after temperature 
+			   // temperature y + font height = 285 + 30 = 315
+			      "line": [ 95, 315 ],
+			   // position upper left x,y, width, height
+			   // vertical space from bottom of lines = 5
+			   // 315 + 5 = 320
+			   // indent 10, width = 640 - 10 = 630
+			   // height = 384 - 320 = 64
+			      "position": [ 10, 320, 630, 64 ],
+			   // Font for quote
+			      "qfont": [ "bahnschrift20.vlw", 20 ],
+			   // Small font if quote doesn't fit with qfont
+			      "sfont": [ "calibrib16.vlw", 16 ],
+			   // Font for author
+			      "afont": [ "calibrib16.vlw", 16]
+			 }
+		#endif
 		},
 		"9": {
 			"title": [ 6, 0, "Signika-SB.ttf", 32 ],

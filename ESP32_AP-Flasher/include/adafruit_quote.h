@@ -9,9 +9,8 @@ public:
       Text(NULL) 
    {}
    ~AdaFruitQuote();
-
-
    void Draw();
+
 private:
    typedef struct {
       int   LineWidth;  // pixels
@@ -36,6 +35,10 @@ private:
    int FontSize;
    int AuthorFontSize;
    const char *AuthorFontName;
+   int OffsetX;
+   int OffsetY;
+   int AreaWidth;
+   int AreaHeight;
 
    uint16_t getStringLength(const char *str, int strlength = 0);
    static void Unicode2Ascii(char *str);
