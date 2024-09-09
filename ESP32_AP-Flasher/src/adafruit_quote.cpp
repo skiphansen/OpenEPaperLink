@@ -344,6 +344,7 @@ void AdaFruitQuote::SelectFont(JsonArray &Font)
    FontSize = Font[1].as<int>();
 }
 
+#if 0
 void AdaFruitQuote::Draw() 
 {
    uint16_t LineWidth;
@@ -413,4 +414,52 @@ void AdaFruitQuote::Draw()
       printAuthor(Text);
    }
 }
+#else
+extern bool bDumpFontHex;
+void AdaFruitQuote::DumpFont()
+{
+   char Character = ' ';
+   char Chars[33];
+   
+   LOG("Dumping %s\n",FontName);
+   while(Character < 0x80) {
+      int i;
+      for(i = 0; i < 32; i++) {
+         Chars[i] = Character++;
+      }
+      Chars[i] = 0;
+      String Line = Chars;
+      drawString(spr,Line,0,0,FontName,TL_DATUM,TFT_BLACK,FontSize);
+      spr.fillRect(0,0,spr.width(),spr.height(),TFT_WHITE);
+      vTaskDelay(1000);
+   }
+}
+
+void AdaFruitQuote::Draw() 
+{
+   struct {
+      const char *FontName;
+      int FontSize;
+   } FontList[] = {
+      {"tahoma9.vlw",9},
+      {"REFSAN12.vlw",12},
+      {"calibrib16.vlw",16},
+      {"twcondensed20.vlw",20},
+      {"bahnschrift20.vlw",20},
+      {"bahnschrift30.vlw",30},
+//    {"bahnschrift70.vlw",70},
+      {"calibrib30.vlw",30},
+      {NULL}
+   };
+   bDumpFontHex = true;   
+
+   for(int i = 0; FontList[i].FontName != NULL; i++) {
+      FontName = FontList[i].FontName;
+      FontSize = FontList[i].FontSize;
+      DumpFont();
+   }
+   bDumpFontHex = false;   
+}
+#endif
+
 

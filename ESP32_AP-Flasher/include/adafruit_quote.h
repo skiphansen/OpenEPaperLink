@@ -47,6 +47,7 @@ private:
    void printQuote(String &quote);
    void printAuthor(const char *author);
    void SelectFont(JsonArray &Font);
+   void DumpFont(void);
 };
 
 #endif   // _ADAFRUIT_QUOTE_H_
