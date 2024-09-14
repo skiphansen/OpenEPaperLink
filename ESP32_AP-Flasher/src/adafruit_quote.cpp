@@ -420,18 +420,19 @@ void AdaFruitQuote::DumpFont()
 {
    char Character = ' ';
    char Chars[33];
+   int i = 0;
    
    LOG("Dumping %s\n",FontName);
    while(Character < 0x80) {
-      int i;
-      for(i = 0; i < 32; i++) {
-         Chars[i] = Character++;
-      }
-      Chars[i] = 0;
+      Chars[0] = Character++;
+      Chars[1] = 0;
       String Line = Chars;
-      drawString(spr,Line,0,0,FontName,TL_DATUM,TFT_BLACK,FontSize);
       spr.fillRect(0,0,spr.width(),spr.height(),TFT_WHITE);
-      vTaskDelay(1000);
+      drawString(spr,Line,10,spr.height()/2,FontName,TL_DATUM,TFT_BLACK,FontSize);
+      if(i++ >= 16) {
+         i = 0;
+         vTaskDelay(100);
+      }
    }
 }
 
@@ -458,6 +459,12 @@ void AdaFruitQuote::Draw()
       FontSize = FontList[i].FontSize;
       DumpFont();
    }
+
+   FontName = "bahnschrift20";
+   FontSize = 20;
+
+   String Line = "dp$/ \\ AWg{|}~";
+   drawString(spr,Line,20,20,FontName,TL_DATUM,TFT_BLACK,FontSize);
    bDumpFontHex = false;   
 }
 #endif

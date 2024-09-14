@@ -628,7 +628,7 @@ uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy
     // drawString(spr,"test",100,10,"bahnschrift30",TC_DATUM,TFT_RED);
 
     // backwards compitibility
-    replaceVariables(content);
+//    replaceVariables(content);
     if (font.startsWith("fonts/calibrib")) {
         String numericValueStr = font.substring(14);
         int calibriSize = numericValueStr.toInt();

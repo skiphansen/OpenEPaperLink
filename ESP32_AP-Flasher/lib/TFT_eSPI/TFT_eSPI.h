@@ -430,7 +430,7 @@ class TFT_eSPI : public Print { friend class TFT_eSprite; // Sprite class has ac
  public:
 
   TFT_eSPI(int16_t _W = TFT_WIDTH, int16_t _H = TFT_HEIGHT);
-  void DumpChar(uint16_t code,int32_t x,int32_t y,uint8_t width,uint16_t height);
+  void DumpChar(uint16_t code,uint16_t gNum,int32_t cursor_x,int32_t cursor_y);
 
   // init() and begin() are equivalent, begin() included for backwards compatibility
   // Sketch defined tab colour option is for ST7735 displays only

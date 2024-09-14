@@ -2586,7 +2586,8 @@ void TFT_eSprite::drawGlyph(uint16_t code)
       }
     }
     if(bDumpFontHex) {
-      DumpChar(code,bg_cursor_x,cursor_y,gxAdvance[gNum],gFont.yAdvance);
+      // LOG("// maxAscent %d maxDescent %d\n",gFont.maxAscent,gFont.maxDescent);
+      DumpChar(code,gNum,cursor_x,cursor_y);
     }
 
     if (pbuffer) free(pbuffer);

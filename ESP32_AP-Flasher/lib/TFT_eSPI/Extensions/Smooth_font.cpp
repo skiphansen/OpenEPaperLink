@@ -536,7 +536,7 @@ void TFT_eSPI::drawGlyph(uint16_t code)
 // Dump generated character 
       
     if(bDumpFontHex) {
-      DumpChar(code,bg_cursor_x,cursor_y,gxAdvance[gNum],gFont.yAdvance);
+      DumpChar(code,gNum,cursor_x,cursor_y);
     }
     if (pbuffer) free(pbuffer);
     cursor_x += gxAdvance[gNum];
@@ -594,38 +594,36 @@ void TFT_eSPI::showFont(uint32_t td)
 }
 
 
-void TFT_eSPI::DumpChar(uint16_t code,int32_t x,int32_t y,uint8_t width,uint16_t height)
+void TFT_eSPI::DumpChar(uint16_t code,uint16_t gNum,int32_t cursor_x,int32_t cursor_y)
 {
-   uint8_t Pixel = 0;
-   int Bits = 0;
-   static bool bFirst = true;
+   uint32_t Pixel = 0;
    uint16_t PixelValue;
+   uint8_t Width = gWidth[gNum];
+   uint8_t Height = gHeight[gNum];
+   uint32_t x = cursor_x;
+   uint32_t y = cursor_y;
 
-   LOG(";Character @%d,%d '%c' (0x%x), %d X %d:\n",x,y,(char) code,code,width,height);
+   x += gdX[gNum];
+   y += gFont.maxAscent - gdY[gNum];
 
-   for(int i = 0; i < height; i++) {
-      for(int j = 0; j < width; j++) {
-         Pixel <<= 1;
-         Bits++;
+   LOG("// Character '%c' (0x%x) @ %d,%d, gdX %d gdY %d, %d X %d:\n",
+       (char) code,code,x,y,gdX[gNum],gdY[gNum],Width,Height);
+
+   LOG("\t0x%2x,\n",code);
+   LOG("\t%d,%d,\n\t",Width,Height);
+   for(int i = 0; i < Height; i++) {
+      Pixel = 0;
+      for(int j = 0; j < Width; j++) {
+         Pixel >>= 1;
          if((PixelValue = readPixel(x + j,y + i)) == 0) {
-            Pixel |= 1;
-         }
-         if(bFirst) {
-           LOG("PixelValue 0x%x\n",PixelValue);
-         }
-         if(Bits == 8) {
-            LOG("0x%02x,",Pixel);
-            Pixel = 0;
-            Bits = 0;
+            Pixel |= 0x80000000;
          }
       }
-      if(Bits != 0) {
-         LOG("0x%02x,",Pixel);
-         Pixel = 0;
-         Bits = 0;
+      for(int j = 0; j < Width; j += 8) {
+         LOG("%s0x%02x",j == 0 ? "" : ",",Pixel >> 24);
+         Pixel <<= 8;
       }
-      LOG("\n");
+      LOG(",\n\t");
    }
-  bFirst = false;
 }
 
