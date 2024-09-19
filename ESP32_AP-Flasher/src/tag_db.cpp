@@ -344,6 +344,12 @@ void initAPconfig() {
     } else {
         strlcpy(config.timeZone, "CET-1CEST,M3.5.0,M10.5.0/3", sizeof(config.timeZone));
     }
+    if (APconfig.containsKey("timestampformat")) {
+       config.timestampformat = APconfig["timestampformat"].as<String>();
+    }
+    else {
+       config.timestampformat = "";
+    }
 }
 
 void saveAPconfig() {
@@ -367,6 +373,7 @@ void saveAPconfig() {
     APconfig["ble"] = config.ble;
     APconfig["repo"] = config.repo;
     APconfig["env"] = config.env;
+    APconfig["timestampformat"] = config.timestampformat;
     serializeJsonPretty(APconfig, configFile);
     configFile.close();
     xSemaphoreGive(fsMutex);

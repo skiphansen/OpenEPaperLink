@@ -36,8 +36,9 @@
 			"dir": [ 235, -12, 40 ],
 			"umbrella": [ 190, -50, 25 ]
 		},
-		"8": {
-			"location": [ 5, 12, "t0_14b_tf" ],
+		"8": {	// Forecast
+			"location": [ 5, 1, "calibrib16.vlw" ],
+			"timestamp": [ -1, 1, "REFSAN12.vlw", 12 ],
 			"column": [ 5, 59 ],
 			"day": [ 30, 18, "fonts/twcondensed20", 41, 108 ],
 			"icon": [ 30, 55, 30 ],

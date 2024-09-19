@@ -1055,15 +1055,42 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     const auto &location = loc["location"];
     drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK);
 
-    time_t now;
-    time(&now);
-    char timeStr[24];
-    strftime(timeStr,sizeof(timeStr),"%m/%d %H:%M",localtime(&now));
+    do {
+       if(!loc.containsKey("timestamp")) {
+          LOG("%s#%d: break\n",__FUNCTION__,__LINE__);
+          break;
+       }
 
-     String UpdateStr = "updated ";
-     UpdateStr += timeStr;
-    drawString(spr,UpdateStr.c_str(),spr.width()-10,location[1],"REFSAN12",TR_DATUM,TFT_BLACK,20);
-     LOG("UpdateStr '%s'\n",UpdateStr.c_str());
+       if(!cfgobj.containsKey("AddTimeStamp")) {
+          LOG("%s#%d: break\n",__FUNCTION__,__LINE__);
+          break;
+       }
+
+       if(cfgobj["AddTimeStamp"].as<int>() == 0) {
+          LOG("%s#%d: break\n",__FUNCTION__,__LINE__);
+          break;
+       }
+       time_t now;
+       time(&now);
+       char timeStr[32];
+       String UpdateString = config.timestampformat;
+       if(UpdateString.indexOf('%') == -1) {
+          UpdateString += languageDateFormat[1] + " %H:%M";
+       }
+       strftime(timeStr,sizeof(timeStr),UpdateString.c_str(),localtime(&now));
+       const auto &TimeStamp = loc["timestamp"];
+       
+       int16_t posx = TimeStamp[0];
+       int16_t posy = TimeStamp[1];
+       
+       if(posx < 0) {
+          posx = GetStringWidth(spr,timeStr,TimeStamp[2],TimeStamp[3]);
+          posx = spr.width() - posx;
+       }
+       
+       LOG("UpdateStr '%s' @ %d, %d\n",timeStr,posx,posy);
+       drawString(spr,timeStr,posx,posy,TimeStamp[2],TimeStamp[3]);
+    } while(false);
 
     const auto &daily = doc["daily"];
     const auto &column = loc["column"];
@@ -3031,36 +3058,45 @@ void prepareConfigFile(const uint8_t *dst, const JsonObject &config) {
 }
 #endif
 
-void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
-    StaticJsonDocument<80> filter;
-    DynamicJsonDocument doc(2048);
+void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) 
+{
+   StaticJsonDocument<80> filter;
+   DynamicJsonDocument doc(2048);
 
-    const String idstr = String(id);
-    constexpr const char *templateKey = "template";
+   const String idstr = String(id);
+   constexpr const char *templateKey = "template";
 
-    char filename[20];
-    snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
-    File jsonFile = contentFS->open(filename, "r");
+   char filename[20];
+   snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
+   File jsonFile = contentFS->open(filename, "r");
 
-    if (jsonFile) {
-        filter[templateKey][idstr] = true;
-        filter["usetemplate"] = true;
-        const DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
-        jsonFile.close();
+   if(jsonFile) {
+      filter[templateKey][idstr] = true;
+      filter["usetemplate"] = true;
+      const DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
+      jsonFile.close();
 
-        if (!error && doc.containsKey(templateKey) && doc[templateKey].containsKey(idstr)) {
-            if(!json.set(doc[templateKey][idstr])) {
-               LOG("set failed, %d bytes required\n",doc.memoryUsage());
-            }
-            return;
-        }
-        if (!error && doc.containsKey("usetemplate")) {
-            getTemplate(json, id, doc["usetemplate"]);
-            return;
-        }
-        Serial.println("json error in " + String(filename));
-        Serial.println(error.c_str());
-    } else {
-        Serial.println("Failed to open " + String(filename));
-    }
+      if(error.code() != 0) {
+         LOG("deserializeJson %s returned %d\n",filename,error.code());
+         return;
+      }
+
+      LOG("containsKey(templateKey) %d doc[templateKey].containsKey(%s) %d\n",
+          doc.containsKey(templateKey),idstr.c_str(),doc[templateKey].containsKey(idstr));
+
+      if(doc.containsKey(templateKey) && doc[templateKey].containsKey(idstr)) {
+         if(!json.set(doc[templateKey][idstr])) {
+            LOG("set failed, %d bytes required\n",doc.memoryUsage());
+         }
+         return;
+      }
+      if(doc.containsKey("usetemplate")) {
+         getTemplate(json, id, doc["usetemplate"]);
+         return;
+      }
+      LOG("%s does not include support for ID %s\n",filename,idstr);
+   }
+   else {
+      Serial.println("Failed to open " + String(filename));
+   }
 }

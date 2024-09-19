@@ -772,6 +772,7 @@ document.addEventListener("loadTab", function (event) {
 						$("#apctimezone").value = data.timezone;
 						$("#apcnight1").value = data.sleeptime1;
 						$("#apcnight2").value = data.sleeptime2;
+						$('#apctimestampformat').value = data.timestampformat;
 					}
 				})
 			$('#apcfgmsg').innerHTML = '';
@@ -808,6 +809,7 @@ $('#apcfgsave').onclick = function () {
 	formData.append('timezone', $('#apctimezone').value);
 	formData.append('sleeptime1', $('#apcnight1').value);
 	formData.append('sleeptime2', $('#apcnight2').value);
+	formData.append('timestampformat', $('#apctimestampformat').value);
 
 	fetch("save_apcfg", {
 		method: "POST",
