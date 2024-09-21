@@ -287,6 +287,12 @@ void AdaFruitQuote::printQuote(const char *quote)
    x += OffsetX;
 
    for(int i = 0; i < Lines.size(); i++) {
+#if 0
+   // Center line
+      x = (AreaWidth - getStringLength(Lines[i].Line)) / 2;
+      LOG("Line %d indent %d\n",i + 1,x);
+      x += OffsetX;
+#endif
       LOG("printing line %d: '%s' @ %d, %d\n",i + 1,Lines[i].Line,x,y);
       drawString(spr,Lines[i].Line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
       y += lineheightquote;
@@ -371,7 +377,9 @@ void AdaFruitQuote::Draw()
 #else
 //   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
 //  const char *Raw = "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
-   const char *Raw = "[{\"text\":\"What we call the beginning is often the end. And to make an end is to make a beginning. The end is where we start from\",\"author\":\"T. S. Eliot\"}]";
+//   const char *Raw = "[{\"text\":\"What we call the beginning is often the end. And to make an end is to make a beginning. The end is where we start from\",\"author\":\"T. S. Eliot\"}]";
+   const char *Raw = "[{\"text\":\"...the idea is to try to give all of the information to help others to judge the value of your contribution; not just the information that leads to judgment in one particular direction or another.\",\"author\":\"Richard Feynman\"}]";
+
    deserializeJson(doc,Raw);
    JsonObject QuoteData = doc[0];
 #endif
@@ -381,6 +389,10 @@ void AdaFruitQuote::Draw()
    AreaWidth = Template["position"][2];
    AreaHeight = Template["position"][3];
    LOG("Area %d x %d @ %d, %d\n",AreaWidth,AreaHeight,OffsetX,OffsetY);
+   if(AreaHeight == 0 || AreaWidth == 0) {
+      LOG("Invalid!\n");
+      return;
+   }
 
    String Quote = QuoteData["text"].as<String>();
    String Author = QuoteData["author"].as<String>();

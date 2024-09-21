@@ -1003,6 +1003,7 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     spr.deleteSprite();
 }
 
+#define LOG_JSON
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) {
     wsLog("get weather");
     getLocation(cfgobj);
@@ -1016,6 +1017,8 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     }
 
     DynamicJsonDocument doc(2000);
+// {"latitude":-41.25,"longitude":174.75,"generationtime_ms":0.064015388,"utc_offset_seconds":43200,"timezone":"Pacific/Auckland","timezone_abbreviation":"NZST","elevation":29,"daily_units":{"time":"unixtime","weathercode":"wmo code","temperature_2m_max":"°F","temperature_2m_min":"°F","precipitation_sum":"inch","windspeed_10m_max":"mp/h","winddirection_10m_dominant":"°"},"daily":{"time":[1726833600,1726920000,1727006400,1727092800,1727179200,1727265600,1727352000],"weathercode":[3,3,3,3,3,3,80],"temperature_2m_max":[59.1,58.2,59.9,62,57.1,57.6,56.3],"temperature_2m_min":[50,52.9,52.9,49.1,48.5,51.2,48],"precipitation_sum":[0,0.008,0,0,0,0,0.083],"windspeed_10m_max":[15.7,24.8,18.4,23.3,16.3,28.5,21.4],"winddirection_10m_dominant":[335,339,328,307,231,336,267]}}
+
      String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
      LOG("URL %s\n",URL.c_str());
 
@@ -1024,12 +1027,25 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
         return;
     }
 
+#ifdef LOG_JSON
+    LOG("Raw Json:\n");
+    serializeJson(doc, Serial);
+    LOG("\n");
+#endif
+
     TFT_eSprite spr = TFT_eSprite(&tft);
     tft.setTextWrap(false, false);
 
     DynamicJsonDocument loc(2048);
     getTemplate(loc, 8, taginfo->hwType);
     initSprite(spr, imageParams.width, imageParams.height, imageParams);
+
+#ifdef LOG_JSON
+    LOG("loc Json:\n");
+    serializeJson(loc, Serial);
+    LOG("\n");
+#endif
+
 
 #ifdef CONTENT_QUOTES
     bool bAddQuote = false;
@@ -1053,8 +1069,8 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 #endif
 
     const auto &location = loc["location"];
-    drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK);
-
+    drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK,location[3]);
+    
     do {
        if(!loc.containsKey("timestamp")) {
           LOG("%s#%d: break\n",__FUNCTION__,__LINE__);
@@ -1084,8 +1100,13 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
        int16_t posy = TimeStamp[1];
        
        if(posx < 0) {
-          posx = GetStringWidth(spr,timeStr,TimeStamp[2],TimeStamp[3]);
-          posx = spr.width() - posx;
+       // Offset from right edge of display area
+       // -1 = right justify
+       // -11 = offet 10 pixels from right edge
+          LOG("posx %d -> ",posx);
+          posx = 1 + spr.width() - 
+                 GetStringWidth(spr,timeStr,TimeStamp[2],TimeStamp[3]) + posx;
+          LOG("%d\n",posx);
        }
        
        LOG("UpdateStr '%s' @ %d, %d\n",timeStr,posx,posy);
@@ -1110,17 +1131,21 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
                                   ? imageParams.highlightColor
                                   : TFT_BLACK;
         drawString(spr, getWeatherIcon(weathercode), loc["icon"][0].as<int>() + dag * column1, loc["icon"][1], "/fonts/weathericons.ttf", TC_DATUM, iconcolor, loc["icon"][2]);
-          LOG("dag %d, column1 %d icon %d\n",dag,column1,loc["icon"][0].as<int>());
+        LOG("dag %d %d @ %d,%d\n",dag,weathercode,loc["icon"][0].as<int>() + dag * column1,loc["icon"][1].as<int>());
 
         drawString(spr, windDirectionIcon(daily["winddirection_10m_dominant"][dag]), loc["wind"][0].as<int>() + dag * column1, loc["wind"][1], "/fonts/weathericons.ttf", TC_DATUM, TFT_BLACK, loc["icon"][2]);
 
         const int8_t tmin = round(daily["temperature_2m_min"][dag].as<double>());
         const int8_t tmax = round(daily["temperature_2m_max"][dag].as<double>());
         uint8_t wind;
-        const int8_t beaufort = windSpeedToBeaufort(daily["windspeed_10m_max"][dag].as<double>());
+        int8_t beaufort;
         if (cfgobj["units"] == "1") {
+            double mph = daily["windspeed_10m_max"][dag].as<double>();
+            beaufort = windSpeedToBeaufort(mph/2.237);
+            LOG("%f mph -> %d beaufort\n",mph,beaufort);
             wind = daily["windspeed_10m_max"][dag].as<int>();
         } else {
+            beaufort = windSpeedToBeaufort(daily["windspeed_10m_max"][dag].as<double>());
             wind = beaufort;
         }
 
@@ -1132,10 +1157,10 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
               }
            } else {
               double fRain = daily["precipitation_sum"][dag].as<double>();
-              if (fRain > 0.01) {
-              // inch, display if > .01 inches
-                      fRain = round(fRain*100.0) / 100.0;
-                      drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
+              if (fRain > 0.03937) {
+              // inch, display if > 0.03937 inches (1 mm) to match metric version
+                 fRain = round(fRain*100.0) / 100.0;
+                 drawString(spr, String(fRain) + "in", dag * column1 + loc["rain"][0].as<int>(), loc["rain"][1], day[2], TC_DATUM, (fRain > 0.5 ? imageParams.highlightColor : TFT_BLACK));
               }
            }
         }
@@ -1161,6 +1186,9 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     spr2buffer(spr, filename, imageParams);
     spr.deleteSprite();
 }
+#ifdef LOG_JSON
+#undef LOG_JSON
+#endif
 
 /* 
  
