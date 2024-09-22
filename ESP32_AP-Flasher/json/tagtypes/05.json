@@ -30,62 +30,62 @@
 		},
 		// Weather forecast
 		"8": {
-		/* Old
-			adjustment = 21
-		     // day[0] = day of week x, day[1] = y, 
-			bottom of icon = 240
-			"day": [ 42, 110, "fonts/calibrib30", 150, 285 ],
-			"location": [ 10, 0, "fonts/calibrib80" ],
-			"column": [ 7, 91 ],
-			"line": [ 95, 370 ]
-			"rain": [ 48, 340 ],
-			"icon": [ 45, 180, 60 ],
-			"wind": [ 17, 120 ],
-		*/
-
 		     // location[0,1] = location x,y
 		     // location[2] = font for location
-			"location": [ 10, 0, "Signika-SB.ttf", 56 ],
+		     // location[3] = font size
+			"location": [ 10, 0, "fonts/calibrib80", 80 ],
+
+		     // timestamp[0,1] = location x,y
+		     // timestamp[2] = font for timestamp
+		     // timestamp[3] = font size
 			"timestamp": [ -5, 5, "calibrib16.vlw", 16 ],
 
 		     // column[0] = number of days
 		     // column[1] = x of first divider line to right of first column
-			"column": [ 7, 91 ],	
+			"column": [ 7, 91 ],
 
 		     // line[0,1] = Start y, end y of vertical line that 
 		     // separates daily entries 
-
-			"line": [ 74, 274 ],
+			"line": [ 95, 370 ],
 
 		     // day[0,1] = day of week x, y 
 		     // day[2] = font used for day of week, wind speed, temp
 		     // day[3] = y wind speed
 		     // day[4] = y for temp
-			"day": [ 42, 74, "fonts/calibrib30", 114, 226 ],
+			"day": [ 42, 110, "fonts/calibrib30", 150, 285 ],
 
 		     // wind[0,1] = Start location of wind x, y
-			"wind": [ 17, 84 ],
+			"wind": [ 17, 120 ],
 
 		     // icon[0] = x offset of the *CENTER* of the weather icon
 		     // icon[1] = y offset of the *TOP* of weather icon
 		     // icon[2] = icon size
-			"icon": [ 45, 139, 60 ], 
+			"icon": [ 45, 180, 60 ],
 
 		     // rain[0,1] = location for rain fall amount x,y
-			"rain": [ 48, 254 ]	
-
-		#ifdef CONTENT_QUOTES
+			"rain": [ 48, 340 ]
+#ifdef CONTENT_QUOTES
 			,"quote": {
 			   // position upper left x,y, width, height
 			      "position": [ 10, 279, 630, 104 ],
 			   // Font for quote
 			      "qfont": [ "bahnschrift20.vlw", 20 ],
+
 			   // Small font if quote doesn't fit with qfont
 			      "sfont": [ "calibrib16.vlw", 16 ],
+
 			   // Font for author
-			      "afont": [ "calibrib16.vlw", 16]
+			      "afont": [ "calibrib16.vlw", 16],
+
+			   // format overrides make room for quote at bottom
+			      "location": [ 10, 0, "Signika-SB.ttf", 56 ],
+			      "line": [ 74, 274 ],
+			      "day": [ 42, 74, "fonts/calibrib30", 114, 226 ],
+			      "wind": [ 17, 84 ],
+			      "icon": [ 45, 139, 60 ], 
+			      "rain": [ 48, 254 ]	
 			 }
-		#endif
+#endif
 		},
 		"9": {
 			"title": [ 6, 0, "Signika-SB.ttf", 32 ],

@@ -1049,19 +1049,34 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 
 #ifdef CONTENT_QUOTES
     bool bAddQuote = false;
-    StaticJsonDocument<512> QuoteTemplate;
+    DynamicJsonDocument QuoteTemplate(2048);
     if(cfgobj.containsKey("QuoteType") && cfgobj["QuoteType"].as<int>() != 0) {
        bAddQuote = true;
     // Override corresponding values with values from quote object
        QuoteTemplate.set(loc["quote"].as<JsonObject>());
        QuoteTemplate["QuoteType"] = cfgobj["QuoteType"];
 		 
-       for(JsonPair kv : loc.as<JsonObject>()) {
-          if(QuoteTemplate.containsKey(kv.key())) {
-             loc[kv.key()] = QuoteTemplate[kv.key()];
-             LOG("Replaced '%s'\n",kv.key().c_str());
-          }
+       LOG("Keys in QuoteTemplate:");
+       for(JsonPair kv : QuoteTemplate.as<JsonObject>()) {
+          LOG("'%s' ",kv.key().c_str());
        }
+       LOG("\n");
+       		 
+       for(JsonPair kv : QuoteTemplate.as<JsonObject>()) {
+          LOG("'%s ' ",kv.key().c_str());
+          if(loc.containsKey(kv.key())) {
+             loc[kv.key()] = kv.value();
+          }
+          else {
+             LOG("NOT ");
+          }
+          LOG("replaced\n");
+       }
+#ifdef LOG_JSON
+       LOG("loc Json after replacments:\n");
+       serializeJson(loc, Serial);
+       LOG("\n");
+#endif
     }
     else {
        LOG("Quotes not enabled\n");
@@ -1069,7 +1084,10 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 #endif
 
     const auto &location = loc["location"];
-    drawString(spr, cfgobj["location"], location[0], location[1], location[2], TL_DATUM, TFT_BLACK,location[3]);
+
+    LOG("location[3] %sset\n",location[3] ? "" : "NOT ");
+    drawString(spr,cfgobj["location"],location[0],location[1],location[2],
+               TL_DATUM,TFT_BLACK,location[3] ? location[3]:30);
     
     do {
        if(!loc.containsKey("timestamp")) {
