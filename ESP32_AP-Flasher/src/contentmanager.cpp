@@ -1003,6 +1003,7 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     spr.deleteSprite();
 }
 
+
 #define LOG_JSON
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) {
     wsLog("get weather");
@@ -1017,8 +1018,16 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     }
 
     DynamicJsonDocument doc(2000);
-// {"latitude":-41.25,"longitude":174.75,"generationtime_ms":0.064015388,"utc_offset_seconds":43200,"timezone":"Pacific/Auckland","timezone_abbreviation":"NZST","elevation":29,"daily_units":{"time":"unixtime","weathercode":"wmo code","temperature_2m_max":"°F","temperature_2m_min":"°F","precipitation_sum":"inch","windspeed_10m_max":"mp/h","winddirection_10m_dominant":"°"},"daily":{"time":[1726833600,1726920000,1727006400,1727092800,1727179200,1727265600,1727352000],"weathercode":[3,3,3,3,3,3,80],"temperature_2m_max":[59.1,58.2,59.9,62,57.1,57.6,56.3],"temperature_2m_min":[50,52.9,52.9,49.1,48.5,51.2,48],"precipitation_sum":[0,0.008,0,0,0,0,0.083],"windspeed_10m_max":[15.7,24.8,18.4,23.3,16.3,28.5,21.4],"winddirection_10m_dominant":[335,339,328,307,231,336,267]}}
+#if 0
+// Note weather code 0 @ night has min X, weather code 37 has min X during day
+// 2 during day has max X and max Y, 
+// weather codes 16 and 17 have min Y
+    const char *Raw = 
+"{\"latitude\":-41.25,\"longitude\":174.75,\"generationtime_ms\":0.064015388,\"utc_offset_seconds\":43200,\"timezone\":\"Pacific/Auckland\",\"timezone_abbreviation\":\"NZST\",\"elevation\":29,\"daily_units\":{\"time\":\"unixtime\",\"weathercode\":\"wmo code\",\"temperature_2m_max\":\"°F\",\"temperature_2m_min\":\"°F\",\"precipitation_sum\":\"inch\",\"windspeed_10m_max\":\"mp/h\",\"winddirection_10m_dominant\":\"°\"},\"daily\":{\"time\":[1726833600,1726920000,1727006400,1727092800,1727179200,1727265600,1727352000],\"weathercode\":[16,17,2,3,3,3,80],\"temperature_2m_max\":[59.1,58.2,59.9,62,57.1,57.6,56.3],\"temperature_2m_min\":[50,52.9,52.9,49.1,48.5,51.2,48],\"precipitation_sum\":[0,0.008,0,0,0,0,0.083],\"windspeed_10m_max\":[15.7,24.8,18.4,23.3,16.3,28.5,21.4],\"winddirection_10m_dominant\":[335,339,328,307,231,336,267]}}";
+// "{\"latitude\":-41.25,\"longitude\":174.75,\"generationtime_ms\":0.055074692,\"utc_offset_seconds\":43200,\"timezone\":\"Pacific/Auckland\",\"timezone_abbreviation\":\"NZST\",\"elevation\":29,\"daily_units\":{\"time\":\"unixtime\",\"weathercode\":\"wmo code\",\"temperature_2m_max\":\"°C\",\"temperature_2m_min\":\"°C\",\"precipitation_sum\":\"mm\",\"windspeed_10m_max\":\"m/s\",\"winddirection_10m_dominant\":\"°\"},\"daily\":{\"time\":[1726920000,1727006400,1727092800,1727179200,1727265600,1727352000,1727438400],\"weathercode\":[95,3,45,3,61,80,3],\"temperature_2m_max\":[14.2,15.5,16.4,13.4,14.1,13.8,16.2],\"temperature_2m_min\":[11.5,10,10,9.1,10.5,7.4,7.9],\"precipitation_sum\":[3.1,0,0.2,0,1.2,4.2,0],\"windspeed_10m_max\":[10.66,9.5,11.14,6,13.29,10.73,6.22],\"winddirection_10m_dominant\":[336,324,315,135,337,181,325]}}";
 
+    deserializeJson(doc,Raw);
+#else
      String URL = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timeformat=unixtime&timezone=" + tz + units;
      LOG("URL %s\n",URL.c_str());
 
@@ -1026,6 +1035,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
     if (!success) {
         return;
     }
+#endif
 
 #ifdef LOG_JSON
     LOG("Raw Json:\n");
@@ -1067,10 +1077,12 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
           if(loc.containsKey(kv.key())) {
              loc[kv.key()] = kv.value();
           }
+#ifdef LOG_JSON
           else {
              LOG("NOT ");
           }
           LOG("replaced\n");
+#endif
        }
 #ifdef LOG_JSON
        LOG("loc Json after replacments:\n");
@@ -1160,7 +1172,6 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
         if (cfgobj["units"] == "1") {
             double mph = daily["windspeed_10m_max"][dag].as<double>();
             beaufort = windSpeedToBeaufort(mph/2.237);
-            LOG("%f mph -> %d beaufort\n",mph,beaufort);
             wind = daily["windspeed_10m_max"][dag].as<int>();
         } else {
             beaufort = windSpeedToBeaufort(daily["windspeed_10m_max"][dag].as<double>());
