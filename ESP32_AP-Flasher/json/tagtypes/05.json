@@ -54,7 +54,7 @@
 		     // day[4] = y for temp
 			"day": [ 42, 110, "fonts/calibrib30", 150, 285 ],
 
-		     // wind[0,1] = Start location of wind x, y
+		     // wind[0,1] = Start location of wind direction x, y
 			"wind": [ 17, 120 ],
 
 		     // icon[0] = x offset of the *CENTER* of the weather icon
@@ -67,15 +67,17 @@
 #ifdef CONTENT_QUOTES
 			,"quote": {
 			   // position upper left x,y, width, height
-			      "position": [ 10, 279, 630, 104 ],
+			      "position": [ 0, 279, 640, 104 ],
 			   // Font for quote
 			      "qfont": [ "bahnschrift20.vlw", 20 ],
 
 			   // Small font if quote doesn't fit with qfont
 			      "sfont": [ "calibrib16.vlw", 16 ],
 
-			   // Font for author
-			      "afont": [ "calibrib16.vlw", 16],
+			   // afont[0,1] = Font for author, size
+			   // author[2] = location "TR" = top right
+			   // author[3] = TL(top left), TM, TR, BL, BM, or BR
+			      "afont": [ "calibrib16.vlw", 16, "BR"],
 
 			   // format overrides make room for quote at bottom
 			      "location": [ 10, 0, "Signika-SB.ttf", 56 ],

@@ -6,7 +6,8 @@ public:
       spr(spr), 
       Template(Template),
       WordBuf(NULL),
-      Text(NULL) 
+      Text(NULL),
+      pMeasure(NULL)
    {}
    ~AdaFruitQuote();
    void Draw();
@@ -34,11 +35,12 @@ private:
    const char *FontName;
    int FontSize;
    int AuthorFontSize;
-   const char *AuthorFontName;
+   const char *AuthorLocation;
    int OffsetX;
    int OffsetY;
    int AreaWidth;
    int AreaHeight;
+   StringWidthMeasure *pMeasure;
 
    uint16_t getStringLength(const char *str, int strlength = 0);
    static void Unicode2Ascii(char *str);

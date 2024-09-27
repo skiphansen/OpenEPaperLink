@@ -28,9 +28,6 @@
  * Change the SLEEP setting to define the time between quotes
  */
 
-#include "contentmanager.h"
-#include "adafruit_quote.h"
-
 #define LOGA(format, ... ) Serial.printf(format,## __VA_ARGS__)
 
 #if 1
@@ -48,6 +45,7 @@
 
 #include <map>
 
+#include "contentmanager.h"
 #include "commstructs.h"
 #include "makeimage.h"
 #include "newproto.h"
@@ -56,9 +54,9 @@
 #include "settings.h"
 #include "system.h"
 #include "tag_db.h"
-#include "truetype.h"
 #include "util.h"
 #include "web.h"
+#include "adafruit_quote.h"
 
 // get string length in pixels
 // set text font prior to calling this
@@ -69,7 +67,7 @@ uint16_t AdaFruitQuote::getStringLength(const char *str, int strlength)
    if(strlength != 0) {
       Temp = Temp.substring(0,strlength);
    }
-   return GetStringWidth(spr,Temp,FontName,FontSize);
+   return pMeasure->GetStringWidth(Temp);
 }
 
 // Convert Unicode characters to ASCII
@@ -233,7 +231,6 @@ void AdaFruitQuote::printQuote(const char *quote)
    LOG("Sprite width %d\n",AreaWidth);
    LOG("Sprite height %d\n",AreaHeight);
    LOG("line height quote %d\n",FontSize);
-   LOG("line height author %d\n",AuthorFontSize);
 
    BreakIntoLines(quote,AreaWidth);
 
@@ -287,50 +284,167 @@ void AdaFruitQuote::printQuote(const char *quote)
    x += OffsetX;
 
    for(int i = 0; i < Lines.size(); i++) {
-#if 0
-   // Center line
-      x = (AreaWidth - getStringLength(Lines[i].Line)) / 2;
-      LOG("Line %d indent %d\n",i + 1,x);
-      x += OffsetX;
-#endif
       LOG("printing line %d: '%s' @ %d, %d\n",i + 1,Lines[i].Line,x,y);
       drawString(spr,Lines[i].Line,x,y,FontName,TL_DATUM,TFT_BLACK,FontSize);
       y += lineheightquote;
    }
 }
 
+/* 
+   lines: from x0,y0 to x1,y0
+          from x1,y0 to x1,y1
+          from x1,y1 to x2,y1
+          from x2,y1 to x2,y0 (middle only)
+          from x2,y2 to x3,y0 (middle only)
+ 
+ 
+                 0,0   x1,y1   x2,y1 (maxX,0)
+   top left:      |author+-------
+                  +------+
+                x0,y0    x1,y0
+ 
+ 
+               x0,y0 (0,0)   x1,y0  x2,y0        x3,y0
+   top middle:    -------------+author+---------------
+                               +------*
+                             x1,y1    x2,y1
+
+ 
+               x0,y0 (0,0)   x1,y0  x2,y0
+   top right:    --------------+author+
+                               +------*
+ 
+ 
+                 0,0  x0,0    maxX,0
+   top right:     -----+author|
+                       +------+
+                    x0,y0    x1,y0
+
+               x0,y0   x1,y0
+                 +------*
+bottom left:     |author+-------------------------
+                      x1,y1                     x2,y1
+ 
+                            x1,y1   x2,y1
+                              +------*
+bottom middle:   -------------+author+-------------
+               x0,y0        x1,y0  x2,y0        x3,y0
+ 
+                             x1,y1   x2,y1
+                               +------*
+bottom left:    ---------------+author+
+               x0,y0        x1,y0  x2,y0
+*/
 #define AUTHOR_RIGHT_MARGIN   2  // to edge of display
 #define AUTHOR_LEFT_MARGIN    2  // from accent  line
 #define AUTHOR_TOP_MARGIN     2  // from accent  line
 #define AUTHOR_BOTTOM_MARGIN  2  // from bottom edge of display
-
 void AdaFruitQuote::printAuthor(const char *author)
 {
-   int32_t x0 = 0;
+   int32_t x0;
    int32_t y0;
    int32_t x1;
    int32_t y1;
+   int32_t x2;
+   int32_t x3 = 0;
+   int32_t x_text;
+   int32_t y_text;
+   int AuthorWidth;
+   bool bErr = false;
+   String Location = AuthorLocation;
 
    SelectFont(afont);
-   int x = getStringLength(author);
-   y0 = OffsetY + AreaHeight - 1 - (FontSize/2) - AUTHOR_BOTTOM_MARGIN;
-   x1 = AreaWidth - 1 - x - AUTHOR_LEFT_MARGIN - AUTHOR_RIGHT_MARGIN;
-   y1 = OffsetY + AreaHeight - 1 - FontSize - AUTHOR_BOTTOM_MARGIN 
-        - AUTHOR_TOP_MARGIN;
+   AuthorWidth = getStringLength(author);
+   Location.toUpperCase();
+   LOG("Author \"%s\" location \"%s\" AuthorWidth %d\n",
+       author,AuthorLocation,AuthorWidth);
 
-// draw line from left edge of screen to middle of the author
-   spr.drawLine(x0,y0,x1,y0,TFT_BLACK);
-// draw line from middle of the author to top of author
-   spr.drawLine(x1,y0,x1,y1,TFT_BLACK);
-// draw line from top of the author to right edige of screen
-   spr.drawLine(x1,y1,AreaWidth-1,y1,TFT_BLACK);
-   x1 += AUTHOR_LEFT_MARGIN;
-   y1 += AUTHOR_TOP_MARGIN;
+   if(Location == "TL") {
+      y_text = 0;
+      y0 = FontSize;
+      y1 = 0;
+      x_text = AUTHOR_LEFT_MARGIN;
+      x1 = x_text + AuthorWidth + AUTHOR_RIGHT_MARGIN;
+      x2 = AreaWidth - 1;
+   }
+   else if(Location == "TM") {
+      y_text = 0;
+      y0 = 0;
+      y1 = FontSize;
+      x_text = (AreaWidth - AuthorWidth) / 2;
+      x1 = x_text - AUTHOR_LEFT_MARGIN;
+      x2 = x_text + AuthorWidth + AUTHOR_RIGHT_MARGIN;
+      x3 = AreaWidth - 1;
+   }
+   else if(Location == "TR") {
+      y_text = 0;
+      y0 = 0;
+      y1 = FontSize;
+      x_text = AreaWidth - AuthorWidth - 1 - AUTHOR_RIGHT_MARGIN;
+      x1 = x_text - AUTHOR_LEFT_MARGIN;
+      x2 = AreaWidth - 1;
+   }
+   else if(Location == "BL") {
+      y_text = AreaHeight - 1 - FontSize;
+      y0 = AreaHeight - 1 - FontSize - AUTHOR_TOP_MARGIN;
+      y1 = AreaHeight - 1;
+      x_text = AUTHOR_LEFT_MARGIN;
+      x1 = x_text + AuthorWidth + AUTHOR_RIGHT_MARGIN;
+      x2 = AreaWidth - 1;
+   }
+   else if(Location == "BM") {
+      y_text = AreaHeight - 1 - FontSize;
+      y0 = AreaHeight - 1;
+      y1 = AreaHeight - 1 - FontSize - AUTHOR_TOP_MARGIN;
+      x_text = (AreaWidth - AuthorWidth) / 2;
+      x1 = x_text - AUTHOR_LEFT_MARGIN;
+      x2 = x_text + AuthorWidth + AUTHOR_RIGHT_MARGIN;
+      x3 = AreaWidth - 1;
+   }
+   else if(Location == "BR") {
+      y_text = AreaHeight - 1 - FontSize;
+      y0 = AreaHeight - 1;
+      y1 = AreaHeight - 1 - FontSize - AUTHOR_TOP_MARGIN;
+      x_text = AreaWidth - AuthorWidth - 1 - AUTHOR_RIGHT_MARGIN;
+      x1 = x_text - AUTHOR_LEFT_MARGIN;
+      x2 = AreaWidth - 1;
+   }
+   else {
+      LOGA("Invalid author location '%s'\n",AuthorLocation);
+      bErr = true;
+   }
 
-   LOG("author width %d x1 %ld y1 %ld\n",x,x1,y1);
+   if(!bErr) {
+      x0 = OffsetX;
+      x1 += OffsetX;
+      x2 += OffsetX;
+      y0 += OffsetY;
+      y1 += OffsetY;
+      x_text += OffsetX;
+      y_text += OffsetY;
 
-   LOG("printing author: \"%s\"\n",author);
-   drawString(spr,author,x1,y1,FontName,TL_DATUM,TFT_RED,FontSize);
+      if(Location[0] == 'T') {
+         OffsetY += AuthorFontSize;
+      }
+      AreaHeight -= AuthorFontSize;
+
+      LOG("line %d,%d -> %d,%d\n",x0,y0,x1,y0);
+      spr.drawLine(x0,y0,x1,y0,TFT_BLACK);
+      LOG("line %d,%d -> %d,%d\n",x1,y0,x1,y1);
+      spr.drawLine(x1,y0,x1,y1,TFT_BLACK);
+      LOG("line %d,%d -> %d,%d\n",x1,y1,x2,y1);
+      spr.drawLine(x1,y1,x2,y1,TFT_BLACK);
+      if(x3 > 0) {
+         x3 += OffsetX;
+         LOG("line %d,%d -> %d,%d\n",x2,y1,x2,y0);
+         spr.drawLine(x2,y1,x2,y0,TFT_BLACK);
+         LOG("line %d,%d -> %d,%d\n",x2,y0,x3,y0);
+         spr.drawLine(x2,y0,x3,y0,TFT_BLACK);
+      }
+
+      LOG("printing author: \"%s\" @ %d,%d\n",author,x_text,y_text);
+      drawString(spr,author,x_text,y_text,FontName,TL_DATUM,TFT_RED,FontSize);
+   }
 }
 
 AdaFruitQuote::~AdaFruitQuote()
@@ -342,12 +456,20 @@ AdaFruitQuote::~AdaFruitQuote()
    if(Text != NULL) {
       free(Text);
    }
+   if(pMeasure != NULL) {
+      delete pMeasure;
+   }
 }
 
 void AdaFruitQuote::SelectFont(JsonArray &Font)
 {
    FontName = Font[0].as<const char *>();
    FontSize = Font[1].as<int>();
+
+   if(pMeasure != NULL) {
+      delete pMeasure;
+   }
+   pMeasure = new StringWidthMeasure(spr,FontName,FontSize);
 }
 
 void AdaFruitQuote::Draw() 
@@ -375,54 +497,57 @@ void AdaFruitQuote::Draw()
    f.write((const uint8_t *)"\n",1);
    f.close();
 #else
-//   const char *Raw = "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
-//  const char *Raw = "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
-//   const char *Raw = "[{\"text\":\"What we call the beginning is often the end. And to make an end is to make a beginning. The end is where we start from\",\"author\":\"T. S. Eliot\"}]";
-   const char *Raw = "[{\"text\":\"...the idea is to try to give all of the information to help others to judge the value of your contribution; not just the information that leads to judgment in one particular direction or another.\",\"author\":\"Richard Feynman\"}]";
+   const char *Raw = 
+// "[{\"text\":\"If you want to build a ship, don't drum up people to collect wood and don't assign them tasks and work, but rather teach them to long for the endless immensity of the sea\",\"author\":\"Antoine de Saint-Exupery\"}]";
+// "[{\"text\":\"A strong spirit transcends rules\",\"author\":\"Prince\"}]";
+// "[{\"text\":\"What we call the beginning is often the end. And to make an end is to make a beginning. The end is where we start from\",\"author\":\"T. S. Eliot\"}]";
+// "[{\"text\":\"...the idea is to try to give all of the information to help others to judge the value of your contribution; not just the information that leads to judgment in one particular direction or another.\",\"author\":\"Richard Feynman\"}]";
+      "[{\"text\":\"People who are really serious about software should make their own hardware\",\"author\":\"Alan Kay\"}]";
 
    deserializeJson(doc,Raw);
    JsonObject QuoteData = doc[0];
 #endif
 
-   OffsetX = Template["position"][0];
-   OffsetY = Template["position"][1];
-   AreaWidth = Template["position"][2];
-   AreaHeight = Template["position"][3];
-   LOG("Area %d x %d @ %d, %d\n",AreaWidth,AreaHeight,OffsetX,OffsetY);
-   if(AreaHeight == 0 || AreaWidth == 0) {
-      LOG("Invalid!\n");
-      return;
-   }
+   do {
+      OffsetX = Template["position"][0];
+      OffsetY = Template["position"][1];
+      AreaWidth = Template["position"][2];
+      AreaHeight = Template["position"][3];
+      LOG("Area %d x %d @ %d, %d\n",AreaWidth,AreaHeight,OffsetX,OffsetY);
+      if(AreaHeight == 0 || AreaWidth == 0) {
+         LOGA("Invalid position\n");
+         break;
+      }
 
-   String Quote = QuoteData["text"].as<String>();
-   String Author = QuoteData["author"].as<String>();
+      qfont = Template["qfont"];
+      sfont = Template["sfont"];
+      if(Template["border"] == 1) {
+         spr.drawRect(OffsetX,OffsetY,AreaWidth,AreaHeight,TFT_BLACK);
+      }
 
-   Quote = "\"" + Quote + "\"";
-
-   Text = strdup(Quote.c_str());
-   Unicode2Ascii(Text);
-
-   LOG("Quote: %s\n",Text);
-   LOG("Author: \"%s\"\n",Author.c_str());
-
-   qfont = Template["qfont"];
-   sfont = Template["sfont"];
-   if(Template.containsKey("afont")) {
-      afont = Template["afont"];
-      AuthorFontName = afont[0].as<const char *>();
-      AuthorFontSize = afont[1].as<int>();
-   }
-   else {
-      AuthorFontSize = 0;
-   }
-
-   printQuote(Text);
-   free(Text);
-
-   if(AuthorFontSize > 0) {
-      Text = strdup(Author.c_str());
+      if(Template.containsKey("afont")) {
+         afont = Template["afont"];
+         if(!afont || afont.size() != 3) {
+            LOGA("afont is invalid\n");
+            break;
+         }
+         AuthorFontSize = afont[1].as<int>();
+         AuthorLocation = afont[2].as<const char *>();
+      // Must call printAuthor first to adjust OffsetY and AreaHeight
+         String Author = QuoteData["author"].as<String>();
+         Text = strdup(Author.c_str());
+         Unicode2Ascii(Text);
+         printAuthor(Text);
+         free(Text);
+         Text = NULL;
+      }
+      String Quote = QuoteData["text"].as<String>();
+      Quote = "\"" + Quote + "\"";
+      Text = strdup(Quote.c_str());
       Unicode2Ascii(Text);
-      printAuthor(Text);
-   }
+
+      LOG("Quote: %s\n",Text);
+      printQuote(Text);
+   } while(false);
 }
 

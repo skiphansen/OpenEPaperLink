@@ -99,9 +99,9 @@
 			      "sfont": [ "calibrib16.vlw", 16 ],
 
 			   // afont[0,1] = Font for author, size
-			   // author[2] = location "TR" = top right
-			      // "TL"(top left), "TM", "TR", "BR", "BM", or "BR"
-			      "afont": [ "calibrib16.vlw", 16, "TR"]
+			   // author[2] = location
+			   // author[3] = TL(top left), TM, TR, BL, BM, or BR
+			      "afont": [ "calibrib16.vlw", 16, "BR"]
 			 }
 #endif
 		},

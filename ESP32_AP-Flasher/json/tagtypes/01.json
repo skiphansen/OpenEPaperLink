@@ -87,8 +87,10 @@
 			"qfont": [ "bahnschrift20.vlw", 20 ],
 		     // Small font if quote doesn't fit with qfont
 			"sfont": [ "calibrib16.vlw", 16 ],
-		     // Font for author
-			"afont": [ "calibrib16.vlw", 16]
+		     // afont[0,1] = Font for author, size
+		     // author[2] = location
+		     // author[3] = TL(top left), TM, TR, BL, BM, or BR
+			"afont": [ "calibrib16.vlw", 16, "BR"]
 		}
 #endif
 	}
