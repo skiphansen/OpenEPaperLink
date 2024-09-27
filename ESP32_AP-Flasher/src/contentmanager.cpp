@@ -25,7 +25,6 @@
 #include "settings.h"
 #include "system.h"
 #include "tag_db.h"
-#include "truetype.h"
 #include "util.h"
 #include "web.h"
 #include "bezier.h"
@@ -623,32 +622,40 @@ void replaceVariables(String &format) {
     }
 }
 
+String RenameFonts(String Font,int16_t &posy,uint16_t &FontSize)
+{
+   String font = Font;
+   if (font.startsWith("fonts/calibrib")) {
+       String numericValueStr = font.substring(14);
+       int calibriSize = numericValueStr.toInt();
+       if (calibriSize != 30 && calibriSize != 16) {
+           font = "Signika-SB.ttf";
+           FontSize = (int16_t) calibriSize;
+       }
+   }
+   if (font == "glasstown_nbp_tf") {
+       font = "tahoma9.vlw";
+       posy -= 8;
+   }
+   if (font == "7x14_tf") {
+       font = "REFSAN12.vlw";
+       posy -= 10;
+   }
+   if (font == "t0_14b_tf") {
+       font = "calibrib16.vlw";
+       posy -= 11;
+   }
+
+   return font;
+}
+
 uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, String font, byte align, uint16_t color, uint16_t size, uint16_t bgcolor) {
    uint16_t Ret = 0;
     // drawString(spr,"test",100,10,"bahnschrift30",TC_DATUM,TFT_RED);
 
     // backwards compitibility
     replaceVariables(content);
-    if (font.startsWith("fonts/calibrib")) {
-        String numericValueStr = font.substring(14);
-        int calibriSize = numericValueStr.toInt();
-        if (calibriSize != 30 && calibriSize != 16) {
-            font = "Signika-SB.ttf";
-            size = calibriSize;
-        }
-    }
-    if (font == "glasstown_nbp_tf") {
-        font = "tahoma9.vlw";
-        posy -= 8;
-    }
-    if (font == "7x14_tf") {
-        font = "REFSAN12.vlw";
-        posy -= 10;
-    }
-    if (font == "t0_14b_tf") {
-        font = "calibrib16.vlw";
-        posy -= 11;
-    }
+    font = RenameFonts(font,posy,size);
 
     switch (processFontPath(font)) {
         case 2: {
@@ -694,55 +701,58 @@ uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy
     return Ret;
 }
 
-uint16_t GetStringWidth(TFT_eSprite &spr,String content,String font,uint16_t size) 
+
+StringWidthMeasure::~StringWidthMeasure()
+{
+    if(FontType == 3) {
+    // vlw bitmap font
+        spr.unloadFont();
+    }
+}
+
+
+StringWidthMeasure::StringWidthMeasure(TFT_eSprite &spr,String font,uint16_t size) :
+   spr(spr) 
+{
+   int16_t posy;
+
+   font = RenameFonts(font,posy,size);
+   switch((FontType = processFontPath(font))) {
+      case 2: {
+      // truetype
+         File fontFile = contentFS->open(font, "r");
+         if(!truetype.setTtfFile(fontFile)) {
+            LOG("read ttf failed");
+         }
+         truetype.setCharacterSize(size);
+         truetype.setCharacterSpacing(0);
+         break;
+      }
+
+      case 3:
+      // vlw bitmap font
+         spr.loadFont(font.substring(1), *contentFS);
+         break;
+   }
+}
+
+uint16_t StringWidthMeasure::GetStringWidth(String content) 
 {
    uint16_t Ret = 0;
 
-    if (font.startsWith("fonts/calibrib")) {
-        String numericValueStr = font.substring(14);
-        int calibriSize = numericValueStr.toInt();
-        if (calibriSize != 30 && calibriSize != 16) {
-            font = "Signika-SB.ttf";
-            size = calibriSize;
-        }
-    }
-    if (font == "glasstown_nbp_tf") {
-        font = "tahoma9.vlw";
-    }
-    if (font == "7x14_tf") {
-        font = "REFSAN12.vlw";
-    }
-    if (font == "t0_14b_tf") {
-        font = "calibrib16.vlw";
-    }
+   if(FontType == 2) {
+      // truetype
+      Ret = truetype.getStringWidth(content);
+   }
+   else if(FontType == 3) {
+   // vlw bitmap font
+      Ret = spr.textWidth(content);
+   }
+   else {
+      LOG("%s#%d: Internal error FontType %d\n",__FUNCTION__,__LINE__,FontType);
+   }
 
-    switch (processFontPath(font)) {
-        case 2: {
-            // truetype
-            truetypeClass truetype = truetypeClass();
-            File fontFile = contentFS->open(font, "r");
-            if (!truetype.setTtfFile(fontFile)) {
-                Serial.println("read ttf failed");
-                return 0;
-            }
-
-            truetype.setCharacterSize(size);
-            truetype.setCharacterSpacing(0);
-            Ret = truetype.getStringWidth(content);
-        } break;
-        case 3: {
-            // vlw bitmap font
-            if(font != "") {
-               spr.loadFont(font.substring(1), *contentFS);
-               Ret = spr.textWidth(content);
-               spr.unloadFont();
-            }
-            else {
-               Ret = spr.textWidth(content);
-            }
-        }
-    }
-    return Ret;
+   return Ret;
 }
 
 
@@ -1133,9 +1143,9 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
        // Offset from right edge of display area
        // -1 = right justify
        // -11 = offet 10 pixels from right edge
+          StringWidthMeasure m(spr,TimeStamp[2],TimeStamp[3]);
           LOG("posx %d -> ",posx);
-          posx = 1 + spr.width() - 
-                 GetStringWidth(spr,timeStr,TimeStamp[2],TimeStamp[3]) + posx;
+          posx = 1 + spr.width() - m.GetStringWidth(timeStr) + posx;
           LOG("%d\n",posx);
        }
        
