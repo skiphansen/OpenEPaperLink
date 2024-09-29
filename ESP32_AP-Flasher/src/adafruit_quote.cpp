@@ -28,6 +28,8 @@
  * Change the SLEEP setting to define the time between quotes
  */
 
+#ifdef CONTENT_QUOTES
+
 #define LOGA(format, ... ) Serial.printf(format,## __VA_ARGS__)
 
 #if 1
@@ -550,4 +552,5 @@ void AdaFruitQuote::Draw()
       printQuote(Text);
    } while(false);
 }
+#endif   // CONTENT_QUOTES
 

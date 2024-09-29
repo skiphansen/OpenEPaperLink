@@ -28,7 +28,9 @@
 #include "util.h"
 #include "web.h"
 #include "bezier.h"
+#ifdef CONTENT_QUOTES
 #include "adafruit_quote.h"
+#endif
 
 uint16_t gDrawX;
 uint16_t gDrawY;
@@ -538,11 +540,14 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
             break;
 #endif
 
+#ifdef CONTENT_NOAA_TIDES
        case 250:  // Tides
           drawNoaaTides(filename, cfgobj, taginfo, imageParams);
           updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
           break;
+#endif
 
+#ifdef CONTENT_QUOTES
        case 251:  {
        // Adafruit Quote
           TFT_eSprite spr = TFT_eSprite(&tft);
@@ -558,6 +563,7 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
           LOG("Next update in %ld minutes\n",interval/60);
           break;
        }
+#endif
     }
 
     taginfo->modeConfigJson = doc.as<String>();
