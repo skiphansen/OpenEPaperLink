@@ -1122,7 +1122,7 @@
 		<Folder
 			Name="Web"
 			Filters="">
-			<F N="../ESP32_AP-Flasher/wwwroot/content_cards.json"/>
+			<F N="../ESP32_AP-Flasher/json/wwwroot/content_cards.json"/>
 			<F N="../ESP32_AP-Flasher/wwwroot/edit.html"/>
 			<F N="../ESP32_AP-Flasher/wwwroot/favicon.ico"/>
 			<F N="../ESP32_AP-Flasher/wwwroot/flash.js"/>

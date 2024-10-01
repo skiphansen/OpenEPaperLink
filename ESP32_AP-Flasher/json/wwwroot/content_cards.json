@@ -164,7 +164,8 @@
 #ifdef CONTENT_QUOTES
       {
         "key": "QuoteType",
-        "name": "Addional content",
+        "depends-on": "8-quotetype",
+        "name": "Additional content",
         "desc": "Additional content below weather forecast",
         "type": "select",
         "options": {
@@ -174,6 +175,7 @@
       },
 #endif
       {
+        "depends-on": "8-timestamp",
         "key": "AddTimeStamp",
         "name": "Add timestamp",
         "desc": "Add timestamp when forecast is updated",
@@ -781,8 +783,9 @@
         "name": "Title",
         "desc": "Displayed title",
         "type": "text"
-      },
-      {
+      }
+#if 0
+      ,{
         "key": "PlotHeightValue",
         "name": "Display height",
         "desc": "Add water level height to graph",
@@ -792,6 +795,7 @@
           "1": "yes"
         }
       }
+#endif
     ]
   }
 #endif
