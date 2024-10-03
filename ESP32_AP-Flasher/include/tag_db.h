@@ -74,6 +74,7 @@ struct Config {
     uint8_t ble;
     String repo;
     String env;
+    String timestampformat;
 };
 
 struct Color {

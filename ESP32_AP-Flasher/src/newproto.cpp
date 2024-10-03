@@ -217,6 +217,15 @@ bool prepareDataAvail(String& filename, uint8_t dataType, uint8_t dataTypeArgume
         return true;
     }
 
+    if (memcmp(md5bytes, taginfo->md5, 16) == 0) {
+        wsLog("new image is the same as current image. not updating tag.");
+        wsSendTaginfo(dst, SYNC_TAGSTATUS);
+        if (contentFS->exists(filename) && resend == false) {
+            contentFS->remove(filename);
+        }
+        return true;
+    }
+
     if (dataType != DATATYPE_FW_UPDATE) {
         char dst_path[64];
         sprintf(dst_path, "/current/%02X%02X%02X%02X%02X%02X%02X%02X_%lu.pending", dst[7], dst[6], dst[5], dst[4], dst[3], dst[2], dst[1], dst[0], millis() % 1000000);
@@ -526,9 +535,10 @@ void processDataReq(struct espAvailDataReq* eadr, bool local, IPAddress remoteIP
     if (taginfo == nullptr) {
         if (config.lock == 1 || (config.lock == 2 && eadr->adr.wakeupReason != WAKEUP_REASON_FIRSTBOOT)) return;
 #ifdef HAS_SUBGHZ
-        if (apInfo.hasSubGhz && eadr->adr.currentChannel > 0 && eadr->adr.currentChannel == apInfo.SubGhzChannel) {
-            // Empty intentionally
-        } else
+        if(apInfo.hasSubGhz && eadr->adr.currentChannel > 0 && eadr->adr.currentChannel == apInfo.SubGhzChannel) {
+        // Intentionally empty
+        }
+        else 
 #endif
             if (local == true && eadr->adr.currentChannel > 0 && eadr->adr.currentChannel != apInfo.channel) {
             Serial.printf("Tag %s reports illegal channel %d\r\n", hexmac, eadr->adr.currentChannel);
@@ -662,23 +672,24 @@ void setAPchannel() {
         udpsync.getAPList();
     } else {
         if (curChannel.channel != config.channel) {
-            curChannel.channel = config.channel;
-            bSendRadioLayer = true;
+           curChannel.channel = config.channel;
+           bSendRadioLayer = true;
         }
     }
 #ifdef HAS_SUBGHZ
-    if (curChannel.subghzchannel != config.subghzchannel) {
-        curChannel.subghzchannel = config.subghzchannel;
-        apInfo.SubGhzChannel = config.subghzchannel;
-        bSendRadioLayer = true;
+    if(curChannel.subghzchannel != config.subghzchannel) {
+       curChannel.subghzchannel = config.subghzchannel;
+       apInfo.SubGhzChannel = config.subghzchannel;
+       bSendRadioLayer = true;
+
     }
 #endif
-    if (bSendRadioLayer) {
-        tmp = curChannel;
-        if (config.channel == 0) {
-            tmp.channel = 0;  // don't set the 802.15.4 channel
-        }
-        sendChannelPower(&tmp);
+    if(bSendRadioLayer) {
+       tmp = curChannel;
+       if(config.channel == 0) {
+          tmp.channel = 0;    // don't set the 802.15.4 channel
+       }
+       sendChannelPower(&tmp);
     }
 }
 

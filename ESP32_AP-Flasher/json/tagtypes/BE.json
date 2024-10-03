@@ -1,0 +1,13 @@
+{
+	"version": 1,
+	"name": "ATC MiThermometer BLE",
+	"width": 6,
+	"height": 8,
+	"rotatebuffer": 1,
+	"bpp": 1,
+	"colortable": {},
+	"shortlut": 0,
+	"options": [ ],
+	"contentids": [ 22 ],
+	"usetemplate": 0
+}

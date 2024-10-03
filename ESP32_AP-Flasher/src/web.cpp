@@ -620,6 +620,9 @@ void init_web() {
         if (request->hasParam("env", true)) {
             config.env = request->getParam("env", true)->value();
         }
+        if (request->hasParam("timestampformat", true)) {
+           config.timestampformat = request->getParam("timestampformat", true)->value();
+        }
         saveAPconfig();
         setAPchannel();
         request->send(200, "text/plain", "Ok, saved");

@@ -1,0 +1,140 @@
+{
+	"version": 2,
+	"name": "M2 4.2\"",
+	"width": 400,
+	"height": 300,
+	"rotatebuffer": 0,
+	"bpp": 2,
+	"colortable": {
+		"white": [ 255, 255, 255 ],
+		"black": [ 0, 0, 0 ],
+		"red": [ 255, 0, 0 ]
+	},
+	"shortlut": 1,
+	"options": [ "button" ],
+	"contentoptions": [ "8-timestamp"
+#ifdef CONTENT_QUOTES
+		,"8-quotetype"
+#endif
+	],
+	"contentids": [ 22, 23, 1, 4, 5, 7, 8, 9, 10, 11, 17, 18, 19, 20
+#ifdef CONTENT_NOAA_TIDES
+		, 250
+#endif
+	],
+	"template": {
+		"1": {
+			"weekday": [ 200, 0, "Signika-SB.ttf", 70 ],
+			"month": [ 200, 210, "Signika-SB.ttf", 70 ],
+			"day": [ 200, 45, "Signika-SB.ttf", 170 ]
+		},
+		"4": {
+			"location": [ 20, 20, "fonts/calibrib30" ],
+			"wind": [ 90, 83, "fonts/calibrib50" ],
+			"temp": [ 20, 170, "fonts/calibrib100" ],
+			"icon": [ 385, 0, 100, 2 ],
+			"dir": [ 40, 50, 80 ],
+			"umbrella": [ 325, 155, 78 ]
+		},
+		// Weather forecast
+		"8": {
+		// location[0,1] = location x,y
+		// location[2] = font for location
+		// location[3] = font size
+			"location": [ 10, 10, "fonts/calibrib30" ],
+
+		// timestamp[0,1] = location x,y
+		// timestamp[2] = font for timestamp
+		// timestamp[3] = font size
+			"timestamp": [ -5, 5, "calibrib16.vlw", 16 ],
+
+		// column[0] = number of days
+		// column[1] = x of first divider line to right of first column
+			"column": [ 6, 66 ],
+
+	  // line[0,1] = Start y, end y of vertical line that 
+	  // separates daily entries 
+			"line": [ 50, 300 ],
+
+	  // day[0,1] = day of week x, y 
+	  // day[2] = font used for day of week, wind speed, temp
+	  // day[3] = y wind speed
+	  // day[4] = y for temp
+			"day": [ 33, 60, "fonts/bahnschrift20", 104, 230 ],
+
+	  // wind[0,1] = Start location of wind direction x, y
+			"wind": [ 17, 90 ],
+
+	  // icon[0] = x offset of the *CENTER* of the weather icon
+	  // icon[1] = y offset of the *TOP* of weather icon
+	  // icon[2] = icon size
+			"icon": [ 32, 145, 30 ],
+
+	  // rain[0,1] = location for rain fall amount x,y
+			"rain": [ 34, 260 ]
+#ifdef CONTENT_QUOTES
+			,"quote": {
+			   // format overrides make room for quote at bottom -------
+
+				// line[0,1] = Start y, end y of vertical line that 
+				// separates daily entries 
+			      "line": [ 35, 178 ],
+
+				// day[0,1] = day of week x, y 
+				// day[2] = font used for day of week, wind speed, temp
+				// day[3] = y wind speed
+				// day[4] = y for temp
+			      "day": [ 33, 40, "fonts/bahnschrift20", 64, 140],
+
+				// wind[0,1] = Start location of wind direction x, y
+			      "wind": [ 17, 50 ],
+
+				// icon[0] = x offset of the *CENTER* of the weather icon
+				// icon[1] = y offset of the *TOP* of weather icon
+				// icon[2] = icon size
+			      "icon": [ 32, 88, 30 ],
+
+				// rain[0,1] = location for rain fall amount x,y
+			      "rain": [ 34, 164 ],
+			   // -------
+
+			   // position upper left x,y, width, height
+			      "position": [ 0, 183, 400, 116],
+
+			   // Font for quote
+			      "qfont": [ "bahnschrift20.vlw", 20 ],
+
+			   // Small font if quote doesn't fit with qfont
+			      "sfont": [ "calibrib16.vlw", 16 ],
+
+			   // afont[0,1] = Font for author, size
+			   // author[2] = location
+			   // author[3] = TL(top left), TM, TR, BL, BM, or BR
+			      "afont": [ "calibrib16.vlw", 16, "BR"]
+			 }
+#endif
+		},
+		"9": {
+			"title": [ 6, 0, "Signika-SB.ttf", 25 ],
+			"items": 4,
+			"line": [ 9, 40, "calibrib16.vlw" ],
+			"desc": [ 2, 8, "REFSAN12.vlw", 1.2 ]
+		},
+		"10": {
+			"title": [ 200, 10, "fonts/bahnschrift20" ],
+			"pos": [ 200, 35 ]
+		},
+		"11": {
+			"rotate": 0,
+			"mode": 1,
+			"days": 4,
+			"gridparam": [ 5, 17, 20, "calibrib16.vlw", "tahoma9.vlw", 14 ]
+		}
+#ifdef CONTENT_NOAA_TIDES
+		,"250": {
+		     // x,y,font, font height
+			"date": [ 10, 10, "fonts/bahnschrift20", 20 ]
+		}
+#endif
+	}
+}

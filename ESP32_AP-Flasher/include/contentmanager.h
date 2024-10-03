@@ -4,6 +4,7 @@
 
 #include "makeimage.h"
 #include "tag_db.h"
+#include "truetype.h"
 
 struct contentTypes {
     uint16_t id;
@@ -14,17 +15,34 @@ struct contentTypes {
     String optionList;
 };
 
+class StringWidthMeasure {
+public:
+   StringWidthMeasure(TFT_eSprite &spr,String font,uint16_t size);
+   ~StringWidthMeasure();
+
+   uint16_t GetStringWidth(String content);
+
+private:
+   TFT_eSprite &spr;
+   uint8_t FontType;
+   truetypeClass truetype;
+};
+
+
 void contentRunner();
 void checkVars();
 void drawNew(const uint8_t mac[8], tagRecord *&taginfo);
 bool updateTagImage(String &filename, const uint8_t *dst, uint16_t nextCheckin, tagRecord *&taginfo, imgParam &imageParams);
-void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, String font, byte align = 0, uint16_t color = TFT_BLACK, uint16_t size = 30, uint16_t bgcolor = TFT_WHITE);
+uint16_t drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, String font, byte align = 0, uint16_t color = TFT_BLACK, uint16_t size = 30, uint16_t bgcolor = TFT_WHITE);
 void drawTextBox(TFT_eSprite &spr, String &content, int16_t &posx, int16_t &posy, int16_t boxwidth, int16_t boxheight, String font, uint16_t color = TFT_BLACK, uint16_t bgcolor = TFT_WHITE, float lineheight = 1);
 void initSprite(TFT_eSprite &spr, int w, int h, imgParam &imageParams);
 void drawDate(String &filename, tagRecord *&taginfo, imgParam &imageParams);
 void drawNumber(String &filename, int32_t count, int32_t thresholdred, tagRecord *&taginfo, imgParam &imageParams);
 void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
+#ifdef CONTENT_NOAA_TIDES
+void drawNoaaTides(String &filename, JsonObject &cfgobj, tagRecord *taginfo, imgParam &imageParams);
+#endif
 int getImgURL(String &filename, String URL, time_t fetched, imgParam &imageParams, String MAC);
 bool getRssFeed(String &filename, String URL, String title, tagRecord *&taginfo, imgParam &imageParams);
 bool getCalFeed(String &filename, JsonObject &cfgobj, tagRecord *&taginfo, imgParam &imageParams);

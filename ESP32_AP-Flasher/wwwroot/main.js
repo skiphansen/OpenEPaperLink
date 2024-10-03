@@ -519,6 +519,7 @@ function loadContentCard(mac) {
 		.then(response => response.json())
 		.then(data => {
 			const tagdata = data.tags[0];
+			$('#cfgmac').dataset.hwtype = tagdata.hwType;
 			$('#cfgalias').value = tagdata.alias;
 			$('#cfgmore').style.display = "none";
 			if (populateSelectTag(tagdata.hwType, tagdata.capabilities)) {
@@ -759,7 +760,7 @@ document.addEventListener("loadTab", function (event) {
 						apConfig = data;
 						$('#apcfgalias').value = data.alias;
 						$('#apcfgchid').value = data.channel;
-            $('#apcfgsubgigchid').value = data.subghzchannel;
+						$('#apcfgsubgigchid').value = data.subghzchannel;
 						$('#apcfgble').value = data.ble;
 						$("#apcfgledbrightness").value = data.led;
 						$("#apcfgtftbrightness").value = data.tft;
@@ -772,6 +773,7 @@ document.addEventListener("loadTab", function (event) {
 						$("#apctimezone").value = data.timezone;
 						$("#apcnight1").value = data.sleeptime1;
 						$("#apcnight2").value = data.sleeptime2;
+						$('#apctimestampformat').value = data.timestampformat;
 					}
 				})
 			$('#apcfgmsg').innerHTML = '';
@@ -808,6 +810,7 @@ $('#apcfgsave').onclick = function () {
 	formData.append('timezone', $('#apctimezone').value);
 	formData.append('sleeptime1', $('#apcnight1').value);
 	formData.append('sleeptime2', $('#apcnight2').value);
+	formData.append('timestampformat', $('#apctimestampformat').value);
 
 	fetch("save_apcfg", {
 		method: "POST",
@@ -945,100 +948,124 @@ function contentselected() {
 		}
 		$('#paintbutton').style.display = (contentMode == 22 || contentMode == 23 ? 'inline-block' : 'none');
 		let extraoptions = contentDef?.param ?? null;
+		let hwtype = $('#tag' + $('#cfgmac').dataset.mac).dataset.hwtype
+		let usetemplate = tagTypes[hwtype].usetemplate;
+		if(usetemplate == 0) {
+			usetemplate = hwtype;
+		}
+		let contentoptions = tagTypes[usetemplate].contentoptions;
+
 		extraoptions?.forEach(element => {
-			let label = document.createElement("label");
-			label.innerHTML = element.name;
-			label.setAttribute("for", 'opt' + element.key);
-			if (element.desc) {
-				label.style.cursor = 'help';
-				label.title = element.desc;
-			}
-			let input = document.createElement("input");
-			switch (element.type) {
-				case 'text':
-					input.type = "text";
-					break;
-				case 'int':
-					input.type = "number";
-					break;
-				case 'ro':
-					input.type = "text";
-					input.disabled = true;
-					break;
-				case 'jpgfile':
-				case 'binfile':
-				case 'jsonfile':
-					input = document.createElement("select");
-					fetch('edit?list=%2F&recursive=1')
-						.then(response => response.json())
-						.then(data => {
-							let files = data.filter(item => item.type === "file" && item.name.endsWith(".jpg"));
-							if (element.type == 'binfile') files = data.filter(item => item.type === "file" && item.name.endsWith(".bin"));
-							if (element.type == 'jsonfile') files = data.filter(item => item.type === "file" && item.name.endsWith(".json"));
-							const optionElement = document.createElement("option");
-							optionElement.value = "";
-							optionElement.text = "";
-							input.appendChild(optionElement);
-							files.forEach(item => {
+			if(!element["depends-on"] || 
+				contentoptions?.includes(element["depends-on"]))
+			{
+				let label = document.createElement("label");
+				label.innerHTML = element.name;
+				label.setAttribute("for", 'opt' + element.key);
+				if (element.desc) {
+					label.style.cursor = 'help';
+					label.title = element.desc;
+				}
+				let input = document.createElement("input");
+				switch (element.type) {
+					case 'text':
+						input.type = "text";
+						break;
+					case 'int':
+						input.type = "number";
+						break;
+					case 'ro':
+						input.type = "text";
+						input.disabled = true;
+						break;
+					case 'jpgfile':
+					case 'binfile':
+					case 'jsonfile':
+						input = document.createElement("select");
+						fetch('edit?list=%2F&recursive=1')
+							.then(response => response.json())
+							.then(data => {
+								let files = data.filter(item => item.type === "file" && item.name.endsWith(".jpg"));
+								if (element.type == 'binfile') files = data.filter(item => item.type === "file" && item.name.endsWith(".bin"));
+								if (element.type == 'jsonfile') files = data.filter(item => item.type === "file" && item.name.endsWith(".json"));
 								const optionElement = document.createElement("option");
-								optionElement.value = item.name;
-								optionElement.text = item.name;
-								if (obj[element.key] === item.name) optionElement.selected = true;
+								optionElement.value = "";
+								optionElement.text = "";
 								input.appendChild(optionElement);
+								files.forEach(item => {
+									const optionElement = document.createElement("option");
+									optionElement.value = item.name;
+									optionElement.text = item.name;
+									if (obj[element.key] === item.name) optionElement.selected = true;
+									input.appendChild(optionElement);
+								})
 							})
-						})
-						.catch(error => {
-							console.error("Error fetching JSON data:", error);
-						});
-					break;
-				case 'select':
-				case 'chanselect':
-					input = document.createElement("select");
-					let options;
-					if(element.type == 'chanselect') {
-						if($('#cfgmac').dataset.ch < 100) {
-							options = element.chans;
+							.catch(error => {
+								console.error("Error fetching JSON data:", error);
+							});
+						break;
+					case 'select':
+					case 'chanselect':
+						input = document.createElement("select");
+						let options;
+						if(element.type == 'chanselect') {
+							if($('#cfgmac').dataset.ch < 100) {
+								options = element.chans;
+							}
+							else {
+								options = element.subchans;
+							}
 						}
 						else {
-							options = element.subchans;
+							options = element.options
 						}
-					}
-					else {
-						options = element.options
-					}
 
-					for (const key in options) {
-						const optionElement = document.createElement("option");
-						optionElement.value = key;
-						optionElement.text = options[key];
-						if (options[key].substring(0, 1) == "-") {
-							optionElement.text = options[key].substring(1);
-							optionElement.selected = true;
-						} else {
-							optionElement.selected = false;
+						for (const key in options) {
+							const optionElement = document.createElement("option");
+							optionElement.value = key;
+							optionElement.text = options[key];
+							if (options[key].substring(0, 1) == "-") {
+								optionElement.text = options[key].substring(1);
+								optionElement.selected = true;
+							} else {
+								optionElement.selected = false;
+							}
+							input.appendChild(optionElement);
 						}
-						input.appendChild(optionElement);
-					}
-					break;
-				case 'geoselect':
-					input.type = "text";
-					input.classList.add("geoselect");
-					input.setAttribute("autocomplete", "off");
-					break;
+						break;
+					case 'geoselect':
+						input.type = "text";
+						input.classList.add("geoselect");
+						input.setAttribute("autocomplete", "off");
+						break;
+
+					case 'noaaselect':
+						input.type = "text";
+						input.classList.add("noaaselect");
+						input.setAttribute("autocomplete", "off");
+						break;
+
+				}
+				input.id = 'opt' + element.key;
+				input.title = element.desc;
+				if (obj[element.key]) input.value = obj[element.key];
+				let p = document.createElement("p");
+				p.appendChild(label);
+				p.appendChild(input);
+				if (element.type == 'geoselect') {
+					input.addEventListener('input', debounce(searchLocations, 300));
+					const resultsContainer = document.createElement('div');
+					resultsContainer.id = 'georesults';
+					p.appendChild(resultsContainer);
+				}
+				else if (element.type == 'noaaselect') {
+					input.addEventListener('input', debounce(NoaaSearch, 300));
+					const resultsContainer = document.createElement('div');
+					resultsContainer.id = 'georesults';
+					p.appendChild(resultsContainer);
+				}
+				$('#customoptions').appendChild(p);
 			}
-			input.id = 'opt' + element.key;
-			input.title = element.desc;
-			if (obj[element.key]) input.value = obj[element.key];
-			let p = document.createElement("p");
-			p.appendChild(label);
-			p.appendChild(input);
-			if (element.type == 'geoselect') {
-				input.addEventListener('input', debounce(searchLocations, 300));
-				const resultsContainer = document.createElement('div');
-				resultsContainer.id = 'georesults';
-				p.appendChild(resultsContainer);
-			}
-			$('#customoptions').appendChild(p);
 		});
 	}
 	paintShow = false;
@@ -1461,7 +1488,8 @@ async function getTagtype(hwtype) {
 			zlib: parseInt(jsonData.zlib_compression || "0", 16),
 			shortlut: parseInt(jsonData.shortlut),
 			busy: false,
-			usetemplate:parseInt(jsonData.usetemplate || "0",10)
+			usetemplate:parseInt(jsonData.usetemplate || "0",10),
+			contentoptions: jsonData.contentoptions
 		};
 		tagTypes[hwtype] = data;
 		localStorage.setItem("tagTypes", JSON.stringify(tagTypes));
@@ -1764,6 +1792,23 @@ async function searchLocations() {
 	}
 }
 
+async function NoaaSearch() {
+	const query = $(".noaaselect").value.trim();
+	if (query.length < 2) {
+		$('#georesults').innerHTML = '';
+		return;
+	}
+
+	try {
+		const response = await fetch(`https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/tidepredstations.json?q=${query}`);
+		const data = await response.json();
+		displaygeoresults(data.stationList);
+	} catch (error) {
+		console.error('Error fetching data:', error);
+	}
+}
+
+
 function displayResults(results) {
 	$('#georesults').innerHTML = '';
 	$('#georesults').style.top = $(".geoselect").offsetTop + $(".geoselect").offsetHeight + "px";
@@ -1779,6 +1824,21 @@ function displayResults(results) {
 	}
 }
 
+function displaygeoresults(results) {
+	$('#georesults').innerHTML = '';
+	$('#georesults').style.top = $(".noaaselect").offsetTop + $(".noaaselect").offsetHeight + "px";
+	$('#georesults').style.left = $(".noaaselect").offsetLeft + 'px';
+	if (results) {
+		results.forEach(result => {
+			const option = document.createElement('div');
+			option.textContent = result.etidesStnName;
+			option.addEventListener('click', () => selectNoaaLocation(result));
+			$('#georesults').appendChild(option);
+		});
+	}
+}
+
+
 function selectLocation(location) {
 	$(".geoselect").value = location.name;
 	document.getElementById('opt#lat').value = location.latitude;
@@ -1786,6 +1846,13 @@ function selectLocation(location) {
 	if (document.getElementById('opt#tz')) document.getElementById('opt#tz').value = location.timezone;
 	$('#georesults').innerHTML = '';
 }
+
+function selectNoaaLocation(location) {
+	$(".noaaselect").value = location.stationId;
+	document.getElementById('opttitle').value = location.etidesStnName;
+	$('#georesults').innerHTML = '';
+}
+
 
 function debounce(func, delay) {
 	let timeoutId;

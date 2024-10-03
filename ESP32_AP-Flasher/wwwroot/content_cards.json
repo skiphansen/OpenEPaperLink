@@ -159,6 +159,28 @@
         }
       },
       {
+        "key": "QuoteType",
+        "depends-on": "8-quotetype",
+        "name": "Additional content",
+        "desc": "Additional content below weather forecast",
+        "type": "select",
+        "options": {
+          "0": "None",
+          "1": "Quotes from AdaFruit"
+        }
+      },
+      {
+        "depends-on": "8-timestamp",
+        "key": "AddTimeStamp",
+        "name": "Add timestamp",
+        "desc": "Add timestamp when forecast is updated",
+        "type": "select",
+        "options": {
+          "0": "No",
+          "1": "Yes"
+        }
+      },
+      {
         "key": "#lat",
         "name": "Lat",
         "desc": "Latitude (set automatic when generating image)",
@@ -410,7 +432,7 @@
           "100": "1/1 units (EUR/NOK/DKK)",
           "1": "1/100 units (cents/öre/øre)"
         }
-      }      
+      }
     ]
   },
   {
@@ -720,6 +742,54 @@
         "name": "Filename",
         "desc": "Local file on littlefs partition",
         "type": "binfile"
+      }
+    ]
+  }
+  ,{
+    "id": 250,
+    "name": "NOAA Tide Prediction",
+    "desc": "Tide Prediction for today (US only).",
+    "param": [
+      {
+        "key": "StationID",
+        "name": "Station ID",
+        "desc": "Station ID or location to search. See https://tidesandcurrents.noaa.gov/tide_predictions.html",
+        "type": "noaaselect"
+      },
+      {
+        "key": "title",
+        "name": "Title",
+        "desc": "Displayed title",
+        "type": "text"
+      }
+    ]
+  }
+  ,{
+    "id": 251,
+    "name": "Quote & Jokes",
+    "desc": "Quotes and jokes from various on line sources",
+    "param": [
+      {
+        "key": "QuoteType",
+        "name": "Content",
+        "desc": "Content type",
+        "type": "select",
+        "options": {
+          "1": "Quotes from AdaFruit",
+          "2": "Jokes from jokeapi.dev"
+        }
+      },
+      {
+        "key": "interval",
+        "name": "Interval",
+        "desc": "How often the quote or joke is updated",
+        "type": "select",
+        "options": {
+          "60": "Every hour",
+          "1200": "Every two hours",
+          "180": "-Every three hours",
+          "-1440": "At midnight"
+        }
       }
     ]
   }
