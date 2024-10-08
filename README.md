@@ -2,6 +2,10 @@
 
 This is Skip's personal fork of the OpenEPaperLink project with additional content
 and features.  
+##
+![kay](https://github.com/user-attachments/assets/915546a7-8417-47a4-b2e8-401c053b47d5)
+##
+![wellfleet_6_25_24](https://github.com/user-attachments/assets/60cd1aa8-8379-4dea-9284-a29eeab14f57)
 
 ## Why?
 
