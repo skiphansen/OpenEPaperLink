@@ -1,5 +1,5 @@
 {
-	"version": 2,
+	"version": 4,
 	"name": "M2 7.4\"",
 	"width": 640,
 	"height": 384,
@@ -49,26 +49,26 @@
 		     // column[1] = x of first divider line to right of first column
 			"column": [ 7, 91 ],
 
-		     // line[0,1] = Start y, end y of vertical line that 
-		     // separates daily entries 
-			"line": [ 95, 370 ],
-
 		     // day[0,1] = day of week x, y 
 		     // day[2] = font used for day of week, wind speed, temp
 		     // day[3] = y wind speed
 		     // day[4] = y for temp
 			"day": [ 42, 110, "fonts/calibrib30", 150, 285 ],
 
-		     // wind[0,1] = Start location of wind direction x, y
-			"wind": [ 17, 120 ],
+		     // rain[0,1] = location for rain fall amount x,y
+			"rain": [ 48, 340 ],
 
 		     // icon[0] = x offset of the *CENTER* of the weather icon
 		     // icon[1] = y offset of the *TOP* of weather icon
 		     // icon[2] = icon size
 			"icon": [ 45, 180, 60 ],
 
-		     // rain[0,1] = location for rain fall amount x,y
-			"rain": [ 48, 340 ]
+		     // wind[0,1] = Start location of wind direction x, y
+			"wind": [ 17, 120 ],
+
+		     // line[0,1] = Start y, end y of vertical line that 
+		     // separates daily entries 
+			"line": [ 95, 370 ]
 #ifdef CONTENT_QUOTES
 			,"quote": {
 			   // position upper left x,y, width, height
@@ -111,7 +111,7 @@
 			"gridparam": [ 3, 17, 30, "calibrib16.vlw", "tahoma9.vlw", 14 ]
 		},
 		"27": {
-				  "bars": [ 12, 630, 340, 20 ],
+				  "bars": [ 18, 612, 330, 20, 22 ],
 				  "time": [ "calibrib16.vlw" ],
 				  "yaxis": [ "calibrib16.vlw", 1, 12 ],
 				  "head": [ "calibrib30.vlw" ]
