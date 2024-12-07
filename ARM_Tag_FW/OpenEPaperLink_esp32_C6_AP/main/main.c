@@ -28,6 +28,8 @@
 #include <string.h>
 #include "SubGigRadio.h"
 
+// #define PING_TEST 1
+
 
 static const char *TAG = "MAIN";
 
@@ -38,6 +40,7 @@ const uint8_t channelList[6] = {11, 15, 20, 25, 26, 27};
 
 #define MAX_PENDING_MACS      250
 #define HOUSEKEEPING_INTERVAL 60UL
+#define PING_INTERVAL         1UL
 
 struct pendingData pendingDataArr[MAX_PENDING_MACS];
 
@@ -754,6 +757,25 @@ void sendPong(void *buf) {
     radioTx(radiotxbuffer);
 }
 
+void sendPing(uint16_t panID) {
+    struct MacFrameBcast *frameHeader               = (struct MacFrameBcast *) (radiotxbuffer + 1);
+    radiotxbuffer[sizeof(struct MacFrameBcast) + 1] = PKT_PING;
+    radiotxbuffer[sizeof(struct MacFrameBcast) + 2] = curChannel;
+    radiotxbuffer[0]                                = sizeof(struct MacFrameBcast) + 1 + 1 + RAW_PKT_PADDING;
+    frameHeader->fcs.frameType       = 1;
+    frameHeader->fcs.ackReqd         = 1;
+    frameHeader->fcs.destAddrType    = 2;
+    frameHeader->fcs.srcAddrType     = 3;
+    frameHeader->fcs.panIdCompressed = 0;
+    frameHeader->seq = seq++;
+    frameHeader->dstPan = panID;
+    frameHeader->dstAddr = 0xFFFF;
+    frameHeader->srcPan = panID;
+    memcpy(frameHeader->src, mSelfMac, sizeof(frameHeader->src));
+    radioTx(radiotxbuffer);
+}
+
+
 void app_main(void) {
     esp_event_loop_create_default();
     
@@ -782,6 +804,7 @@ void app_main(void) {
     pr("RDY>");
     ESP_LOGI(TAG, "C6 ready!");
 
+#ifndef PING_TEST
     housekeepingTimer = getMillis();
     while (1) {
         while ((getMillis() - housekeepingTimer) < ((1000 * HOUSEKEEPING_INTERVAL) - 100)) {
@@ -881,4 +904,38 @@ void app_main(void) {
         }
         housekeepingTimer = getMillis();
     }
+#else
+    housekeepingTimer = getMillis();
+    int PingsSent = 0;
+    int PongsReceived = 0;
+    while (1) {
+        while ((getMillis() - housekeepingTimer) < ((1000 * PING_INTERVAL) - 100)) {
+            int8_t ret = commsRxUnencrypted(radiorxbuffer);
+            if (ret > 1) {
+               ESP_LOGI(TAG, "Got %d byte frame",ret);
+                led_flash(0);
+                // received a packet, lets see what it is
+                switch (getPacketType(radiorxbuffer)) {
+                   case PKT_PONG:
+                      PongsReceived++;
+                       ESP_LOGI(TAG, "Pong %d received",PongsReceived);
+                        break;
+                    default:
+                        ESP_LOGI(TAG, "t=%02X" , getPacketType(radiorxbuffer));
+                        break;
+                }
+            } 
+            else {
+                vTaskDelay(10 / portTICK_PERIOD_MS);
+            }
+
+            uint8_t curr_char;
+            while (getRxCharSecond(&curr_char)) processSerial(curr_char);
+        }
+        housekeepingTimer = getMillis();
+        PingsSent++;
+        ESP_LOGI(TAG, "Sending ping %d on channel %d",PingsSent,curChannel);
+        sendPing(PROTO_PAN_ID);
+    }
+#endif
 }
