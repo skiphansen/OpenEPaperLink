@@ -10,6 +10,12 @@
 #include "tag_db.h"
 #include "web.h"
 
+#ifdef HAS_H2
+   #define OTA_BIN_DIR "ESP32-H2"
+#else
+   #define OTA_BIN_DIR "ESP32-C6"
+#endif
+
 esp_loader_error_t connect_to_target(uint32_t higher_transmission_rate) {
     esp_loader_connect_args_t connect_config = ESP_LOADER_CONNECT_DEFAULT();
     esp_loader_error_t err = esp_loader_connect(&connect_config);
@@ -120,51 +126,78 @@ esp_loader_error_t flash_binary(String &file_path, size_t address) {
 
 bool downloadAndWriteBinary(String &filename, const char *url) {
     HTTPClient binaryHttp;
+    bool Ret = false;
+    bool bHaveFsMutex = false;
+
     Serial.println(url);
     binaryHttp.begin(url);
     binaryHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    int binaryResponseCode = binaryHttp.GET();
-    Serial.println(binaryResponseCode);
-    if (binaryResponseCode == HTTP_CODE_OK) {
+    do {
+        int binaryResponseCode = binaryHttp.GET();
+        if(binaryResponseCode != HTTP_CODE_OK) {
+            wsSerial("http error " + String(binaryResponseCode) + " fetching " + String(url));
+            break;
+        }
         int contentLength = binaryHttp.getSize();
-        Serial.println(contentLength);
+        Serial.printf("contentLength %d\r\n",contentLength);
+        if(contentLength < 0) {
+            wsSerial("Couldn't get contentLength");
+            break;
+        }
         xSemaphoreTake(fsMutex, portMAX_DELAY);
+        bHaveFsMutex = true;
         File file = contentFS->open(filename, "wb");
-        if (file) {
-            wsSerial("downloading " + String(filename));
-            WiFiClient *stream = binaryHttp.getStreamPtr();
-            uint8_t buffer[1024];
-            size_t totalBytesRead = 0;
-            time_t timeOut = millis() + 5000;
-            // while (stream->available()) {
-            while (millis() < timeOut) {
-                size_t bytesRead = stream->readBytes(buffer, sizeof(buffer));
+        if(!file) {
+            wsSerial("file open error " + String(filename));
+            break;
+        }
+        wsSerial("downloading " + String(filename));
+        WiFiClient *stream = binaryHttp.getStreamPtr();
+        uint8_t buffer[1024];
+        size_t totalBytesRead = 0;
+     // timeout if we don't average at least 1k bytes/second
+        unsigned long timeOut = millis() + contentLength;
+        while(stream->connected() && totalBytesRead < contentLength) {
+            size_t bytesRead;
+            size_t bytesToRead;
+            if(stream->available()) {
+                bytesToRead = min(sizeof(buffer), (size_t) stream->available());
+                bytesRead = stream->readBytes(buffer, bytesToRead);
+                if(bytesRead == 0 || millis() > timeOut) {
+                    wsSerial("Download time out");
+                    break;
+                }
                 file.write(buffer, bytesRead);
                 totalBytesRead += bytesRead;
-                if (totalBytesRead == contentLength) break;
+                vTaskDelay(1 / portTICK_PERIOD_MS);
+            } else {
+                vTaskDelay(10 / portTICK_PERIOD_MS);
             }
-            file.close();
-            xSemaphoreGive(fsMutex);
-            binaryHttp.end();
-
-            file = contentFS->open(filename, "r");
-            if (file) {
-                if (totalBytesRead == contentLength || (contentLength == 0 && file.size() > 0)) {
-                    file.close();
-                    return true;
-                }
-                wsSerial("Download failed, " + String(file.size()) + " bytes");
-                file.close();
-            }
-        } else {
-            xSemaphoreGive(fsMutex);
-            wsSerial("file open error " + String(filename));
         }
-    } else {
-        wsSerial("http error " + String(binaryResponseCode) + " fetching " + String(url));
-    }
+        file.close();
+
+        if(!stream->connected()) {
+           wsSerial("Connection dropped during transfer");
+           break;
+        }
+        file = contentFS->open(filename, "r");
+        if(!file) {
+            wsSerial("file open error " + String(filename));
+            break;
+        }
+        if(file.size() == contentLength) {
+            Ret = true;
+        } else {
+            wsSerial("Download failed, " + String(file.size()) + " bytes");
+        }
+        file.close();
+    } while(false);
     binaryHttp.end();
-    return false;
+    if(bHaveFsMutex) {
+        xSemaphoreGive(fsMutex);
+    }
+
+    return Ret;
 }
 
 bool doC6flash(uint8_t doDownload) {
@@ -184,8 +217,16 @@ bool doC6flash(uint8_t doDownload) {
                 JsonArray jsonArray = jsonDoc.as<JsonArray>();
                 for (JsonObject obj : jsonArray) {
                     String filename = "/" + obj["filename"].as<String>();
-                    // String binaryUrl = "https://raw.githubusercontent.com/" + config.repo + "/master/binaries/ESP32-C6" + String(filename);
-                    String binaryUrl = "http://www.openepaperlink.eu/binaries/ESP32-C6" + String(filename);
+                    String binaryUrl;
+
+                    if(config.repo == "jjwbruijn/OpenEPaperLink" || config.repo == "OpenEPaperLink/OpenEPaperLink") {
+                       binaryUrl = "http://www.openepaperlink.eu/binaries/" OTA_BIN_DIR + filename;
+                    }
+                    else {
+                       binaryUrl = "https://raw.githubusercontent.com/" + config.repo + "/master/binaries/"  OTA_BIN_DIR + filename;
+                    }
+
+                    Serial.printf("Downloading from %s\r\n",binaryUrl.c_str());
                     for (int retry = 0; retry < 10; retry++) {
                         if (downloadAndWriteBinary(filename, binaryUrl.c_str())) {
                             break;

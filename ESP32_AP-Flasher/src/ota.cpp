@@ -41,11 +41,19 @@ void handleSysinfoRequest(AsyncWebServerRequest* request) {
     doc["psramsize"] = ESP.getPsramSize();
     doc["flashsize"] = ESP.getFlashChipSize();
     doc["rollback"] = Update.canRollBack();
-#if defined C6_OTA_FLASHING
-    doc["hasC6"] = 1;
-#else
+
+#if defined HAS_H2
+    doc["hasH2"] = 1;
     doc["hasC6"] = 0;
+#else
+    doc["hasH2"] = 0;
+    #if defined C6_OTA_FLASHING
+        doc["hasC6"] = 1;
+    #else
+        doc["hasC6"] = 0;
+    #endif
 #endif
+
 #ifdef HAS_EXT_FLASHER
     doc["hasFlasher"] = 1;
 #else
