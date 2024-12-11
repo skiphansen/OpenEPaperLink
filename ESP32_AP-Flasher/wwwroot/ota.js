@@ -78,6 +78,8 @@ export async function initUpdate() {
                 const filesJsonAsset = assets.find(asset => asset.name === 'filesystem.json');
                 const binariesJsonAsset = assets.find(asset => asset.name === 'binaries.json');
                 const containsEnv = assets.find(asset => asset.name === env + '.bin');
+                const filesC6Asset = assets.find(asset => asset.name === 'OpenEPaperLink_esp32_C6.bin');
+                const filesH2Asset = assets.find(asset => asset.name === 'OpenEPaperLink_esp32_H2.bin');
                 if (filesJsonAsset && binariesJsonAsset && containsEnv) {
                     return {
                         html_url: release.html_url,
@@ -86,7 +88,9 @@ export async function initUpdate() {
                         date: formatDateTime(release.published_at),
                         author: release.author.login,
                         file_url: filesJsonAsset.browser_download_url,
-                        bin_url: binariesJsonAsset.browser_download_url
+                        bin_url: binariesJsonAsset.browser_download_url,
+                        c6_url: filesC6Asset?.browser_download_url,
+                        h2_url: filesH2Asset?.browser_download_url,
                     }
                 };
             });
@@ -109,7 +113,7 @@ export async function initUpdate() {
 
             const table = document.createElement('table');
             const tableHeader = document.createElement('tr');
-            tableHeader.innerHTML = '<th>Release</th><th>Date</th><th>Name</th><th colspan="2">Update:</th><th>Remark</th>';
+            tableHeader.innerHTML = '<th>Release</th><th>Date</th><th>Name</th><th colspan="3"><center>Update:</center></th><th>Remark</th>';
             table.appendChild(tableHeader);
 
             let rowCounter = 0;
@@ -117,6 +121,14 @@ export async function initUpdate() {
                 if (rowCounter < 4 && release?.html_url) {
                     const tableRow = document.createElement('tr');
                     let tablerow = `<td><a href="${release.html_url}" target="_new">${release.tag_name}</a></td><td>${release.date}</td><td>${release.name}</td><td><button type="button" onclick="otamodule.updateWebpage('${release.file_url}','${release.tag_name}', true)">Filesystem</button></td><td><button type="button" onclick="otamodule.updateESP('${release.bin_url}', true)">ESP32</button></td>`;
+                    if (release.c6_url) {
+                        tablerow += `<td><button type="button" onclick="otamodule.updateWebpage('${release.c6_url}','${release.tag_name}', true)">C6</button></td>`;
+                    } else if (release.h2_url) {
+                        tablerow += `<td><button type="button" onclick="otamodule.updateWebpage('${release.h2_url}','${release.tag_name}', true)">H2</button></td>`;
+                    } else {
+                        tablerow += `<td></td>`
+                    }
+
                     if (release.tag_name == currentVer) {
                         tablerow += "<td>current version</td>";
                     } else if (release.date < formatEpoch(currentBuildtime)) {

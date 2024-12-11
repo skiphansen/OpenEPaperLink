@@ -54,7 +54,12 @@ window.addEventListener("loadConfig", function () {
 				$(".logo").innerHTML = data.alias;
 				this.document.title = data.alias;
 			}
-			if (data.C6 == 1) {
+			if (data.H2) {
+				var optionToRemove = $("#apcfgchid").querySelector('option[value="27"]');
+				if (optionToRemove) $("#apcfgchid").removeChild(optionToRemove);
+				$('#updateH2Option').style.display = 'block';
+			}
+			else if (data.C6 == 1) {
 				var optionToRemove = $("#apcfgchid").querySelector('option[value="27"]');
 				if (optionToRemove) $("#apcfgchid").removeChild(optionToRemove);
 				$('#updateC6Option').style.display = 'block';
