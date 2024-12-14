@@ -904,7 +904,7 @@ void app_main(void) {
         }
         housekeepingTimer = getMillis();
     }
-#else
+#else // PING_TEST
     housekeepingTimer = getMillis();
     int PingsSent = 0;
     int PongsReceived = 0;
@@ -933,8 +933,9 @@ void app_main(void) {
             while (getRxCharSecond(&curr_char)) processSerial(curr_char);
         }
         housekeepingTimer = getMillis();
+        ESP_LOGI(TAG, "channel %d sent %d received %d lost %d",
+                 curChannel,PingsSent,PongsReceived,PingsSent-PongsReceived);
         PingsSent++;
-        ESP_LOGI(TAG, "Sending ping %d on channel %d",PingsSent,curChannel);
         sendPing(PROTO_PAN_ID);
     }
 #endif
