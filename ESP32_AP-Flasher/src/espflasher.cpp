@@ -9,12 +9,8 @@
 #include "storage.h"
 #include "tag_db.h"
 #include "web.h"
+#include "espflasher.h"
 
-#ifdef HAS_H2
-   #define OTA_BIN_DIR "ESP32-H2"
-#else
-   #define OTA_BIN_DIR "ESP32-C6"
-#endif
 
 esp_loader_error_t connect_to_target(uint32_t higher_transmission_rate) {
     esp_loader_connect_args_t connect_config = ESP_LOADER_CONNECT_DEFAULT();
@@ -200,111 +196,119 @@ bool downloadAndWriteBinary(String &filename, const char *url) {
     return Ret;
 }
 
-bool doC6flash(uint8_t doDownload) {
-    String filenameFirmwareLocal = "/firmware.json";
+bool FlashC6_H2(const char *RepoUrl) {
+    String JasonFilename = "/firmware_" SHORT_CHIP_NAME ".json" ;
+    bool Ret = false;
+    bool bLoaderInit = false;
+    bool bDownload = strlen(RepoUrl) > 0;
+    int retry;
     DynamicJsonDocument jsonDoc(1024);
-    if (doDownload) {
-        const String githubUrl = "https://raw.githubusercontent.com/" + config.repo + "/master/binaries/ESP32-C6/firmware.json";
-        if (downloadAndWriteBinary(filenameFirmwareLocal, githubUrl.c_str())) {
-            File readfile = contentFS->open(filenameFirmwareLocal, "r");
-            if (!readfile) {
-                Serial.println("load firmware.json: Failed to open file");
-                return false;
+
+    do {
+        if(bDownload) {
+           String FileUrl = RepoUrl + JasonFilename;
+            if(!downloadAndWriteBinary(JasonFilename, FileUrl.c_str())) {
+                break;
             }
-            DeserializationError jsonError = deserializeJson(jsonDoc, readfile);
-
-            if (!jsonError) {
-                JsonArray jsonArray = jsonDoc.as<JsonArray>();
-                for (JsonObject obj : jsonArray) {
-                    String filename = "/" + obj["filename"].as<String>();
-                    String binaryUrl;
-
-                    if(config.repo == "jjwbruijn/OpenEPaperLink" || config.repo == "OpenEPaperLink/OpenEPaperLink") {
-                       binaryUrl = "http://www.openepaperlink.eu/binaries/" OTA_BIN_DIR + filename;
-                    }
-                    else {
-                       binaryUrl = "https://raw.githubusercontent.com/" + config.repo + "/master/binaries/"  OTA_BIN_DIR + filename;
-                    }
-
-                    Serial.printf("Downloading from %s\r\n",binaryUrl.c_str());
-                    for (int retry = 0; retry < 10; retry++) {
-                        if (downloadAndWriteBinary(filename, binaryUrl.c_str())) {
-                            break;
-                        }
-                        wsSerial("Retry " + String(retry));
-                        if (retry < 9) {
-                            delay(1000);
-                        } else {
-                            return false;
-                        }
-                    }
-                }
-            } else {
-                wsSerial("json error fetching " + String(githubUrl));
-                return false;
-            }
-        } else {
-            return false;
         }
-    } else {
-        File readfile = contentFS->open(filenameFirmwareLocal, "r");
-        if (!readfile) {
-            Serial.println("load local firmware.json: Failed to open file");
-            return false;
+
+        File readfile = contentFS->open(JasonFilename, "r");
+        if(!readfile) {
+            Serial.println("load " + JasonFilename + ": Failed to open file");
+            break;
         }
         DeserializationError jsonError = deserializeJson(jsonDoc, readfile);
-    }
 
-    const loader_esp32_config_t config = {
-        .baud_rate = 115200,
-        .uart_port = 2,
-        .uart_rx_pin = FLASHER_DEBUG_TXD,
-        .uart_tx_pin = FLASHER_DEBUG_RXD,
-        .reset_trigger_pin = FLASHER_AP_RESET,
-        .gpio0_trigger_pin = FLASHER_DEBUG_PROG,
-    };
+        if(jsonError) {
+            wsSerial(String("json error parsing") + JasonFilename);
+            break;
+        }
 
-    if (loader_port_esp32_init(&config) != ESP_LOADER_SUCCESS) {
-        wsSerial("Serial initialization failed");
-        loader_port_esp32_deinit();
-        return false;
-    }
+        if(!bDownload) {
+           Ret = true;
+           break;
+        }
 
-    if (connect_to_target(115200) == ESP_LOADER_SUCCESS) {
-        if (esp_loader_get_target() == ESP32C6_CHIP) {
-            wsSerial("Connected to ESP32-C6");
-            int maxRetries = 5;
-            esp_loader_error_t err;
+        JsonArray jsonArray = jsonDoc.as<JsonArray>();
+        for(JsonObject obj : jsonArray) {
+            String filename = "/" + obj["filename"].as<String>();
+            String binaryUrl = RepoUrl + filename;
 
-            JsonArray jsonArray = jsonDoc.as<JsonArray>();
-            for (JsonObject obj : jsonArray) {
-                String filename = "/" + obj["filename"].as<String>();
-                const char *addressStr = obj["address"];
-                uint32_t address = strtoul(addressStr, NULL, 16);
-
-                for (int retry = 0; retry < maxRetries; retry++) {
-                    err = flash_binary(filename, address);
-                    if (err == ESP_LOADER_SUCCESS) break;
-                    Serial.printf("Flash failed with error %d. Retrying...\n", err);
+            Serial.printf("Downloading from %s\r\n",binaryUrl.c_str());
+            for(retry = 0; retry < 10; retry++) {
+                if(downloadAndWriteBinary(filename, binaryUrl.c_str())) {
+                    break;
+                }
+                wsSerial("Retry " + String(retry));
+                if(retry < 9) {
                     delay(1000);
                 }
-                if (err != ESP_LOADER_SUCCESS) {
-                    loader_port_esp32_deinit();
-                    return false;
-                }
             }
-
-            Serial.println("Done!");
-        } else {
-            wsSerial("Connected to wrong ESP32 type");
-            loader_port_esp32_deinit();
-            return false;
+            if(retry == 10) {
+                break;
+            }
         }
-    } else {
-        wsSerial("Connection to the C6 failed");
+        if(retry < 10) {
+           Ret = true;
+        }
+    } while(false);
+
+    if(Ret == true) do {
+       Ret = false;
+        const loader_esp32_config_t config = {
+            .baud_rate = 115200,
+            .uart_port = 2,
+            .uart_rx_pin = FLASHER_DEBUG_TXD,
+            .uart_tx_pin = FLASHER_DEBUG_RXD,
+            .reset_trigger_pin = FLASHER_AP_RESET,
+            .gpio0_trigger_pin = FLASHER_DEBUG_PROG,
+        };
+
+        bLoaderInit = true;
+        if(loader_port_esp32_init(&config) != ESP_LOADER_SUCCESS) {
+            wsSerial("Serial initialization failed");
+            break;
+        }
+
+        if(connect_to_target(115200) != ESP_LOADER_SUCCESS) {
+            wsSerial("Connection to the " SHORT_CHIP_NAME " failed");
+            break;
+        }
+
+        if(esp_loader_get_target() != ESP32C6_CHIP) {
+            wsSerial("Connected to wrong ESP32 type");
+            break;
+        }
+        wsSerial("Connected to ESP32-" SHORT_CHIP_NAME);
+        int maxRetries = 5;
+        esp_loader_error_t err;
+
+        JsonArray jsonArray = jsonDoc.as<JsonArray>();
+        for(JsonObject obj : jsonArray) {
+            String filename = "/" + obj["filename"].as<String>();
+            const char *addressStr = obj["address"];
+            uint32_t address = strtoul(addressStr, NULL, 16);
+
+            for(int retry = 0; retry < maxRetries; retry++) {
+                err = flash_binary(filename, address);
+                if(err == ESP_LOADER_SUCCESS) {
+                   Ret = true;
+                   break;
+                }
+                Serial.printf("Flash failed with error %d. Retrying...\n", err);
+                delay(1000);
+            }
+            if(err != ESP_LOADER_SUCCESS) {
+                break;
+            }
+        }
+        Serial.println("Done!");
+    } while(false);
+
+    if(bLoaderInit) {
         loader_port_esp32_deinit();
-        return false;
     }
-    loader_port_esp32_deinit();
-    return true;
+
+    return Ret;
 }
+
