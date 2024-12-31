@@ -1,6 +1,12 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 
+// NB:  FLASHER_AP_* and FLASHER_DEBUG_* use deifferent naming conventions
+#if defined(FLASHER_DEBUG_RXD) && FLASHER_DEBUG_RXD != FLASHER_AP_TXD
+// AP has two serial ports between main processor and the radio processor
+#define HAS_DEBUG_PORT
+#endif
+
 uint16_t getAPUpdateVersion(uint8_t type);
 bool checkForcedAPFlash();
 bool doForcedAPFlash();

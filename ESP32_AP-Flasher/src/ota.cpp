@@ -7,6 +7,7 @@
 #include <MD5Builder.h>
 #include <Update.h>
 
+#include "flasher.h"
 #include "espflasher.h"
 #include "leds.h"
 #include "serialap.h"
@@ -308,8 +309,10 @@ void C6firmwareUpdateTask(void* parameter) {
 
     setAPstate(false, AP_STATE_FLASHING);
     config.runStatus = RUNSTATUS_STOP;
+#ifdef HAS_DEBUG_PORT
     extern bool rxSerialStopTask2;
     rxSerialStopTask2 = true;
+#endif
     vTaskDelay(500 / portTICK_PERIOD_MS);
     Serial1.end();
 
@@ -327,12 +330,13 @@ void C6firmwareUpdateTask(void* parameter) {
 
         wsSerial("starting monitor");
         Serial1.begin(115200, SERIAL_8N1, FLASHER_AP_RXD, FLASHER_AP_TXD);
+#ifdef HAS_DEBUG_PORT
         rxSerialStopTask2 = false;
-#ifdef FLASHER_DEBUG_RXD
         xTaskCreate(rxSerialTask2, "rxSerialTask2", 1750, NULL, 2, NULL);
 #endif
         vTaskDelay(1000 / portTICK_PERIOD_MS);
 
+        apInfo.version = 0;
         wsSerial("resetting AP");
         APTagReset();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -340,15 +344,25 @@ void C6firmwareUpdateTask(void* parameter) {
         wsSerial("bringing AP online");
         if (bringAPOnline()) config.runStatus = RUNSTATUS_RUN;
 
-        wsSerial("Finished!");
-        // Wait for version info to arrive 
+     // Wait for version info to arrive 
         vTaskDelay(50 / portTICK_PERIOD_MS);
-        char buffer[50];
-        snprintf(buffer,sizeof(buffer),
-                 "ESP32-" SHORT_CHIP_NAME " version is now %04x",apInfo.version);
-        wsSerial(String(buffer));
-    } else {
-        wsSerial("Flashing failed. :-(");
+        if(apInfo.version == 0) {
+           result = false;
+        }
+    } 
+
+    if (result) {
+       wsSerial("Finished!");
+       char buffer[50];
+       snprintf(buffer,sizeof(buffer),
+                "ESP32-" SHORT_CHIP_NAME " version is now %04x",apInfo.version);
+       wsSerial(String(buffer));
+    }
+    else if(apInfo.version == 0) {
+       wsSerial("AP failed failed to come online. :-(");
+    }
+    else {
+       wsSerial("Flashing failed. :-(");
     }
     delete Url;
     vTaskDelete(NULL);
@@ -359,7 +373,7 @@ void handleUpdateC6(AsyncWebServerRequest* request) {
 #if defined C6_OTA_FLASHING
     if (request->hasParam("url",true)) {
        String *Url = new String(request->getParam("url",true)->value());
-       xTaskCreate(C6firmwareUpdateTask, "OTAUpdateTask", 6144, Url, 10, NULL);
+       xTaskCreate(C6firmwareUpdateTask, "OTAUpdateTask", 6400, Url, 10, NULL);
        request->send(200, "Ok");
     }
     else {

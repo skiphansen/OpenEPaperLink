@@ -10,7 +10,13 @@
 #include "tag_db.h"
 #include "web.h"
 #include "espflasher.h"
+#include "util.h"
 
+#define LOG(format, ... ) Serial.printf(format,## __VA_ARGS__)
+
+#ifndef FLASHER_DEBUG_PORT
+#define FLASHER_DEBUG_PORT 2
+#endif
 
 esp_loader_error_t connect_to_target(uint32_t higher_transmission_rate) {
     esp_loader_connect_args_t connect_config = ESP_LOADER_CONNECT_DEFAULT();
@@ -125,7 +131,7 @@ bool downloadAndWriteBinary(String &filename, const char *url) {
     bool Ret = false;
     bool bHaveFsMutex = false;
 
-    Serial.println(url);
+    LOG("downloadAndWriteBinary: url %s\n",url);
     binaryHttp.begin(url);
     binaryHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     do {
@@ -135,7 +141,7 @@ bool downloadAndWriteBinary(String &filename, const char *url) {
             break;
         }
         int contentLength = binaryHttp.getSize();
-        Serial.printf("contentLength %d\r\n",contentLength);
+        LOG("contentLength %d\r\n",contentLength);
         if(contentLength < 0) {
             wsSerial("Couldn't get contentLength");
             break;
@@ -188,6 +194,7 @@ bool downloadAndWriteBinary(String &filename, const char *url) {
         }
         file.close();
     } while(false);
+    binaryHttp.setReuse(false);
     binaryHttp.end();
     if(bHaveFsMutex) {
         xSemaphoreGive(fsMutex);
@@ -204,10 +211,13 @@ bool FlashC6_H2(const char *RepoUrl) {
     int retry;
     DynamicJsonDocument jsonDoc(1024);
 
+    LOG("%s#%d: ",__FUNCTION__,__LINE__); util::printHeap();
+
     do {
         if(bDownload) {
            String FileUrl = RepoUrl + JasonFilename;
             if(!downloadAndWriteBinary(JasonFilename, FileUrl.c_str())) {
+               LOG("%s#%d: ",__FUNCTION__,__LINE__); util::printHeap();
                 break;
             }
         }
@@ -234,7 +244,6 @@ bool FlashC6_H2(const char *RepoUrl) {
             String filename = "/" + obj["filename"].as<String>();
             String binaryUrl = RepoUrl + filename;
 
-            Serial.printf("Downloading from %s\r\n",binaryUrl.c_str());
             for(retry = 0; retry < 10; retry++) {
                 if(downloadAndWriteBinary(filename, binaryUrl.c_str())) {
                     break;
@@ -257,7 +266,7 @@ bool FlashC6_H2(const char *RepoUrl) {
        Ret = false;
         const loader_esp32_config_t config = {
             .baud_rate = 115200,
-            .uart_port = 2,
+            .uart_port = FLASHER_DEBUG_PORT,
             .uart_rx_pin = FLASHER_DEBUG_TXD,
             .uart_tx_pin = FLASHER_DEBUG_RXD,
             .reset_trigger_pin = FLASHER_AP_RESET,
@@ -275,7 +284,7 @@ bool FlashC6_H2(const char *RepoUrl) {
             break;
         }
 
-        if(esp_loader_get_target() != ESP32C6_CHIP) {
+        if(esp_loader_get_target() != ESP_CHIP_TYPE) {
             wsSerial("Connected to wrong ESP32 type");
             break;
         }
@@ -309,6 +318,7 @@ bool FlashC6_H2(const char *RepoUrl) {
         loader_port_esp32_deinit();
     }
 
+    LOG("%s#%d: ",__FUNCTION__,__LINE__); util::printHeap();
     return Ret;
 }
 
