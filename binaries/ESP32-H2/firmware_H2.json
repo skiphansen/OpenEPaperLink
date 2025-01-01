@@ -1,5 +1,5 @@
 [{
-	"filename": "bootloader.bin_H2",
+	"filename": "bootloader_H2.bin",
 	"address": "0x0",
 	"version": "0001"
 },
