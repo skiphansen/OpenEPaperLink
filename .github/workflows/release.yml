@@ -2,6 +2,7 @@ name: Release binaries
 
 env:
 	INCLUDE_C6_BINS: yes
+
 on:
   push:
     tags:
