@@ -1,5 +1,7 @@
 name: Release binaries
 
+env:
+	INCLUDE_C6_BINS: yes
 on:
   push:
     tags:
@@ -41,12 +43,12 @@ jobs:
         run: |
           mkdir espbinaries
 
-      #- name: esp-idf build
-      #  uses: espressif/esp-idf-ci-action@v1
-      #  with:
-      #    esp_idf_version: latest
-      #    target: esp32c6
-      #    path: 'ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/'
+      - name: esp-idf build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: latest
+          target: esp32c6
+          path: 'ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/'
 
      # - name: esp-idf build
      #   uses: espressif/esp-idf-ci-action@v1
