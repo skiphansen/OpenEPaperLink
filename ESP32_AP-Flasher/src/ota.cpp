@@ -302,6 +302,7 @@ void handleRollback(AsyncWebServerRequest* request) {
     }
 }
 
+#ifdef C6_OTA_FLASHING
 void C6firmwareUpdateTask(void* parameter) {
    String *Url = reinterpret_cast<String *>(parameter);
    LOG("C6firmwareUpdateTask: url '%s'\n",Url->c_str());
@@ -367,6 +368,7 @@ void C6firmwareUpdateTask(void* parameter) {
     delete Url;
     vTaskDelete(NULL);
 }
+#endif
 
 
 void handleUpdateC6(AsyncWebServerRequest* request) {
@@ -380,8 +382,10 @@ void handleUpdateC6(AsyncWebServerRequest* request) {
        LOG("Sending bad request");
        request->send(400, "Bad request");
     }
-#else
+#elif defined(SHORT_CHIP_NAME)
     request->send(400, SHORT_CHIP_NAME " flashing not implemented");
+#else
+    request->send(400, "C6/H2 flashing not implemented");
 #endif
 }
 
