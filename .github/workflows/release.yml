@@ -51,6 +51,9 @@ jobs:
       - name: Add C6 files to release
         run: |
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/build/OpenEPaperLink_esp32_C6.bin espbinaries/OpenEPaperLink_esp32_C6.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/build/bootloader/bootloader.bin espbinaries/bootloader_C6.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/build/partition_table/partition-table.bin espbinaries/partition-table_C6.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink//binaries/ESP32-C6/firmware_C6.json espbinaries
 
       - name: build ESP32-H2 firmware
         uses: espressif/esp-idf-ci-action@v1
@@ -62,6 +65,9 @@ jobs:
       - name: Add H2 files to release
         run: |
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/build/OpenEPaperLink_esp32_H2.bin espbinaries/OpenEPaperLink_esp32_H2.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/build/bootloader/bootloader.bin espbinaries/bootloader_H2.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/build/partition_table/partition-table.bin espbinaries/partition-table_H2.bin
+          cp /home/runner/work/OpenEPaperLink/OpenEPaperLink//binaries/ESP32-H2/firmware_H2.json espbinaries
 
 #      - name: Zip web files
 #        run: | 
