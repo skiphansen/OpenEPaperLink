@@ -7,6 +7,7 @@ on:
 
 env:
   INCLUDE_C6_H2: true
+  INCLUDE_MINI_AP: false
 
 jobs:
   build:
@@ -82,6 +83,7 @@ jobs:
 #            python gzip_wwwfiles.py
           
       - name: Build firmware for OpenEPaperLink_Mini_AP
+        if: ${{ env.INCLUDE_MINI_AP}}
         run: |
           cd ESP32_AP-Flasher
           export PLATFORMIO_BUILD_FLAGS="-D BUILD_VERSION=${{ github.ref_name }} -D SHA=$GITHUB_SHA"
