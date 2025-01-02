@@ -9,6 +9,7 @@ env:
   INCLUDE_C6_H2: true
   INCLUDE_MINI_AP: false
   INCLUDE_Nano_AP: false
+  INCLUDE_S2_Tag_Flasher: false
 
 jobs:
   build:
@@ -283,6 +284,7 @@ jobs:
 # this is down here intentionally to be able to modify the binary folder before adding it to the Tag_Flasher later (ota binaries can be removed)
 
       - name: Build firmware for Tag_Flasher
+        if: ${{ env.INCLUDE_S2_Tag_Flasher == 'true' }}
         run: |
           cd Tag_Flasher/ESP32_Flasher
           export PLATFORMIO_BUILD_FLAGS="-D BUILD_VERSION=${{ github.ref_name }} -D SHA=$GITHUB_SHA"
