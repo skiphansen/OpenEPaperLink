@@ -90,6 +90,7 @@ export async function initUpdate() {
         $('#environment').value = env;
     }
 
+	  const rdata = await fetch(repoUrl).then(response => response.json())
     const JsonName = 'firmware_' + gShortName + '.json';
     const releaseDetails = rdata.map(release => {
         const assets = release.assets;
@@ -507,7 +508,7 @@ $('#selectRepo').onclick = function (event) {
             if (!responseBody.trim().startsWith("[")) {
                 throw new Error("Failed to fetch the release info file");
             }
-            const updateData = JSON.parse(responseBody).filter(item => !item.name.endsWith('_full.bin'));
+            const updateData = JSON.parse(responseBody).filter(item => !item.name.endsWith('_full.bin') && !item.name.includes('_H2.') && !item.name.includes('_C6.'));
 
             const inputParent = $('#environment').parentNode;
             const selectElement = document.createElement('select');
