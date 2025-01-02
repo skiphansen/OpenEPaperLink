@@ -46,7 +46,7 @@ jobs:
           mkdir espbinaries
 
       - name: build ESP32-C6 firmware
-        if: ${{ env.INCLUDE_C6_H2}}
+        if: ${{ env.INCLUDE_C6_H2 == 'true' }}
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: latest
@@ -54,7 +54,7 @@ jobs:
           path: 'ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/'
 
       - name: Add C6 files to release
-        if: ${{ env.INCLUDE_C6_H2}}
+        if: ${{ env.INCLUDE_C6_H2 == 'true' }}
         run: |
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/build/OpenEPaperLink_esp32_C6.bin espbinaries/OpenEPaperLink_esp32_C6.bin
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_C6_AP/build/bootloader/bootloader.bin espbinaries/bootloader_C6.bin
@@ -62,7 +62,7 @@ jobs:
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink//binaries/ESP32-C6/firmware_C6.json espbinaries
 
       - name: build ESP32-H2 firmware
-        if: ${{ env.INCLUDE_C6_H2}}
+        if: ${{ env.INCLUDE_C6_H2 == 'true' }}
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: latest
@@ -70,7 +70,7 @@ jobs:
           path: 'ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/'
 
       - name: Add H2 files to release
-        if: ${{ env.INCLUDE_C6_H2}}
+        if: ${{ env.INCLUDE_C6_H2 == 'true' }}
         run: |
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/build/OpenEPaperLink_esp32_H2.bin espbinaries/OpenEPaperLink_esp32_H2.bin
           cp /home/runner/work/OpenEPaperLink/OpenEPaperLink/ARM_Tag_FW/OpenEPaperLink_esp32_H2_AP/build/bootloader/bootloader.bin espbinaries/bootloader_H2.bin
@@ -83,7 +83,7 @@ jobs:
 #            python gzip_wwwfiles.py
           
       - name: Build firmware for OpenEPaperLink_Mini_AP
-        if: ${{ env.INCLUDE_MINI_AP}}
+        if: ${{ env.INCLUDE_MINI_AP == 'true' }}
         run: |
           cd ESP32_AP-Flasher
           export PLATFORMIO_BUILD_FLAGS="-D BUILD_VERSION=${{ github.ref_name }} -D SHA=$GITHUB_SHA"
