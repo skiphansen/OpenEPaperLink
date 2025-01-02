@@ -27,7 +27,7 @@ SemaphoreHandle_t txActive;
 volatile uint8_t cmdReplyValue = CMD_REPLY_WAIT;
 
 #define AP_SERIAL_PORT Serial1
-#ifdef HAS_DEBUG_PORT
+#ifndef FLASHER_DEBUG_SHARED
 volatile bool rxSerialStopTask2 = false;
 #endif
 
@@ -171,7 +171,7 @@ void setAPstate(bool isOnline, uint8_t state) {
     rgbIdlePeriod = (isOnline ? 767 : 255);
     if (isOnline) rgbIdle();
 #endif
-#ifndef HAS_DEBUG_PORT
+#ifdef FLASHER_DEBUG_SHARED
 // Flasher shares port with AP comms
     if(state == AP_STATE_FLASHING) {
         LOG("Shared COM port, gSerialTaskState %d\n",gSerialTaskState);
@@ -705,7 +705,7 @@ void rxSerialTask(void* parameter) {
     vTaskDelete(NULL);
 }
 
-#ifdef HAS_DEBUG_PORT
+#if defined(FLASHER_DEBUG_RXD) && !defined(FLASHER_DEBUG_SHARED)
 void rxSerialTask2(void* parameter) {
     char lastchar = 0;
     time_t startTime = millis();
@@ -793,9 +793,6 @@ bool bringAPOnline() {
     if(gSerialTaskState != SERIAL_STATE_INITIALIZED) {
 #if (AP_PROCESS_PORT == FLASHER_AP_PORT)
        AP_SERIAL_PORT.begin(115200, SERIAL_8N1, FLASHER_AP_RXD, FLASHER_AP_TXD);
-       LOG("rx_pin %d\n",FLASHER_AP_RXD);
-       LOG("tx_pin %d\n",FLASHER_AP_TXD);
-
 #elif defined(HAS_EXT_FLASHER)
    #if (AP_PROCESS_PORT == FLASHER_EXT_PORT)
        AP_SERIAL_PORT.begin(115200, SERIAL_8N1, FLASHER_EXT_RXD, FLASHER_EXT_TXD);
@@ -883,7 +880,7 @@ void APTask(void* parameter) {
 
 
     xTaskCreate(rxCmdProcessor, "rxCmdProcessor", 6000, NULL, 15, NULL);
-#ifdef HAS_DEBUG_PORT
+#if defined(FLASHER_DEBUG_RXD) && !defined(FLASHER_DEBUG_SHARED)
     xTaskCreate(rxSerialTask2, "rxSerialTask2", 1750, NULL, 2, NULL);
     vTaskDelay(500 / portTICK_PERIOD_MS);
 #endif

@@ -310,7 +310,7 @@ void C6firmwareUpdateTask(void* parameter) {
 
     setAPstate(false, AP_STATE_FLASHING);
     config.runStatus = RUNSTATUS_STOP;
-#ifdef HAS_DEBUG_PORT
+#ifndef FLASHER_DEBUG_SHARED
     extern bool rxSerialStopTask2;
     rxSerialStopTask2 = true;
 #endif
@@ -331,7 +331,7 @@ void C6firmwareUpdateTask(void* parameter) {
 
         wsSerial("starting monitor");
         Serial1.begin(115200, SERIAL_8N1, FLASHER_AP_RXD, FLASHER_AP_TXD);
-#ifdef HAS_DEBUG_PORT
+#ifndef FLASHER_DEBUG_SHARED
         rxSerialStopTask2 = false;
         xTaskCreate(rxSerialTask2, "rxSerialTask2", 1750, NULL, 2, NULL);
 #endif
