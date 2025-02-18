@@ -12,7 +12,12 @@
 #include "ips_display.h"
 
 #define YELLOW_SENSE 8  // sense AP hardware
+
+#ifdef HAS_ELECROW_ADV_2_8
+#define TFT_BACKLIGHT 38
+#else
 #define TFT_BACKLIGHT 14
+#endif
 
 TFT_eSPI tft2 = TFT_eSPI();
 uint8_t YellowSense = 0;
@@ -385,9 +390,13 @@ void yellow_ap_display_init(void) {
     gfx->fillScreen(BLACK);
 
 #else
+#ifdef HAS_ELECROW_ADV_2_8
+    YellowSense = 0;
+#else
     pinMode(YELLOW_SENSE, INPUT_PULLDOWN);
     vTaskDelay(100 / portTICK_PERIOD_MS);
     if (digitalRead(YELLOW_SENSE) == HIGH) YellowSense = 1;
+#endif
     pinMode(TFT_BACKLIGHT, OUTPUT);
     digitalWrite(TFT_BACKLIGHT, LOW);
 
