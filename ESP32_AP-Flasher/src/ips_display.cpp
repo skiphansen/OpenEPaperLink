@@ -359,8 +359,8 @@ void sendAvail(uint8_t wakeupReason) {
     memcpy(&eadr.src, mac, 6);
     eadr.adr.lastPacketRSSI = WiFi.RSSI();
     eadr.adr.currentChannel = config.channel;
-#if defined HAS_LILYGO_TPANEL || defined HAS_4inch_TPANEL
-    eadr.adr.hwType = 0xE2;
+#ifdef TFT_HW_TYPE
+    eadr.adr.hwType = TFT_HW_TYPE;
 #else
     eadr.adr.hwType = (tft2.width() == 160 ? 0xE1 : 0xE0);
 #endif
@@ -390,7 +390,7 @@ void yellow_ap_display_init(void) {
     gfx->fillScreen(BLACK);
 
 #else
-#ifdef HAS_ELECROW_ADV_2_8
+#ifdef HAS_ELECROW_C6
     YellowSense = 0;
 #else
     pinMode(YELLOW_SENSE, INPUT_PULLDOWN);
