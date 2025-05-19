@@ -206,6 +206,7 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     char buffer[64];
 
     wsLog("Updating " + String(hexmac));
+    Serial.println("Updating " + String(hexmac));
     taginfo->nextupdate = now + 60;
 
     imgParam imageParams;
