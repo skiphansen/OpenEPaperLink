@@ -50,6 +50,13 @@ bool needRedraw(uint8_t contentMode, uint8_t wakeupReason) {
     return false;
 }
 
+char *CnvTime(time_t Time)
+{
+   static char timeStr[24];
+   strftime(timeStr, sizeof(timeStr), "%H:%M:%S",localtime(&Time));
+   return timeStr;
+}
+
 void contentRunner() {
     if (config.runStatus == RUNSTATUS_STOP) return;
 
@@ -83,8 +90,8 @@ void contentRunner() {
 
            if(taginfo->expectedNextCheckin >= now + 300 && !isAp) {
            // don't update if expected checking time is more than 5 minutes away
-              Serial.printf("Not updating %s, expectedNextCheckin %d\r\n",
-                            hexmac,taginfo->expectedNextCheckin);
+              Serial.printf("Not updating %s, expectedNextCheckin %s\r\n",
+                            hexmac,CnvTime(taginfo->expectedNextCheckin));
               break;
            }
 
@@ -120,6 +127,9 @@ void contentRunner() {
             if (minutesUntilNextUpdate > 1 && (wsClientCount() == 0 || config.stopsleep == 0)) {
                 taginfo->pendingIdle = minutesUntilNextUpdate * 60;
                 taginfo->expectedNextCheckin = now + taginfo->pendingIdle;
+                Serial.printf("Set expectedNextCheckin for %s to %s\r\n",
+                              hexmac,CnvTime(taginfo->expectedNextCheckin));
+
                 if (taginfo->isExternal == false) {
                     prepareIdleReq(taginfo->mac, minutesUntilNextUpdate);
                 }
@@ -189,8 +199,12 @@ void drawCounter(const uint8_t mac[8], tagRecord *&taginfo, JsonObject &cfgobj, 
 void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     time_t now;
     time(&now);
+    char hexmac[17];
 
     const HwType hwdata = getHwType(taginfo->hwType);
+
+    mac2hex(mac, hexmac);
+
     if (hwdata.bpp == 0) {
         taginfo->nextupdate = now + 300;
         Serial.println("No definition found for tag type " + String(taginfo->hwType));
@@ -222,8 +236,6 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         }
     }
 
-    char hexmac[17];
-    mac2hex(mac, hexmac);
     String filename = "/temp/" + String(hexmac) + ".raw";
 #ifdef HAS_TFT
     if (isAp) {
@@ -616,6 +628,8 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     }
 
     taginfo->modeConfigJson = doc.as<String>();
+    Serial.printf("nextupdate for %s now %s\r\n",hexmac,CnvTime(taginfo->nextupdate));
+
 }
 
 bool updateTagImage(String &filename, const uint8_t *dst, uint16_t nextCheckin, tagRecord *&taginfo, imgParam &imageParams) {

@@ -474,6 +474,7 @@ void processXferComplete(struct espXferComplete* xfc, bool local) {
             }
         }
         if (taginfo->contentMode == 5 || taginfo->contentMode == 17 || taginfo->contentMode == 18) {
+        // firmware update or tag command or tag config
             popTagInfo(xfc->src);
             taginfo = tagRecord::findByMAC(xfc->src);
             taginfo->nextupdate = now;
