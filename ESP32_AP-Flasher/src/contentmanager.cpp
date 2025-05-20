@@ -60,15 +60,46 @@ void contentRunner() {
     memset(&wifimac[6], 0, 2);
 
     for (tagRecord *taginfo : tagDB) {
+       char hexmac[17];
+       const bool isAp = memcmp(taginfo->mac, wifimac, 8) == 0;
 
-        const bool isAp = memcmp(taginfo->mac, wifimac, 8) == 0;
-        if (taginfo->RSSI &&
-            (now >= taginfo->nextupdate || needRedraw(taginfo->contentMode, taginfo->wakeupReason)) &&
-            config.runStatus == RUNSTATUS_RUN && (taginfo->expectedNextCheckin < now + 300 || isAp) &&
-             Storage.freeSpace() > 31000 && !util::isSleeping(config.sleepTime1, config.sleepTime2)) {
-            drawNew(taginfo->mac, taginfo);
-            taginfo->wakeupReason = 0;
-        }
+       mac2hex(taginfo->mac,hexmac);
+
+        do {
+           if(now <= taginfo->nextupdate && !needRedraw(taginfo->contentMode, taginfo->wakeupReason)) {
+              break;
+           }
+
+           if (!taginfo->RSSI) {
+              Serial.printf("Not updating %s, RSSI 0\r\n",hexmac);
+              break;
+           }
+
+
+           if(config.runStatus != RUNSTATUS_RUN) {
+              Serial.printf("Not updating %s, runStatus %d\r\n",hexmac,config.runStatus);
+              break;
+           }
+
+           if(taginfo->expectedNextCheckin >= now + 300 && !isAp) {
+           // don't update if expected checking time is more than 5 minutes away
+              Serial.printf("Not updating %s, expectedNextCheckin %d\r\n",
+                            hexmac,taginfo->expectedNextCheckin);
+              break;
+           }
+
+           if(Storage.freeSpace() < 31000) {
+              Serial.printf("Not updating %s, freeSpace() < 31000\r\n",hexmac);
+              break;
+           }
+
+           if(util::isSleeping(config.sleepTime1, config.sleepTime2)) {
+              Serial.printf("Not updating %s, isSleeping()\r\n",hexmac);
+              break;
+           }
+           drawNew(taginfo->mac, taginfo);
+           taginfo->wakeupReason = 0;
+        } while(false);
 
         if (taginfo->expectedNextCheckin > now - 10 && taginfo->expectedNextCheckin < now + 30 && taginfo->pendingIdle == 0 && taginfo->pendingCount == 0 && !isAp) {
             int32_t minutesUntilNextUpdate = (taginfo->nextupdate - now) / 60;
