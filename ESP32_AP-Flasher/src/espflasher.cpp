@@ -11,8 +11,7 @@
 #include "web.h"
 #include "espflasher.h"
 #include "util.h"
-
-#define LOG(format, ... ) Serial.printf(format,## __VA_ARGS__)
+#include "logging.h"
 
 #ifndef FLASHER_DEBUG_PORT
 #define FLASHER_DEBUG_PORT 2

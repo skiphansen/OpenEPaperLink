@@ -20,6 +20,7 @@
 #include "udp.h"
 #include "util.h"
 #include "web.h"
+#include "logging.h"
 
 extern uint16_t sendBlock(const void* data, const uint16_t len);
 extern UDPcomm udpsync;
@@ -562,11 +563,19 @@ void processDataReq(struct espAvailDataReq* eadr, bool local, IPAddress remoteIP
     }
 
     if (taginfo->pendingIdle == 0 || countQueueItem(eadr->src) > 0) {
-        if (taginfo->expectedNextCheckin < now + 60) taginfo->expectedNextCheckin = now + 60;
+        if (taginfo->expectedNextCheckin < now + 60) {
+           taginfo->expectedNextCheckin = now + 60;
+           ELOG("%s expectedNextCheckin set to %s\r\n",
+               Mac2String(taginfo),CnvTime(taginfo->expectedNextCheckin));
+        }
     } else if (taginfo->pendingIdle == 9999) {
         taginfo->expectedNextCheckin = 3216153600;
+        ELOG("%s expectedNextCheckin set to %s\r\n",
+            Mac2String(taginfo),CnvTime(taginfo->expectedNextCheckin));
     } else {
         taginfo->expectedNextCheckin = now + taginfo->pendingIdle;
+        ELOG("%s expectedNextCheckin set to %s\r\n",
+            Mac2String(taginfo),CnvTime(taginfo->expectedNextCheckin));
     }
     taginfo->pendingIdle = 0;
     taginfo->lastseen = now;
@@ -808,6 +817,10 @@ void updateTaginfoitem(struct TagInfo* taginfoitem, IPAddress remoteIP) {
             taginfo->wakeupReason = taginfoitem->wakeupReason;
             taginfo->capabilities = taginfoitem->capabilities;
             taginfo->pendingIdle = taginfoitem->pendingIdle;
+            ELOG("%s nextupdate set to %s\r\n",
+                Mac2String(taginfo),CnvTime(taginfo->nextupdate));
+            ELOG("%s expectedNextCheckin set to %s\r\n",
+                Mac2String(taginfo),CnvTime(taginfo->expectedNextCheckin));
             break;
     }
 

@@ -41,6 +41,7 @@
 #include "truetype.h"
 #include "util.h"
 #include "web.h"
+#include "logging.h"
 
 // https://csvjson.com/json_beautifier
 
@@ -78,30 +79,30 @@ void contentRunner() {
            }
 
            if (!taginfo->RSSI) {
-              Serial.printf("Not updating %s, RSSI 0\r\n",hexmac);
+              LOG("Not updating %s, RSSI 0\r\n",hexmac);
               break;
            }
 
 
            if(config.runStatus != RUNSTATUS_RUN) {
-              Serial.printf("Not updating %s, runStatus %d\r\n",hexmac,config.runStatus);
+              LOG("Not updating %s, runStatus %d\r\n",hexmac,config.runStatus);
               break;
            }
 
            if(taginfo->expectedNextCheckin >= now + 300 && !isAp) {
            // don't update if expected checking time is more than 5 minutes away
-              Serial.printf("Not updating %s, expectedNextCheckin %s\r\n",
+              LOG("Not updating %s, expectedNextCheckin %s\r\n",
                             hexmac,CnvTime(taginfo->expectedNextCheckin));
               break;
            }
 
            if(Storage.freeSpace() < 31000) {
-              Serial.printf("Not updating %s, freeSpace() < 31000\r\n",hexmac);
+              LOG("Not updating %s, freeSpace() < 31000\r\n",hexmac);
               break;
            }
 
            if(util::isSleeping(config.sleepTime1, config.sleepTime2)) {
-              Serial.printf("Not updating %s, isSleeping()\r\n",hexmac);
+              LOG("Not updating %s, isSleeping()\r\n",hexmac);
               break;
            }
            drawNew(taginfo->mac, taginfo);
@@ -127,8 +128,8 @@ void contentRunner() {
             if (minutesUntilNextUpdate > 1 && (wsClientCount() == 0 || config.stopsleep == 0)) {
                 taginfo->pendingIdle = minutesUntilNextUpdate * 60;
                 taginfo->expectedNextCheckin = now + taginfo->pendingIdle;
-                Serial.printf("Set expectedNextCheckin for %s to %s\r\n",
-                              hexmac,CnvTime(taginfo->expectedNextCheckin));
+                LOG("Set expectedNextCheckin for %s to %s\r\n",
+                    hexmac,CnvTime(taginfo->expectedNextCheckin));
 
                 if (taginfo->isExternal == false) {
                     prepareIdleReq(taginfo->mac, minutesUntilNextUpdate);
@@ -249,7 +250,7 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     char buffer[64];
 
     wsLog("Updating " + String(hexmac));
-    Serial.println("Updating " + String(hexmac));
+    LOG("Updating %s\r\n",hexmac);
     taginfo->nextupdate = now + 60;
 
     imgParam imageParams;
@@ -628,7 +629,7 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     }
 
     taginfo->modeConfigJson = doc.as<String>();
-    Serial.printf("nextupdate for %s now %s\r\n",hexmac,CnvTime(taginfo->nextupdate));
+    LOG("nextupdate for %s now %s\r\n",hexmac,CnvTime(taginfo->nextupdate));
 
 }
 
@@ -2681,4 +2682,12 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
     } else {
         Serial.println("Failed to open " + String(filename));
     }
+}
+
+char *Mac2String(tagRecord* taginfo)
+{
+   static char hexmac[17];
+
+   mac2hex(taginfo->mac,hexmac);
+   return hexmac;
 }
