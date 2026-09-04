@@ -1,5 +1,5 @@
 {
-	"version": 4,
+	"version": 5,
 	"name": "M3 12.2\"",
 	"width": 960,
 	"height": 768,
@@ -22,7 +22,7 @@
    0
   ]
  },
- "shortlut": 0,
+ "shortlut": 2,
  "options": [
   "button"
  ],
