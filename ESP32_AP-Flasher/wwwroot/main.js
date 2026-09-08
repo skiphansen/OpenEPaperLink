@@ -1709,6 +1709,7 @@ function dropUpload() {
 	dropZone.addEventListener('drop', (event) => {
 		event.preventDefault();
 		const shiftKey = event.shiftKey;
+		const ctrlKey = event.ctrlKey;
 		const file = event.dataTransfer.files[0];
 		const tagCard = event.target.closest('.tagcard');
 		const mac = tagCard.dataset.mac;
@@ -1726,10 +1727,17 @@ function dropUpload() {
 					const canvas = createCanvas(width, height);
 					const ctx = canvas.getContext('2d');
 
-					const scaleFactor = Math.max(
-						canvas.width / image.width,
-						canvas.height / image.height
-					);
+					scaleFactor = 0;
+					if(ctrlKey) {
+					// fit image
+						scaleFactor = Math.min(canvas.width / image.width,
+											   canvas.height / image.height);
+					}
+					else {
+					// Default: fill screen
+						scaleFactor = Math.max(canvas.width / image.width,
+											   canvas.height / image.height);
+					}
 
 					const newWidth = image.width * scaleFactor;
 					const newHeight = image.height * scaleFactor;
@@ -1737,6 +1745,11 @@ function dropUpload() {
 					const x = (canvas.width - newWidth) / 2;
 					const y = (canvas.height - newHeight) / 2;
 
+					if(ctrlKey) {
+					// Fit option, fill background with white
+						ctx.fillStyle = "white";
+						ctx.fillRect(0, 0, canvas.width, canvas.height);
+					}
 					ctx.drawImage(image, x, y, newWidth, newHeight);
 
 					canvas.toBlob(async (blob) => {
