@@ -1,5 +1,14 @@
 #include "contentmanager.h"
 
+#define ENABLE_LOGGING  1
+#if ENABLE_LOGGING && __has_include("logging.h") 
+#include "logging.h"
+#else
+#define LOG(format, ...)
+#define LOG_RAW(format, ...)
+#endif
+
+
 // possibility to turn off, to save space if needed
 #ifndef SAVE_SPACE
 #define CONTENT_QR
@@ -1097,6 +1106,13 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 
           if(OwmWeather(spr,cfgobj,taginfo,imageParams)) {
           // weather drawn successfully
+             LOG("bufferbpp %d rotate %d rotatebuffer %d bpp %d\n",
+                 imageParams.bufferbpp,
+                 imageParams.rotate,
+                 imageParams.rotatebuffer,
+                 imageParams.bpp);
+             LOG("spr.width %d spr.height %d\n",spr.width(),spr.height());
+
              spr2buffer(spr, filename, imageParams);
              spr.deleteSprite();
              imageParams.ts_option = ts_option;
@@ -3194,7 +3210,10 @@ void prepareTIME_RAW(const uint8_t *dst, time_t now) {
 }
 #endif
 
-void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
+void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) 
+{
+   util::printHeap();
+
     JsonDocument filter;
     JsonDocument doc;
 
@@ -3210,17 +3229,61 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
         filter["usetemplate"] = true;
         const DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
         jsonFile.close();
+        LOG("\"%s\" error %d\n",filename,error.code());
+        bool bTest = doc[templateKey].is<JsonVariant>();
+        LOG("doc[templateKey].is<JsonVariant> %d\n",bTest);
+        if(bTest) {
+           bTest = doc[templateKey][idstr].is<JsonVariant>();
+           LOG("doc[templateKey][idstr].is<JsonVariant>() %d\n",bTest);
+        }
         if (!error && doc[templateKey].is<JsonVariant>() && doc[templateKey][idstr].is<JsonVariant>()) {
             json.set(doc[templateKey][idstr]);
+            ELOG("\n");
             return;
         }
+        bTest = doc["usetemplate"].is<uint8_t>();
+        LOG("doc[\"usetemplate\"].is<uint8_t>() %d\n",bTest);
         if (!error && doc["usetemplate"].is<uint8_t>()) {
             getTemplate(json, id, doc["usetemplate"]);
+            ELOG("\n");
             return;
         }
         Serial.println("json error in " + String(filename));
         Serial.println(error.c_str());
+        util::printHeap();
+        serializeJsonPretty(doc,Serial);
+        LOG("\n");
+
     } else {
         Serial.println("Failed to open " + String(filename));
     }
 }
+
+int DownloadURL(String &URL,String &filename) 
+{
+    HTTPClient http;
+    http.begin(URL);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(5000);  // timeout in ms
+    LOG("url \"%s\" path \"%s\"\n",URL.c_str(),filename.c_str());
+    const int httpCode = http.GET();
+    if (httpCode == 200) {
+        xSemaphoreTake(fsMutex, portMAX_DELAY);
+        File f = contentFS->open(filename, "w");
+        if (f) {
+            http.writeToStream(&f);
+            f.close();
+            xSemaphoreGive(fsMutex);
+        } else {
+           LOG("contentFS->open failed\n");
+            xSemaphoreGive(fsMutex);
+        }
+    } else {
+        if (httpCode != 304) {
+            wsErr("http " + URL + " " + String(httpCode));
+        }
+    }
+    http.end();
+    return httpCode;
+}
+
