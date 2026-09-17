@@ -34,6 +34,8 @@ typedef struct {
    const char **Value;
 } LookupTbl_t;
 
+File PngFile;
+
 const LookupTbl_t LookupTbl[] = {
 #if 0
    {"days",LC_DAY},
@@ -399,6 +401,32 @@ Typical response:
 }
 */
 
+
+static void *PngOpen(const char *filename, int32_t *size) 
+{
+   PngFile = contentFS->open(filename, "r");
+    if (!PngFile) return NULL;
+    *size = PngFile.size();
+    return &PngFile;
+}
+
+static void PngClose(void *handle) 
+{
+   PngFile.close();
+}
+
+static int32_t PngRead(PNGFILE *handle, uint8_t *buffer, int32_t length) 
+{
+    if (!PngFile) return 0;
+    return PngFile.read(buffer, length);
+}
+
+static int32_t PngSeek(PNGFILE *handle, int32_t position) 
+{
+    if (!PngFile) return 0;
+    return PngFile.seek(position);
+}
+
 #define FILENAME "/size_and_lifespan.png"
 bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams)
 {
@@ -449,12 +477,14 @@ bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, 
       }
 #endif
 
-      png = new DrawPNG();
+      PngFileCBs_t CBs = {PngOpen,PngClose,PngRead,PngSeek};
+
+      png = new DrawPNG(&CBs);
       if(png == NULL) {
          LOG("new DrawPNG failed\n");
          break;
       }
-      Ret = png->DrawPng(Path,spr,taginfo,imageParams);
+      Ret = png->DrawPng(Path,spr);
 
    // 0: Dithering disable
    // 1: Burkes Dithering
@@ -529,5 +559,6 @@ void AddNoaaTides(class NoaaTides *pNoaaTides,time_t &Now,OwmConfig &Config,Stri
 }
 
 #endif // WITHOUT_OWM
+
 
 

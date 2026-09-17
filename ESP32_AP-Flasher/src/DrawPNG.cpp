@@ -2,16 +2,11 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
-#include <FS.h>
 #include <vector>
 #include <PNGdec.h>
 
-#include "tag_db.h"
-#include "makeimage.h"
 #include "TFT_eSPI.h"
-#include "contentmanager.h"
-#include "web.h"
-#include "storage.h"
+
 #include "DrawPNG.h"
 
 #define ENABLE_LOGGING  1
@@ -22,31 +17,17 @@
 #define LOG_RAW(format, ...)
 #endif
 
-File DrawPNG::PngFile;
+struct Color {
+    uint8_t r, g, b;
+    Color() : r(0), g(0), b(0) {}
+    Color(uint16_t value_) : r((value_ >> 8) & 0xF8 | (value_ >> 13) & 0x07), g((value_ >> 3) & 0xFC | (value_ >> 9) & 0x03), b((value_ << 3) & 0xF8 | (value_ >> 2) & 0x07) {}
+    Color(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
+};
 
-void *DrawPNG::PngOpen(const char *filename, int32_t *size) 
+DrawPNG::DrawPNG(PngFileCBs_t *PngFileCBs) : pCBs(PngFileCBs)
 {
-   DrawPNG::PngFile = contentFS->open(filename, "r");
-    if (!DrawPNG::PngFile) return NULL;
-    *size = DrawPNG::PngFile.size();
-    return &DrawPNG::PngFile;
 }
 
-void DrawPNG::PngClose(void *handle) 
-{
-   DrawPNG::PngFile.close();
-}
-
-int32_t DrawPNG::PngRead(PNGFILE *handle, uint8_t *buffer, int32_t length) 
-{
-    if (!DrawPNG::PngFile) return 0;
-    return DrawPNG::PngFile.read(buffer, length);
-}
-
-int32_t DrawPNG::PngSeek(PNGFILE *handle, int32_t position) {
-    if (!DrawPNG::PngFile) return 0;
-    return DrawPNG::PngFile.seek(position);
-}
 
 int DrawPNG::DrawCB(PNGDRAW *pDraw) 
 {
@@ -127,7 +108,7 @@ int DrawPNG::pngDrawCallback(PNGDRAW *pDraw)
    return p->DrawCB(pDraw);
 }
 
-bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr, const tagRecord *taginfo, imgParam &imageParams)
+bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
 {
    bool Ret = false; // Assume the worse
    LOG("\n");
@@ -137,8 +118,8 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr, const tagRecord *taginfo
 
    do {
       pSpr = &spr;
-      err = png.open(Filename.c_str(),PngOpen,PngClose,PngRead,PngSeek,
-                     DrawPNG::pngDrawCallback);
+      err = png.open(Filename.c_str(),pCBs->pfnOpen,pCBs->pfnClose,
+                     pCBs->pfnRead,pCBs->pfnSeek,DrawPNG::pngDrawCallback);
       if(err != PNG_SUCCESS) {
          ErrLine = __LINE__;
          break;

@@ -1,15 +1,18 @@
 #ifndef _DRAWPNG_H_
 #define _DRAWPNG_H_
 
+typedef struct {
+   PNG_OPEN_CALLBACK *pfnOpen;
+   PNG_CLOSE_CALLBACK *pfnClose;
+   PNG_READ_CALLBACK *pfnRead;
+   PNG_SEEK_CALLBACK *pfnSeek;
+} PngFileCBs_t;
+
 class DrawPNG {
 public:
-   bool DrawPng(String Filename,TFT_eSprite &spr, const tagRecord *taginfo, imgParam &imageParams);
+   DrawPNG(PngFileCBs_t *PngFileCBs);
 
-// NB: PngFile must be static and public since PngOpen(), PngClose(), PngRead() 
-// and PngSeek() don't have an user argument that can be used to point to the 
-// File structure.  REVISIT ME !
-
-   static File PngFile;
+   bool DrawPng(String Filename,TFT_eSprite &spr);
 
 private:
    static void *PngOpen(const char *filename, int32_t *size);
@@ -25,6 +28,7 @@ private:
    int ScalingFactor;
    PNG png; // PNG structure (about 50K of RAM)
    TFT_eSPI *pSpr;
+   PngFileCBs_t *pCBs;
 };
 
 #endif   // _DRAWPNG_H_
