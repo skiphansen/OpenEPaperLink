@@ -1,7 +1,5 @@
 #ifndef WITHOUT_PNG
 #include <Arduino.h>
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
 #include <vector>
 #include <PNGdec.h>
 
@@ -20,85 +18,94 @@
 struct Color {
     uint8_t r, g, b;
     Color() : r(0), g(0), b(0) {}
-    Color(uint16_t value_) : r((value_ >> 8) & 0xF8 | (value_ >> 13) & 0x07), g((value_ >> 3) & 0xFC | (value_ >> 9) & 0x03), b((value_ << 3) & 0xF8 | (value_ >> 2) & 0x07) {}
+    Color(uint16_t value_) : 
+          r(((value_ >> 8) & 0xF8) | ((value_ >> 13) & 0x07)),
+          g(((value_ >> 3) & 0xFC) | ((value_ >> 9) & 0x03)),
+          b(((value_ << 3) & 0xF8) | ((value_ >> 2) & 0x07)) {}
     Color(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
 };
 
 DrawPNG::DrawPNG(PngFileCBs_t *PngFileCBs) : pCBs(PngFileCBs)
 {
+   XsprOffset = 0;
+   YsprOffset = 0;
 }
 
 
 int DrawPNG::DrawCB(PNGDRAW *pDraw) 
 {
-   int y = pDraw->y + Yoffset;
+   int y = pDraw->y;
    int iWidth = pDraw->iWidth;
+   int Xoff = Xoffset + XsprOffset;
+   int Yoff = Yoffset + YsprOffset;
 
    uint16_t usPixels[iWidth]; 
-    
-    // Convert line data to RGB565
-    if(pDraw->y == 0) {
-       LOG("y %d w %d iPitch %d iPixelType %d bpp %d\n",
-           pDraw->y,iWidth,pDraw->iPitch,pDraw->iPixelType,pDraw->iBpp);
-       png.getLineAsRGB565(pDraw,usPixels,PNG_RGB565_LITTLE_ENDIAN,0xffffffff);
-       LOG("After getLineAsRGB565\n");
-       Color color;
-       uint16_t iColor;
-       for(int i = 0; i < iWidth;i++) {
+
+   // Convert line data to RGB565
+   png.getLineAsRGB565(pDraw,usPixels,PNG_RGB565_LITTLE_ENDIAN,0xffffffff);
+
 #if 0
-          color = Color(usPixels[i]);
-          if((i % 8) == 0) {
-             LOG_RAW("\n%d: ",i);
-          //   DUMP_HEX(&usPixels[i],16);
-          }
-          LOG_RAW("%d:%d:%d, ",color.r,color.g,color.b);
-#else
-          iColor = usPixels[i];
-          if((i % 8) == 0) {
-             LOG_RAW("\n%d: ",i);
-          //   DUMP_HEX(&usPixels[i],16);
-          }
-          LOG_RAW("%d, ",iColor);
+   if (pDraw->y == 0) {
+      LOG("y %d w %d iPitch %d iPixelType %d bpp %d\n",
+          pDraw->y,iWidth,pDraw->iPitch,pDraw->iPixelType,pDraw->iBpp);
+      LOG("After getLineAsRGB565\n");
+      Color color;
+      uint16_t iColor;
+      for (int i = 0; i < iWidth;i++) {
+         iColor = usPixels[i];
+         if ((i % 8) == 0) {
+            LOG_RAW("\n%d: ",i);
+            //   DUMP_HEX(&usPixels[i],16);
+         }
+         LOG_RAW("%d, ",iColor);
+      }
+      LOG("\n");
+   }
 #endif
-       }
-       LOG("\n");
-    }
-    else {
-       png.getLineAsRGB565(pDraw,usPixels,PNG_RGB565_LITTLE_ENDIAN,0xffffffff);
-    }
 
-
-    for(int i = 0; i < iWidth; i++) {
-       pSpr->drawPixel(i + Xoffset,y,usPixels[i]);
-    }
+   if (ScalingFactor == SCALE_1_TO_1) {
+      y += Yoff;
+      for (int i = 0; i < iWidth; i++) {
+         pSpr->drawPixel(i + Xoff,y,usPixels[i]);
+      }
+   }
+   else {
+      y = (y * ScalingFactor) / SCALE_1_TO_1;
+      y += Yoff;
+      unsigned int x;
+      for (int i = 0; i < iWidth; i++) {
+         x = (i * ScalingFactor) / SCALE_1_TO_1;
+         pSpr->drawPixel(x + Xoff,y,usPixels[i]);
+      }
+   }
 
 #if 0
-    if(pDraw->y == 0) {
-       LOG_RAW("Readback\n");
-       Color color;
-       uint16_t iColor;
-       for(int i = 0; i < pDraw->iWidth;i++) {
+   if (pDraw->y == 0) {
+      LOG_RAW("Readback\n");
+      Color color;
+      uint16_t iColor;
+      for (int i = 0; i < pDraw->iWidth;i++) {
 #if 1
-          color = pSpr->readPixel(i + Xoffset,y);
-          if((i % 8) == 0) {
-             LOG_RAW("\n%d: ",i);
-          //   DUMP_HEX(&usPixels[i],16);
-          }
-          LOG_RAW("%d:%d:%d, ",color.r,color.g,color.b);
+         color = pSpr->readPixel(i + Xoffset,y);
+         if ((i % 8) == 0) {
+            LOG_RAW("\n%d: ",i);
+            //   DUMP_HEX(&usPixels[i],16);
+         }
+         LOG_RAW("%d:%d:%d, ",color.r,color.g,color.b);
 #else
-          iColor = pSpr->readPixel(i + Xoffset,y);
-          if((i % 8) == 0) {
-             LOG_RAW("\n%d: ",i);
-          //   DUMP_HEX(&usPixels[i],16);
-          }
-          LOG_RAW("%d, ",iColor);
+         iColor = pSpr->readPixel(i + Xoffset,y);
+         if ((i % 8) == 0) {
+            LOG_RAW("\n%d: ",i);
+            //   DUMP_HEX(&usPixels[i],16);
+         }
+         LOG_RAW("%d, ",iColor);
 #endif
-       }
-       LOG_RAW("\n");
-    }
+      }
+      LOG_RAW("\n");
+   }
 #endif
-    
-    return 1;
+
+   return 1;
 }
 
 int DrawPNG::pngDrawCallback(PNGDRAW *pDraw) 
@@ -127,7 +134,9 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
       bPngOpened = true;
 
       int PngWidth = png.getWidth();
+      int NewPngWidth = PngWidth;
       int PngHeight = png.getHeight();
+      int NewPngHeight = PngHeight;
       int SprWidth = pSpr->width();
       int SprHeight = pSpr->height();
 
@@ -137,13 +146,23 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
       if(PngWidth <= SprWidth && PngHeight <= SprHeight) {
       // No scaling required
          LOG("No scaling required\n");
+         ScalingFactor = SCALE_1_TO_1;
       }
       else {
-         LOG("Scaling needed, ignored\n");
-         break;
+         LOG("Scaling needed, png %dx%d, spr %dx%d)\n",
+             PngWidth,PngHeight,SprWidth,SprHeight);
+         unsigned int xScale = (SCALE_1_TO_1 * SprWidth) / PngWidth;
+         unsigned int yScale = (SCALE_1_TO_1 * SprHeight) / PngHeight;
+         ScalingFactor = xScale < yScale ? xScale : yScale;
+         LOG("xScale %u yScale %u ScalingFactor %u\n",xScale,yScale,ScalingFactor);
+         NewPngWidth = (PngWidth * ScalingFactor) / SCALE_1_TO_1;
+         NewPngHeight = (PngHeight * ScalingFactor) / SCALE_1_TO_1;
+         LOG("Scaling png to %dx%d\n",NewPngWidth,NewPngHeight);
       }
-      Xoffset = (SprWidth - PngWidth) / 2;
-      Yoffset = (SprHeight - PngHeight) / 2;
+      Xoffset = (SprWidth - NewPngWidth) / 2;
+      Yoffset = (SprHeight - NewPngHeight) / 2;
+      LOG("Xoffset %d Yoffset %d\n",Xoffset,Yoffset);
+
    // Decode PNG file into SPR
       err = png.decode(this,0);
       if(err != PNG_SUCCESS) {
@@ -164,6 +183,13 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
    return Ret;
 }
 
+
+void DrawPNG::SetSprOffsets(int x,int y)
+{
+   XsprOffset = x;
+   YsprOffset = y;
+   LOG("XsprOffset %d YsprOffset %d\n",XsprOffset,YsprOffset);
+}
 
 #endif // WITHOUT_PNG
 

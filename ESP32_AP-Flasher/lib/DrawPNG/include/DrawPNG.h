@@ -8,11 +8,13 @@ typedef struct {
    PNG_SEEK_CALLBACK *pfnSeek;
 } PngFileCBs_t;
 
+#define SCALE_1_TO_1 32768
+
 class DrawPNG {
 public:
    DrawPNG(PngFileCBs_t *PngFileCBs);
-
    bool DrawPng(String Filename,TFT_eSprite &spr);
+   void SetSprOffsets(int x,int y);
 
 private:
    static void *PngOpen(const char *filename, int32_t *size);
@@ -25,7 +27,10 @@ private:
 
    int Xoffset;
    int Yoffset;
-   int ScalingFactor;
+   int XsprOffset;
+   int YsprOffset;
+// SCALE_1_TO_1 = 100%, ie none  (SCALE_1_TO_1 / 2) = reduce resolution by 2
+   unsigned int ScalingFactor;   
    PNG png; // PNG structure (about 50K of RAM)
    TFT_eSPI *pSpr;
    PngFileCBs_t *pCBs;
