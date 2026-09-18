@@ -29,6 +29,7 @@ DrawPNG::DrawPNG(PngFileCBs_t *PngFileCBs) : pCBs(PngFileCBs)
 {
    XsprOffset = 0;
    YsprOffset = 0;
+   Options = 0;
 }
 
 
@@ -159,8 +160,46 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
          NewPngHeight = (PngHeight * ScalingFactor) / SCALE_1_TO_1;
          LOG("Scaling png to %dx%d\n",NewPngWidth,NewPngHeight);
       }
-      Xoffset = (SprWidth - NewPngWidth) / 2;
-      Yoffset = (SprHeight - NewPngHeight) / 2;
+
+      switch(Options & X_ALIGN_MASK) {
+         case X_ALIGN_CENTER:
+            Xoffset = (SprWidth - NewPngWidth) / 2;
+            break;
+
+         case X_ALIGN_LEFT:
+            Xoffset = 0;
+            break;
+
+         case X_ALIGN_RIGHT:
+            Xoffset = SprWidth - NewPngWidth;
+            break;
+
+         default:
+            ErrLine = __LINE__;
+            break;
+      }
+
+      switch(Options & Y_ALIGN_MASK) {
+         case Y_ALIGN_CENTER:
+            Yoffset = (SprHeight - NewPngHeight) / 2;
+            break;
+
+         case Y_ALIGN_TOP:
+            Yoffset = 0;
+            break;
+
+         case Y_ALIGN_BOTTOM:
+            Yoffset = SprHeight - NewPngHeight;
+            break;
+
+         default:
+            ErrLine = __LINE__;
+            break;
+      }
+
+      if(ErrLine != 0) {
+         break;
+      }
       LOG("Xoffset %d Yoffset %d\n",Xoffset,Yoffset);
 
    // Decode PNG file into SPR
@@ -189,6 +228,11 @@ void DrawPNG::SetSprOffsets(int x,int y)
    XsprOffset = x;
    YsprOffset = y;
    LOG("XsprOffset %d YsprOffset %d\n",XsprOffset,YsprOffset);
+}
+
+void DrawPNG::SetOptions(uint32_t options)
+{
+   Options = options;
 }
 
 #endif // WITHOUT_PNG
