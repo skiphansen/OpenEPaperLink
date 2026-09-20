@@ -476,7 +476,6 @@ bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, 
          }
       }
 #endif
-
       PngFileCBs_t CBs = {PngOpen,PngClose,PngRead,PngSeek};
 
       png = new DrawPNG(&CBs);
@@ -484,7 +483,12 @@ bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, 
          LOG("new DrawPNG failed\n");
          break;
       }
-      Ret = png->DrawPng(Path,spr);
+      int Err;
+      if((Err = png->DrawPng(Path,spr)) != 0) {
+         LOG("DrawPng failed %d\n",Err);
+         break;
+      }
+      Ret = true;
 
    // 0: Dithering disable
    // 1: Burkes Dithering
