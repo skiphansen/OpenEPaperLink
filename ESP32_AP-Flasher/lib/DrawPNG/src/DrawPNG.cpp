@@ -37,11 +37,18 @@ int DrawPNG::DrawCB(PNGDRAW *pDraw)
 {
    int y = pDraw->y;
    int iWidth = pDraw->iWidth;
-   int Xoff = Xoffset + XsprOffset;
-   int Yoff = Yoffset + YsprOffset;
-
+   int Xoff;
+   int Yoff;
    uint16_t usPixels[iWidth]; 
 
+   if(bRotate) {
+      Xoff = Yoffset + YsprOffset;
+      Yoff = Xoffset + XsprOffset;
+   }
+   else {
+      Xoff = Xoffset + XsprOffset;
+      Yoff = Yoffset + YsprOffset;
+   }
    // Convert line data to RGB565
    png.getLineAsRGB565(pDraw,usPixels,PNG_RGB565_LITTLE_ENDIAN,0xffffffff);
 
@@ -64,19 +71,39 @@ int DrawPNG::DrawCB(PNGDRAW *pDraw)
    }
 #endif
 
-   if (ScalingFactor == SCALE_1_TO_1) {
-      y += Yoff;
-      for (int i = 0; i < iWidth; i++) {
-         pSpr->drawPixel(i + Xoff,y,usPixels[i]);
+   if(!bRotate) {
+      if (ScalingFactor == SCALE_1_TO_1) {
+         y += Yoff;
+         for (int i = 0; i < iWidth; i++) {
+            pSpr->drawPixel(i + Xoff,y,usPixels[i]);
+         }
+      }
+      else {
+         y = (y * ScalingFactor) / SCALE_1_TO_1;
+         y += Yoff;
+         unsigned int x;
+         for (int i = 0; i < iWidth; i++) {
+            x = (i * ScalingFactor) / SCALE_1_TO_1;
+            pSpr->drawPixel(x + Xoff,y,usPixels[i]);
+         }
       }
    }
    else {
-      y = (y * ScalingFactor) / SCALE_1_TO_1;
-      y += Yoff;
-      unsigned int x;
-      for (int i = 0; i < iWidth; i++) {
-         x = (i * ScalingFactor) / SCALE_1_TO_1;
-         pSpr->drawPixel(x + Xoff,y,usPixels[i]);
+   // Rotate image
+      if (ScalingFactor == SCALE_1_TO_1) {
+         y += Yoff;
+         for (int i = 0; i < iWidth; i++) {
+            pSpr->drawPixel(y,i + Xoff,usPixels[iWidth - 1 - i]);
+         }
+      }
+      else {
+            y = (y * ScalingFactor) / SCALE_1_TO_1;
+            y += Yoff;
+            unsigned int x;
+            for (int i = 0; i < iWidth; i++) {
+               x = (i * ScalingFactor) / SCALE_1_TO_1;
+               pSpr->drawPixel(y,x + Xoff,usPixels[iWidth - 1 - i]);
+            }
       }
    }
 
@@ -116,10 +143,9 @@ int DrawPNG::pngDrawCallback(PNGDRAW *pDraw)
    return p->DrawCB(pDraw);
 }
 
-bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
+int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
 {
-   bool Ret = false; // Assume the worse
-   LOG("\n");
+   int Ret = -1; // Assume the worse
    int ErrLine = 0;
    int err;
    bool bPngOpened = false;
@@ -134,31 +160,77 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
       }
       bPngOpened = true;
 
-      int PngWidth = png.getWidth();
-      int NewPngWidth = PngWidth;
-      int PngHeight = png.getHeight();
-      int NewPngHeight = PngHeight;
+      PngWidth = png.getWidth();
+      PngHeight = png.getHeight();
+      int TempWidth = PngWidth;
+      int TempHeight = PngHeight;
       int SprWidth = pSpr->width();
       int SprHeight = pSpr->height();
 
       LOG("%s: %dx%d, %d bpp, color type: %d\n",Filename.c_str(),
           PngWidth,PngHeight,png.getBpp(),png.getPixelType());
 
-      if(PngWidth <= SprWidth && PngHeight <= SprHeight) {
+      bRotate = false;
+      if(PngHeight > PngWidth) {
+         switch(Options & ROTATE_MODE_MASK) {
+            case ROTATE_MODE_OFF:   // never rotate
+               break;
+
+            case ROTATE_MODE_ON:    // always roate
+               LOG("Rotating image\n");
+               bRotate = true;
+               break;
+
+            case ROTATE_MODE_FIT:   // only rotate when scaling 
+               if(PngWidth > SprWidth || PngHeight > SprHeight) {
+               // scaling required
+                  LOG("Rotating image, won't fit without scaling otherwise\n");
+                  bRotate = true;
+               }
+               break;
+
+            default:
+               ErrLine = __LINE__;
+               break;
+         }
+      }
+
+      if(ErrLine != 0) {
+         break;
+      }
+
+      if(bRotate) {
+      // swap TempHeight & TempWidth for scaling and 
+      // centering calculations
+         TempWidth = PngHeight;
+         TempHeight = PngWidth;
+      }
+
+      int NewPngWidth;
+      int NewPngHeight;
+      if(TempWidth <= SprWidth && TempHeight <= SprHeight) {
       // No scaling required
          LOG("No scaling required\n");
          ScalingFactor = SCALE_1_TO_1;
+         NewPngWidth = TempWidth;
+         NewPngHeight = TempHeight;
       }
       else {
-         LOG("Scaling needed, png %dx%d, spr %dx%d)\n",
+         LOG("Scaling needed, png %dx%d, spr %dx%d\n",
              PngWidth,PngHeight,SprWidth,SprHeight);
-         unsigned int xScale = (SCALE_1_TO_1 * SprWidth) / PngWidth;
-         unsigned int yScale = (SCALE_1_TO_1 * SprHeight) / PngHeight;
+         unsigned int xScale = (SCALE_1_TO_1 * SprWidth) / TempWidth;
+         unsigned int yScale = (SCALE_1_TO_1 * SprHeight) / TempHeight;
          ScalingFactor = xScale < yScale ? xScale : yScale;
          LOG("xScale %u yScale %u ScalingFactor %u\n",xScale,yScale,ScalingFactor);
-         NewPngWidth = (PngWidth * ScalingFactor) / SCALE_1_TO_1;
-         NewPngHeight = (PngHeight * ScalingFactor) / SCALE_1_TO_1;
-         LOG("Scaling png to %dx%d\n",NewPngWidth,NewPngHeight);
+         NewPngWidth = (( TempWidth * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
+         NewPngHeight = ((TempHeight * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
+         LOG("Scaling png to ");
+         if(bRotate) {
+            LOG_RAW("%dx%d\n",NewPngHeight,NewPngWidth);
+         }
+         else {
+            LOG_RAW("%dx%d\n",NewPngWidth,NewPngHeight);
+         }
       }
 
       switch(Options & X_ALIGN_MASK) {
@@ -185,10 +257,12 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
             break;
 
          case Y_ALIGN_TOP:
+            LOG("Y_ALIGN_TOP\n");
             Yoffset = 0;
             break;
 
          case Y_ALIGN_BOTTOM:
+            LOG("Y_ALIGN_BOTTOM\n");
             Yoffset = SprHeight - NewPngHeight;
             break;
 
@@ -208,7 +282,7 @@ bool DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
          ErrLine = __LINE__;
          break;
       }
-      Ret = true;
+      Ret = 0;
    } while(false);
 
    if(bPngOpened) {

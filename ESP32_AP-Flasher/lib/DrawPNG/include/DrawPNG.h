@@ -15,21 +15,23 @@ typedef struct {
 #define X_ALIGN_RIGHT   2
 
 #define Y_ALIGN_SHIFT   2
-#define Y_ALIGN_MASK    0xc
+#define Y_ALIGN_MASK    (0x3 <<Y_ALIGN_SHIFT)
 #define Y_ALIGN_CENTER  (0 << Y_ALIGN_SHIFT)
 #define Y_ALIGN_TOP     (1 << Y_ALIGN_SHIFT)
 #define Y_ALIGN_BOTTOM  (2 << Y_ALIGN_SHIFT)
 
-#define ALLOW_ROTATE_SHIFT  4
-#define ALLOW_ROTATE_NO    (0 << ALLOW_ROTATE_SHIFT)
-#define ALLOW_ROTATE_OK    (1 << ALLOW_ROTATE_SHIFT)
+#define ROTATE_MODE_SHIFT  4
+#define ROTATE_MODE_MASK   (0x3 << ROTATE_MODE_SHIFT)
+#define ROTATE_MODE_OFF    (0 << ROTATE_MODE_SHIFT)
+#define ROTATE_MODE_ON     (1 << ROTATE_MODE_SHIFT)
+#define ROTATE_MODE_FIT    (2 << ROTATE_MODE_SHIFT)
 
 #define SCALE_1_TO_1 32768
 
 class DrawPNG {
 public:
    DrawPNG(PngFileCBs_t *PngFileCBs);
-   bool DrawPng(String Filename,TFT_eSprite &spr);
+   int DrawPng(String Filename,TFT_eSprite &spr);
    void SetSprOffsets(int x,int y);
    void SetOptions(uint32_t options);
 
@@ -42,10 +44,14 @@ private:
 
    int DrawCB(PNGDRAW *pDraw);
 
+   bool bRotate;
    int Xoffset;
    int Yoffset;
    int XsprOffset;
    int YsprOffset;
+   int PngWidth;
+   int PngHeight;
+
 // SCALE_1_TO_1 = 100%, ie none  (SCALE_1_TO_1 / 2) = reduce resolution by 2
    unsigned int ScalingFactor;   
    uint32_t Options;
