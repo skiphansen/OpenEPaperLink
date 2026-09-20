@@ -1088,6 +1088,8 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
 }
 
 bool OwmWeather(TFT_eSprite &spr,JsonObject &cfgobj,const tagRecord *taginfo,imgParam &imageParams);
+int Cartoons(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
+
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) 
 {
    TFT_eSprite spr = TFT_eSprite(&tft);
@@ -1099,6 +1101,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
    if (!util::isEmptyOrNull(forecast_type)) {
        LOG("forecast_type %s\n",forecast_type.c_str());
        if (cfgobj["forecast_type"].as<int>() == 1) {
+#if 0
        // Save ts_option
           uint8_t ts_option = imageParams.ts_option;
        // Don't add timestamp to our display, OwmWeather draws it's own
@@ -1124,6 +1127,32 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
           }
           imageParams.ts_option = ts_option;
        }
+#else
+       // Save ts_option
+          uint8_t ts_option = imageParams.ts_option;
+          int Err = Cartoons(spr,cfgobj,taginfo,imageParams);
+          imageParams.ts_option = ts_option;
+
+          if(Err == 0) {
+          // Cartoon drawn successfully
+             LOG("bufferbpp %d rotate %d rotatebuffer %d bpp %d\n",
+                 imageParams.bufferbpp,
+                 imageParams.rotate,
+                 imageParams.rotatebuffer,
+                 imageParams.bpp);
+             LOG("spr.width %d spr.height %d\n",spr.width(),spr.height());
+
+             spr2buffer(spr, filename, imageParams);
+             spr.deleteSprite();
+          }
+          else {
+             wsLog("Cartoon update failed\n");
+             LOG("Cartoon update failed %d\n",Err);
+             imageParams.ts_option = ts_option;
+          }
+       }
+#endif
+       return;
    }
 #endif // WITHOUT_OWM
 
