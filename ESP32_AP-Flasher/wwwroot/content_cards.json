@@ -208,6 +208,10 @@
       },
       {
         "key": "forecast_type",
+	"requirements" : {
+	   "minX" : "400",
+	   "minY" : "300"
+	},
         "name": "Style",
         "desc": "Select forecast data provider and screen layout style",
         "type": "apiselect",
@@ -218,6 +222,10 @@
       },
       {
 	"key": "StationID",
+	"requirements" : {
+	   "minX" : "400",
+	   "minY" : "300"
+	},
 	"name": "NOAA Station ID (optional)",
 	"desc": "Tide prediction station ID or location to search. See https://tidesandcurrents.noaa.gov/tide_predictions.html",
 	"type": "noaaselect",
@@ -225,6 +233,10 @@
       },
       {
 	"key": "TideDisplay",
+	"requirements" : {
+	   "minX" : "400",
+	   "minY" : "300"
+	},
 	"name": "Tide Values",
 	"desc": "What values to display",
 	"type": "select",
