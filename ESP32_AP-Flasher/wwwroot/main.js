@@ -1087,6 +1087,9 @@ function contentselected() {
 		$('#paintbutton').style.display = (contentMode == 22 || contentMode == 23 ? 'inline-block' : 'none');
 		let extraoptions = contentDef?.param ?? null;
 		extraoptions?.forEach(element => {
+			if(!MeetsRequirments(element,$('#tag' + $('#cfgmac').dataset.mac).dataset.hwtype,1)) {
+				return;
+			}
 			let label = document.createElement("label");
 			label.innerHTML = element.name;
 			label.setAttribute("for", 'opt' + element.key);
@@ -1232,6 +1235,24 @@ function contentselected() {
 	$('#cfgsave').parentNode.style.display = 'block';
 }
 
+function MeetsRequirments(item,hwtype,default_ret)
+{
+	let Supported = default_ret;
+	let HasRequirments = item.requirements ?? 0;
+	if(HasRequirments) {
+		Supported = 1;
+		if (item.requirements.minX && (parseInt(item.requirements.minX) > tagTypes[hwtype].width || parseInt(item.requirements.minY) > tagTypes[hwtype].height)) {
+			Supported = 0;
+		}
+		if (item.requirements.maxX && (parseInt(item.requirements.maxX) < tagTypes[hwtype].width || parseInt(item.requirements.minY) < tagTypes[hwtype].height)) {
+			Supported = 0;
+		}
+		console.log(tagTypes[hwtype].width + "x" + tagTypes[hwtype].height + " tag is " + (Supported ? "" : "not ") + "supported by requirments.");
+	}
+	return Supported;
+}
+
+
 function populateSelectTag(hwtype, capabilities) {
 	let selectTag = $("#cfgcontent");
 	selectTag.innerHTML = "";
@@ -1239,7 +1260,8 @@ function populateSelectTag(hwtype, capabilities) {
 	let option;
 	cardconfig.forEach(item => {
 		const capcheck = item.capabilities ?? 0;
-		if (tagTypes[hwtype].contentids?.includes(item.id) && (capabilities & capcheck || capcheck == 0) && (apConfig.savespace == 0 || !item.properties?.includes("savespace"))) {
+		const Supported = tagTypes[hwtype].contentids?.includes(item.id) || MeetsRequirments(item,hwtype,1);
+		if (Supported && (capabilities & capcheck || capcheck == 0) && (apConfig.savespace == 0 || !item.properties?.includes("savespace"))) {
 			option = document.createElement("option");
 			option.value = item.id;
 			option.text = item.name;
