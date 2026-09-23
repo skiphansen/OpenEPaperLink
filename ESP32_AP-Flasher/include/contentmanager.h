@@ -15,6 +15,15 @@ struct contentTypes {
     String optionList;
 };
 
+#ifdef SAVE_SPACE
+   #ifndef WITHOUT_COMICS
+      #define WITHOUT_COMICS
+   #endif
+   #ifndef WITHOUT_OWM
+      #define WITHOUT_OWM
+   #endif
+#endif
+
 void contentRunner();
 void checkVars();
 void drawNew(const uint8_t mac[8], tagRecord *&taginfo);
@@ -52,4 +61,12 @@ void prepareConfigFile(const uint8_t *dst, const JsonObject &config);
 void prepareTIME_RAW(const uint8_t *dst, time_t now);
 void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype);
 int DownloadURL(String &URL,String &filename);
+
+#ifndef WITHOUT_COMICS
+bool drawComic(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
+#endif
+#ifndef WITHOUT_OWM
+bool OwmWeather(TFT_eSprite &spr,JsonObject &cfgobj,const tagRecord *taginfo,imgParam &imageParams);
+#endif
+
 

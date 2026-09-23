@@ -1,4 +1,4 @@
-#ifndef WITHOUT_CARTOONS
+#ifndef WITHOUT_COMICS
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -21,8 +21,6 @@
 #define LOG(format, ...)
 #define LOG_RAW(format, ...)
 #endif
-
-File PngFile;
 
 /* 
  Q: Is there an interface for automated systems to access comics and metadata?
@@ -54,15 +52,20 @@ static int32_t PngSeek(PNGFILE *handle, int32_t position);
 
 // #define FILENAME "/size_and_lifespan.png"
 // #define FILENAME "/xkcd_917.png"
-int Cartoons(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams)
+bool drawComic(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) 
 {
-   int Ret = -1; // Assume the worse
+   bool bRet = false;
+   int bIsRandom = false;
+   bool bNewLatest = false;
+   uint32_t Options = 0;
    class DrawPNG *png = NULL;
    int Err;
+   TFT_eSprite spr = TFT_eSprite(&tft);
    String Path("/temp/xkcd_");
+
+   initSprite(spr, imageParams.width, imageParams.height, imageParams);
    do {
-      util::printHeap();
-      int bIsRandom = cfgobj["random"].as<int>();
+      bIsRandom = cfgobj["random"].as<int>();
 #ifdef FILENAME
       Path = FILENAME;
 #else
@@ -82,85 +85,151 @@ int Cartoons(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, img
       int XkcdNumber = doc["num"].as<int>();
 
       if(bIsRandom) {
-         srand(millis());
-         XkcdNumber = rand() % (XkcdNumber + 1);
+         XkcdNumber = random(XkcdNumber + 1);
          Url = "https://xkcd.com/" + String(XkcdNumber) + "/info.0.json";
          if(!util::httpGetJson(Url,doc,5000)) {
             ELOG("httpGetJson of %s failed\n",Url.c_str());
             break;
          }
       }
+      else {
+         Path += "latest_";
+      }
 
       Url = doc["img"].as<String>();
       LOG("Url = \"%s\"\n",Url.c_str());
+
       Path += String(XkcdNumber) + ".png";
 
-      if(!contentFS->exists(Path)){
+      if(contentFS->exists(Path)){
+         LOG("Already have %s\n",Path.c_str());
+      }
+      else {
          if((Err = DownloadURL(Url,Path)) != 200) {
             LOG("DownloadURL returned %d\n",Err);
             break;
          }
+         bNewLatest = !bIsRandom;
       }
 #endif
-      PngFileCBs_t CBs = {PngOpen,PngClose,PngRead,PngSeek};
+      int rotation = cfgobj["rotation"].as<int>();
+      switch(rotation) {
+         case 0:
+            break;
 
+         case 1:
+            Options |= ROTATE_MODE_ON;
+            break;
+
+         case 2:
+            Options |= ROTATE_MODE_FIT;
+            break;
+
+         default:
+            LOG("rotation option %d is not supported\n",rotation);
+      }
+
+      PngFileCBs_t CBs = {PngOpen,PngClose,PngRead,PngSeek};
       png = new DrawPNG(&CBs);
       if(png == NULL) {
          LOG("new DrawPNG failed\n");
          break;
       }
+      png->SetOptions(Options);
+
       LOG("Calling DrawPng with %s\n",Path.c_str());
-      if((Ret = png->DrawPng(Path,spr)) != 0) {
-         LOG("DrawPng failed %d\n",Ret);
+      if((Err = png->DrawPng(Path,spr)) != 0) {
+         LOG("DrawPng failed %d\n",Err);
          break;
       }
 
    // 0: Dithering disable
    // 1: Burkes Dithering
    // 2: Special ordered dithering (selected by holding shift key when drag&dropping
+   // 9: automatic (future)
+      int dither = cfgobj["dither"].as<int>();
+      switch(dither) {
+         case 0:
+         case 1:
+         case 2:
+            imageParams.dither = dither;
+            break;
 
-   // for airport_meeting.png dither 0 looks beat
-      imageParams.dither = 0;
+         default:
+            LOG("rotation options %d is not supported\n",dither);
+      }
+
       LOG("imageParams.dither %d\n",imageParams.dither);
+      spr2buffer(spr, filename, imageParams);
+      bRet = true;
    } while(false);
 
+   spr.deleteSprite();
    if(png != NULL) {
       delete png;
    }
 
 #ifndef FILENAME
-   if(contentFS->exists(Path)) {
+   if(bIsRandom) {
+      LOG("Deleting %s\n",Path.c_str());
       contentFS->remove(Path);
    }
+   else if(bNewLatest){
+   // delete any old images
+      File dir = contentFS->open("/temp");
+      File file = dir.openNextFile();
+      while (file) {
+         String Entry = String("/temp/") + file.name();
+         LOG("Found '%s'\n",Entry.c_str());
+         file.close();
+         if(Entry != Path && Entry.indexOf("latest_") > 0) {
+            LOG("Deleting %s\n",Entry.c_str());
+            contentFS->remove(Entry);
+         }
+         file = dir.openNextFile();
+      }
+      dir.close();
+   }
 #endif
-   util::printHeap();
-   LOG("Returning %d\n",Ret);
-   return Ret;
+   LOG("Returning %d\n",bRet);
+   return bRet;
 }
 
 static void *PngOpen(const char *filename, int32_t *size) 
 {
-   PngFile = contentFS->open(filename, "r");
-    if (!PngFile) return NULL;
-    *size = PngFile.size();
-    return &PngFile;
+   File *pFile = new File(contentFS->open(filename, "r"));
+   if (!pFile) return NULL;
+   if(!pFile->available()) {
+      LOG("Couldn't open \"%s\"\n",filename);
+      delete pFile;
+      return NULL;
+   }
+   *size = pFile->size();
+   LOG("File \"%s\" opened (%d bytes)\n",filename,*size);
+
+   return pFile;
 }
 
 static void PngClose(void *handle) 
 {
-   PngFile.close();
+   File *pFile = static_cast<File *>(handle);
+   pFile->close();
+   delete pFile;
+   LOG("File PngFile closed\n");
 }
 
 static int32_t PngRead(PNGFILE *handle, uint8_t *buffer, int32_t length) 
 {
-    if (!PngFile) return 0;
-    return PngFile.read(buffer, length);
+   File *pFile = static_cast<File *>(handle->fHandle);
+   if (!pFile) return 0;
+   return pFile->read(buffer, length);
 }
 
 static int32_t PngSeek(PNGFILE *handle, int32_t position) 
 {
-    if (!PngFile) return 0;
-    return PngFile.seek(position);
+   File *pFile = static_cast<File *>(handle->fHandle);
+   if (!pFile) return 0;
+   return pFile->seek(position);
 }
-#endif   // WITHOUT_CARTOONS
+#endif   // WITHOUT_COMICS
 

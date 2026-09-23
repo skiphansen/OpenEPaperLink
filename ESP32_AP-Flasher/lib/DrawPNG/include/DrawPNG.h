@@ -36,12 +36,7 @@ public:
    void SetOptions(uint32_t options);
 
 private:
-   static void *PngOpen(const char *filename, int32_t *size);
-   static void PngClose(void *handle);
-   static int32_t PngRead(PNGFILE *handle, uint8_t *buffer, int32_t length);
-   static int32_t PngSeek(PNGFILE *handle, int32_t position);
    static int pngDrawCallback(PNGDRAW *pDraw);
-
    int DrawCB(PNGDRAW *pDraw);
 
    bool bRotate;

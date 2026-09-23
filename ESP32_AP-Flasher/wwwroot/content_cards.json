@@ -209,8 +209,8 @@
       {
         "key": "forecast_type",
 	"requirements" : {
-	   "minX" : "400",
-	   "minY" : "300"
+	   "minX" : 400,
+	   "minY" : 300
 	},
         "name": "Style",
         "desc": "Select forecast data provider and screen layout style",
@@ -223,8 +223,8 @@
       {
 	"key": "StationID",
 	"requirements" : {
-	   "minX" : "400",
-	   "minY" : "300"
+	   "minX" : 400,
+	   "minY" : 300
 	},
 	"name": "NOAA Station ID (optional)",
 	"desc": "Tide prediction station ID or location to search. See https://tidesandcurrents.noaa.gov/tide_predictions.html",
@@ -234,8 +234,8 @@
       {
 	"key": "TideDisplay",
 	"requirements" : {
-	   "minX" : "400",
-	   "minY" : "300"
+	   "minX" : 400,
+	   "minY" : 300
 	},
 	"name": "Tide Values",
 	"desc": "What values to display",
@@ -832,6 +832,61 @@
     "name": "Current Time",
     "desc": "Displays the current time on the tag, only rarely supported even if shown here! It uses a fast LUT when possible otherwise a full refresh which is not very battery friendly and will anoy by flickering every minute",
     "param": [
+    ]
+  },
+  {
+    "id": 249,
+    "name": "xkcd",
+    "desc": "Displays a comic from xkcd.com",
+    "requirements" : {
+	"minX" : 400,
+	"minY" : 300
+    },
+    "param": [
+      {
+        "key": "random",
+        "name": "Which comic",
+        "desc": "Which comic to display, latest or a random selection",
+        "type": "select",
+        "options": {
+          "0": "latest",
+          "1": "random selection"
+        }
+      },
+      {
+        "key": "interval",
+        "name": "Interval",
+        "desc": "How often the comic is refreshed.",
+        "type": "select",
+        "options": {
+          "60": "-Every hour",
+          "180": "Every three hours",
+          "-1440": "At midnight"
+        }
+      },
+      {
+        "key": "rotation",
+        "name": "Rotate image",
+        "desc": "When to rotate to fit display. Comics are clearer when scaling is not necessary",
+        "type": "select",
+        "options": {
+          "0": "No",
+          "1": "Yes",
+          "2": "If needed to reduce scaling"
+        }
+      },
+      {
+        "key": "dither",
+        "name": "Dithering",
+        "desc": "Turn halftone dithering on or off. Turn it on when displaying photos. For texts, you better leave if off",
+        "type": "select",
+        "options": {
+          "0": "off",
+          "1": "floyd-steinberg dithering",
+          "2": "ordered dithering",
+	  "9": "guess best dithering"
+        }
+      }
     ]
   }
 ]

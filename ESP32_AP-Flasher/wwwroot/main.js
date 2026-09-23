@@ -1237,14 +1237,20 @@ function contentselected() {
 
 function MeetsRequirments(item,hwtype,default_ret)
 {
-	let Supported = default_ret;
-	let HasRequirments = item.requirements ?? 0;
+	Supported = default_ret;
+	HasRequirments = item.requirements ?? 0;
 	if(HasRequirments) {
 		Supported = 1;
-		if (item.requirements.minX && (parseInt(item.requirements.minX) > tagTypes[hwtype].width || parseInt(item.requirements.minY) > tagTypes[hwtype].height)) {
+		if(item.requirements.minX && item.requirements.minX > tagTypes[hwtype].width) {
 			Supported = 0;
 		}
-		if (item.requirements.maxX && (parseInt(item.requirements.maxX) < tagTypes[hwtype].width || parseInt(item.requirements.minY) < tagTypes[hwtype].height)) {
+		else if(item.requirements.minY && item.requirements.minY > tagTypes[hwtype].height) {
+			Supported = 0;
+		}
+		else if(item.requirements.maxX && item.requirements.maxX < tagTypes[hwtype].width) {
+			Supported = 0;
+		}
+		else if(item.requirements.maxY && item.requirements.maxY < tagTypes[hwtype].height) {
 			Supported = 0;
 		}
 		console.log(tagTypes[hwtype].width + "x" + tagTypes[hwtype].height + " tag is " + (Supported ? "" : "not ") + "supported by requirments.");

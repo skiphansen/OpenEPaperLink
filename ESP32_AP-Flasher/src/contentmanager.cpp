@@ -11,15 +11,15 @@
 
 // possibility to turn off, to save space if needed
 #ifndef SAVE_SPACE
-#define CONTENT_QR
-#define CONTENT_RSS
-#define CONTENT_BIGCAL
-#define CONTENT_NFCLUT
-#define CONTENT_DAYAHEAD
-#define CONTENT_TIMESTAMP
-#define CONTENT_BUIENRADAR
-#define CONTENT_CAL
-#define CONTENT_TIME_RAWDATA
+   #define CONTENT_QR
+   #define CONTENT_RSS
+   #define CONTENT_BIGCAL
+   #define CONTENT_NFCLUT
+   #define CONTENT_DAYAHEAD
+   #define CONTENT_TIMESTAMP
+   #define CONTENT_BUIENRADAR
+   #define CONTENT_CAL
+   #define CONTENT_TIME_RAWDATA
 #endif
 #define CONTENT_TAGCFG
 
@@ -631,11 +631,22 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         }
 #ifdef CONTENT_TIME_RAWDATA
         case 29:  // Time and raw data like strings etc. in the future
-        
             taginfo->nextupdate = now + 1800;
             prepareTIME_RAW(mac, now);
             break;
 #endif
+
+#ifndef WITHOUT_COMICS
+       case 249:  // comic
+          LOG("Calling drawComic\n");
+            if(!drawComic(filename, cfgobj, taginfo, imageParams)) {
+            // try again in a hour on failure
+               interval = 60 * 60;
+            }
+            taginfo->nextupdate = now + interval;
+            updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
+            break;
+#endif   // WITHOUT_COMICS
     }
 
     taginfo->modeConfigJson = doc.as<String>();
@@ -1087,8 +1098,6 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     spr.deleteSprite();
 }
 
-bool OwmWeather(TFT_eSprite &spr,JsonObject &cfgobj,const tagRecord *taginfo,imgParam &imageParams);
-int Cartoons(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams);
 
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) 
 {
@@ -1101,7 +1110,6 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
    if (!util::isEmptyOrNull(forecast_type)) {
        LOG("forecast_type %s\n",forecast_type.c_str());
        if (cfgobj["forecast_type"].as<int>() == 1) {
-#if 0
        // Save ts_option
           uint8_t ts_option = imageParams.ts_option;
        // Don't add timestamp to our display, OwmWeather draws it's own
@@ -1126,33 +1134,8 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
              LOG("OWM weather update failed\n");
           }
           imageParams.ts_option = ts_option;
+          return;
        }
-#else
-       // Save ts_option
-          uint8_t ts_option = imageParams.ts_option;
-          int Err = Cartoons(spr,cfgobj,taginfo,imageParams);
-          imageParams.ts_option = ts_option;
-
-          if(Err == 0) {
-          // Cartoon drawn successfully
-             LOG("bufferbpp %d rotate %d rotatebuffer %d bpp %d\n",
-                 imageParams.bufferbpp,
-                 imageParams.rotate,
-                 imageParams.rotatebuffer,
-                 imageParams.bpp);
-             LOG("spr.width %d spr.height %d\n",spr.width(),spr.height());
-
-             spr2buffer(spr, filename, imageParams);
-             spr.deleteSprite();
-          }
-          else {
-             wsLog("Cartoon update failed\n");
-             LOG("Cartoon update failed %d\n",Err);
-             imageParams.ts_option = ts_option;
-          }
-       }
-#endif
-       return;
    }
 #endif // WITHOUT_OWM
 
@@ -3241,51 +3224,60 @@ void prepareTIME_RAW(const uint8_t *dst, time_t now) {
 
 void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) 
 {
-   util::printHeap();
+   uint8_t baseTemplate = 0;
+   LOG("id %d hwtype 0x%x\n",id,hwtype);
 
-    JsonDocument filter;
-    JsonDocument doc;
+   do {
+      util::printHeap();
+      JsonDocument doc;
 
-    const String idstr = String(id);
-    constexpr const char *templateKey = "template";
+      const String idstr = String(id);
+      constexpr const char *templateKey = "template";
 
-    char filename[20];
-    snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
-    File jsonFile = contentFS->open(filename, "r");
+      char filename[20];
+      snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
+      DeserializationError error;
+      {
+         File jsonFile = contentFS->open(filename, "r");
+         if(!jsonFile) {
+            Serial.println("Failed to open " + String(filename));
+            break;
+         }
+         JsonDocument filter;
+         filter[templateKey][idstr] = true;
+         filter["usetemplate"] = true;
+         error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
+         jsonFile.close();
+      }
+      ELOG("\"%s\" error %d\n",filename,error.code());
+      bool bTest = doc[templateKey].is<JsonVariant>();
+      ELOG("doc[templateKey].is<JsonVariant> %d\n",bTest);
+      if (bTest) {
+         bTest = doc[templateKey][idstr].is<JsonVariant>();
+         ELOG("doc[templateKey][idstr].is<JsonVariant>() %d\n",bTest);
+      }
+      if (!error && doc[templateKey].is<JsonVariant>() && doc[templateKey][idstr].is<JsonVariant>()) {
+         ELOG("template found in %s\n",filename);
+         json.set(doc[templateKey][idstr]);
+         break;
+      }
+      bTest = doc["usetemplate"].is<uint8_t>();
+      ELOG("doc[\"usetemplate\"].is<uint8_t>() %d\n",bTest);
+      if (!error && doc["usetemplate"].is<uint8_t>()) {
+         baseTemplate = doc["usetemplate"].as<uint8_t>();
+         break;
+      }
+      Serial.println("json error in " + String(filename));
+      Serial.println(error.c_str());
+      util::printHeap();
+      serializeJsonPretty(doc,Serial);
+      LOG_RAW("\n");
+   } while (false);
 
-    if (jsonFile) {
-        filter[templateKey][idstr] = true;
-        filter["usetemplate"] = true;
-        const DeserializationError error = deserializeJson(doc, jsonFile, DeserializationOption::Filter(filter));
-        jsonFile.close();
-        LOG("\"%s\" error %d\n",filename,error.code());
-        bool bTest = doc[templateKey].is<JsonVariant>();
-        LOG("doc[templateKey].is<JsonVariant> %d\n",bTest);
-        if(bTest) {
-           bTest = doc[templateKey][idstr].is<JsonVariant>();
-           LOG("doc[templateKey][idstr].is<JsonVariant>() %d\n",bTest);
-        }
-        if (!error && doc[templateKey].is<JsonVariant>() && doc[templateKey][idstr].is<JsonVariant>()) {
-            json.set(doc[templateKey][idstr]);
-            ELOG("\n");
-            return;
-        }
-        bTest = doc["usetemplate"].is<uint8_t>();
-        LOG("doc[\"usetemplate\"].is<uint8_t>() %d\n",bTest);
-        if (!error && doc["usetemplate"].is<uint8_t>()) {
-            getTemplate(json, id, doc["usetemplate"]);
-            ELOG("\n");
-            return;
-        }
-        Serial.println("json error in " + String(filename));
-        Serial.println(error.c_str());
-        util::printHeap();
-        serializeJsonPretty(doc,Serial);
-        LOG("\n");
-
-    } else {
-        Serial.println("Failed to open " + String(filename));
-    }
+   if(baseTemplate) {
+      ELOG("getting template from %d\n",baseTemplate);
+      getTemplate(json, id,baseTemplate);
+   }
 }
 
 int DownloadURL(String &URL,String &filename) 
