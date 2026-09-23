@@ -1,16 +1,25 @@
 #include "contentmanager.h"
 
+#define ENABLE_LOGGING  1
+#if ENABLE_LOGGING && __has_include("logging.h") 
+#include "logging.h"
+#else
+#define LOG(format, ...)
+#define LOG_RAW(format, ...)
+#endif
+
+
 // possibility to turn off, to save space if needed
 #ifndef SAVE_SPACE
-#define CONTENT_QR
-#define CONTENT_RSS
-#define CONTENT_BIGCAL
-#define CONTENT_NFCLUT
-#define CONTENT_DAYAHEAD
-#define CONTENT_TIMESTAMP
-#define CONTENT_BUIENRADAR
-#define CONTENT_CAL
-#define CONTENT_TIME_RAWDATA
+   #define CONTENT_QR
+   #define CONTENT_RSS
+   #define CONTENT_BIGCAL
+   #define CONTENT_NFCLUT
+   #define CONTENT_DAYAHEAD
+   #define CONTENT_TIMESTAMP
+   #define CONTENT_BUIENRADAR
+   #define CONTENT_CAL
+   #define CONTENT_TIME_RAWDATA
 #endif
 #define CONTENT_TAGCFG
 
@@ -622,11 +631,22 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
         }
 #ifdef CONTENT_TIME_RAWDATA
         case 29:  // Time and raw data like strings etc. in the future
-        
             taginfo->nextupdate = now + 1800;
             prepareTIME_RAW(mac, now);
             break;
 #endif
+
+#ifndef WITHOUT_COMICS
+       case 249:  // comic
+          LOG("Calling drawComic\n");
+            if(!drawComic(filename, cfgobj, taginfo, imageParams)) {
+            // try again in a hour on failure
+               interval = 60 * 60;
+            }
+            taginfo->nextupdate = now + interval;
+            updateTagImage(filename, mac, interval / 60, taginfo, imageParams);
+            break;
+#endif   // WITHOUT_COMICS
     }
 
     taginfo->modeConfigJson = doc.as<String>();
@@ -1078,7 +1098,7 @@ void drawWeather(String &filename, JsonObject &cfgobj, const tagRecord *taginfo,
     spr.deleteSprite();
 }
 
-bool OwmWeather(TFT_eSprite &spr,JsonObject &cfgobj,const tagRecord *taginfo,imgParam &imageParams);
+
 void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams) 
 {
    TFT_eSprite spr = TFT_eSprite(&tft);
@@ -1097,6 +1117,13 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
 
           if(OwmWeather(spr,cfgobj,taginfo,imageParams)) {
           // weather drawn successfully
+             LOG("bufferbpp %d rotate %d rotatebuffer %d bpp %d\n",
+                 imageParams.bufferbpp,
+                 imageParams.rotate,
+                 imageParams.rotatebuffer,
+                 imageParams.bpp);
+             LOG("spr.width %d spr.height %d\n",spr.width(),spr.height());
+
              spr2buffer(spr, filename, imageParams);
              spr.deleteSprite();
              imageParams.ts_option = ts_option;
@@ -1107,6 +1134,7 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
              LOG("OWM weather update failed\n");
           }
           imageParams.ts_option = ts_option;
+          return;
        }
    }
 #endif // WITHOUT_OWM
@@ -3224,3 +3252,32 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
         Serial.println("Failed to open " + String(filename));
     }
 }
+
+int DownloadURL(String &URL,String &filename) 
+{
+    HTTPClient http;
+    http.begin(URL);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(5000);  // timeout in ms
+    LOG("url \"%s\" path \"%s\"\n",URL.c_str(),filename.c_str());
+    const int httpCode = http.GET();
+    if (httpCode == 200) {
+        xSemaphoreTake(fsMutex, portMAX_DELAY);
+        File f = contentFS->open(filename, "w");
+        if (f) {
+            http.writeToStream(&f);
+            f.close();
+            xSemaphoreGive(fsMutex);
+        } else {
+           LOG("contentFS->open failed\n");
+            xSemaphoreGive(fsMutex);
+        }
+    } else {
+        if (httpCode != 304) {
+            wsErr("http " + URL + " " + String(httpCode));
+        }
+    }
+    http.end();
+    return httpCode;
+}
+

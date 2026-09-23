@@ -112,6 +112,7 @@ const LookupTbl_t LookupTbl[] = {
    {NULL}
 };
 
+#ifndef WITHOUT_OWM
 bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, imgParam &imageParams)
 {
    bool Ret = false; // Assume the worse
@@ -370,6 +371,8 @@ bool OwmWeather(TFT_eSprite &spr, JsonObject &cfgobj, const tagRecord *taginfo, 
 
    return Ret;
 }
+#endif   // WITHOUT_OWM
+
 
 bool HttpQuery(String &url,String &Response)
 {
