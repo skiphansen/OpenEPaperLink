@@ -1,11 +1,11 @@
-#ifndef WITHOUT_PNG
+#ifndef WITHOUT_JPG
 #include <Arduino.h>
 #include <vector>
-#include <PNGdec.h>
+#include <TJpg_Decoder.h>
 
 #include "TFT_eSPI.h"
-#include "DrawPNG.h"
-using namespace PNG_defines;
+#include "DrawJPG.h"
+using namespace JPG_defines;
 
 #define ENABLE_LOGGING  1
 #if ENABLE_LOGGING && __has_include("logging.h") 
@@ -14,6 +14,9 @@ using namespace PNG_defines;
 #define LOG(format, ...)
 #define LOG_RAW(format, ...)
 #endif
+
+// needed because the jpeg drawing callback does not include a user argument
+class DrawJPG *DrawJPG::pClass = NULL;
 
 struct Color {
     uint8_t r, g, b;
@@ -25,21 +28,40 @@ struct Color {
     Color(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
 };
 
-DrawPNG::DrawPNG(PngFileCBs_t *PngFileCBs) : pCBs(PngFileCBs)
+DrawJPG::DrawJPG(fs::FS *contentFS) : contentFS(contentFS)
 {
-   XsprOffset = 0;
-   YsprOffset = 0;
-   Options = 0;
+   if(pClass != NULL) {
+      LOG("pClass %p, this %p\n",pClass,this);
+      bTooManyInstances = true;
+   }
+   else {
+      pClass = this;
+      bTooManyInstances = false;
+      XsprOffset = 0;
+      YsprOffset = 0;
+      Options = 0;
+   }
+}
+
+DrawJPG::~DrawJPG()
+{
+   if(pClass == this) {
+      pClass = NULL;
+   }
 }
 
 
-int DrawPNG::DrawCB(PNGDRAW *pDraw) 
+bool DrawJPG::InternalDrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *p)
 {
-   int y = pDraw->y;
-   int iWidth = pDraw->iWidth;
    int Xoff;
    int Yoff;
-   uint16_t usPixels[iWidth]; 
+
+#if 0
+   if(y == 16) {
+      LOG("%dx%d @ %d,%d\n",w,h,x,y);
+      DUMP_HEX(p,w*h*2);
+   }
+#endif
 
    if(bRotate) {
       Xoff = Yoffset + YsprOffset;
@@ -49,34 +71,31 @@ int DrawPNG::DrawCB(PNGDRAW *pDraw)
       Xoff = Xoffset + XsprOffset;
       Yoff = Yoffset + YsprOffset;
    }
-   // Convert line data to RGB565
-   png.getLineAsRGB565(pDraw,usPixels,PNG_RGB565_LITTLE_ENDIAN,0xffffffff);
 
+#if 1
+   if (ScalingFactor == SCALE_1_TO_1) {
 #if 0
-   if (pDraw->y == 0) {
-      LOG("y %d w %d iPitch %d iPixelType %d bpp %d\n",
-          pDraw->y,iWidth,pDraw->iPitch,pDraw->iPixelType,pDraw->iBpp);
-      LOG("After getLineAsRGB565\n");
-      Color color;
-      uint16_t iColor;
-      for (int i = 0; i < iWidth;i++) {
-         iColor = usPixels[i];
-         if ((i % 8) == 0) {
-            LOG_RAW("\n%d: ",i);
-            //   DUMP_HEX(&usPixels[i],16);
-         }
-         LOG_RAW("%d, ",iColor);
-      }
-      LOG("\n");
-   }
+      pSpr->pushImage(x + Xoff,y + Yoff,w,h,p);
+#else
+      int y0 = y + Yoff;
+      for(int i = 0; i < h; i++) {
+         int x0 = x + Xoff;
+         for(int j = 0; j < w; j++) {
+#if 0
+            if(y == 16) {
+               LOG("%d,%d = 0x%x\n",x0,y0,*p);
+            }
 #endif
-
+            pSpr->drawPixel(x0++,y0,*p++);
+         }
+         y0++;
+      }
+#endif
+   }
+#else
    if(!bRotate) {
       if (ScalingFactor == SCALE_1_TO_1) {
-         y += Yoff;
-         for (int i = 0; i < iWidth; i++) {
-            pSpr->drawPixel(i + Xoff,y,usPixels[i]);
-         }
+         pSpr->pushImage(x + Xoff,y + Yoff,w,h,bitmap);
       }
       else {
          y = (y * ScalingFactor) / SCALE_1_TO_1;
@@ -106,6 +125,7 @@ int DrawPNG::DrawCB(PNGDRAW *pDraw)
             }
       }
    }
+#endif
 
 #if 0
    if (pDraw->y == 0) {
@@ -136,42 +156,45 @@ int DrawPNG::DrawCB(PNGDRAW *pDraw)
    return 1;
 }
 
-int DrawPNG::pngDrawCallback(PNGDRAW *pDraw) 
+bool DrawJPG::DrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap)
 {
-   DrawPNG *p = static_cast<DrawPNG *>(pDraw->pUser);
-
-   return p->DrawCB(pDraw);
+   return pClass->InternalDrawCB(x,y,w,h,bitmap);
 }
 
-int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
+int DrawJPG::DrawJpg(String Filename,TFT_eSprite &spr)
 {
    int Ret = -1; // Assume the worse
    int ErrLine = 0;
-   int err;
-   bool bPngOpened = false;
+   JRESULT jErr = JDR_OK;
 
    do {
-      pSpr = &spr;
-      err = png.open(Filename.c_str(),pCBs->pfnOpen,pCBs->pfnClose,
-                     pCBs->pfnRead,pCBs->pfnSeek,DrawPNG::pngDrawCallback);
-      if(err != PNG_SUCCESS) {
+      if(bTooManyInstances) {
+         LOG("Error Too Many Instances\n");
          ErrLine = __LINE__;
          break;
       }
-      bPngOpened = true;
+      pSpr = &spr;
+      LOG("pSpr %p\n",pSpr);
+      TJpgDec.setSwapBytes(false);
+      TJpgDec.setJpgScale(1);
+      TJpgDec.setCallback(DrawCB);
 
-      PngWidth = png.getWidth();
-      PngHeight = png.getHeight();
-      int TempWidth = PngWidth;
-      int TempHeight = PngHeight;
+      jErr = TJpgDec.getFsJpgSize(&JpgWidth,&JpgHeight,Filename,*contentFS);
+      if(jErr != JDR_OK) {
+         LOG("getFsJpgSize failed %d\n",jErr);
+         ErrLine = __LINE__;
+         break;
+      }
+
+      int TempWidth = JpgWidth;
+      int TempHeight = JpgHeight;
       int SprWidth = pSpr->width();
       int SprHeight = pSpr->height();
 
-      LOG("%s: %dx%d, %d bpp, color type: %d\n",Filename.c_str(),
-          PngWidth,PngHeight,png.getBpp(),png.getPixelType());
+      LOG("%s: %dx%d\n",Filename.c_str(),JpgWidth,JpgHeight);
 
       bRotate = false;
-      if(PngHeight > PngWidth) {
+      if(JpgHeight > JpgWidth) {
          switch(Options & ROTATE_MODE_MASK) {
             case ROTATE_MODE_OFF:   // never rotate
                break;
@@ -182,7 +205,7 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
                break;
 
             case ROTATE_MODE_FIT:   // only rotate when scaling 
-               if(PngWidth > SprWidth || PngHeight > SprHeight) {
+               if(JpgWidth > SprWidth || JpgHeight > SprHeight) {
                // scaling required
                   LOG("Rotating image, won't fit without scaling otherwise\n");
                   bRotate = true;
@@ -202,40 +225,40 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
       if(bRotate) {
       // swap TempHeight & TempWidth for scaling and 
       // centering calculations
-         TempWidth = PngHeight;
-         TempHeight = PngWidth;
+         TempWidth = JpgHeight;
+         TempHeight = JpgWidth;
       }
 
-      int NewPngWidth;
-      int NewPngHeight;
+      int NewJpgWidth;
+      int NewJpgHeight;
       if(TempWidth <= SprWidth && TempHeight <= SprHeight) {
       // No scaling required
          LOG("No scaling required\n");
          ScalingFactor = SCALE_1_TO_1;
-         NewPngWidth = TempWidth;
-         NewPngHeight = TempHeight;
+         NewJpgWidth = TempWidth;
+         NewJpgHeight = TempHeight;
       }
       else {
          LOG("Scaling needed, png %dx%d, spr %dx%d\n",
-             PngWidth,PngHeight,SprWidth,SprHeight);
+             JpgWidth,JpgHeight,SprWidth,SprHeight);
          unsigned int xScale = (SCALE_1_TO_1 * SprWidth) / TempWidth;
          unsigned int yScale = (SCALE_1_TO_1 * SprHeight) / TempHeight;
          ScalingFactor = xScale < yScale ? xScale : yScale;
          LOG("xScale %u yScale %u ScalingFactor %u\n",xScale,yScale,ScalingFactor);
-         NewPngWidth = (( TempWidth * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
-         NewPngHeight = ((TempHeight * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
+         NewJpgWidth = (( TempWidth * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
+         NewJpgHeight = ((TempHeight * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
          LOG("Scaling png to ");
          if(bRotate) {
-            LOG_RAW("%dx%d\n",NewPngHeight,NewPngWidth);
+            LOG_RAW("%dx%d\n",NewJpgHeight,NewJpgWidth);
          }
          else {
-            LOG_RAW("%dx%d\n",NewPngWidth,NewPngHeight);
+            LOG_RAW("%dx%d\n",NewJpgWidth,NewJpgHeight);
          }
       }
 
       switch(Options & X_ALIGN_MASK) {
          case X_ALIGN_CENTER:
-            Xoffset = (SprWidth - NewPngWidth) / 2;
+            Xoffset = (SprWidth - NewJpgWidth) / 2;
             break;
 
          case X_ALIGN_LEFT:
@@ -243,7 +266,7 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
             break;
 
          case X_ALIGN_RIGHT:
-            Xoffset = SprWidth - NewPngWidth;
+            Xoffset = SprWidth - NewJpgWidth;
             break;
 
          default:
@@ -253,7 +276,7 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
 
       switch(Options & Y_ALIGN_MASK) {
          case Y_ALIGN_CENTER:
-            Yoffset = (SprHeight - NewPngHeight) / 2;
+            Yoffset = (SprHeight - NewJpgHeight) / 2;
             break;
 
          case Y_ALIGN_TOP:
@@ -263,7 +286,7 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
 
          case Y_ALIGN_BOTTOM:
             LOG("Y_ALIGN_BOTTOM\n");
-            Yoffset = SprHeight - NewPngHeight;
+            Yoffset = SprHeight - NewJpgHeight;
             break;
 
          default:
@@ -275,40 +298,34 @@ int DrawPNG::DrawPng(String Filename,TFT_eSprite &spr)
          break;
       }
       LOG("Xoffset %d Yoffset %d\n",Xoffset,Yoffset);
-
-   // Decode PNG file into SPR
-      err = png.decode(this,0);
-      if(err != PNG_SUCCESS) {
+   // Decode JPG file into SPR
+      if((jErr = TJpgDec.drawFsJpg(0,0,Filename,*contentFS)) != JDR_OK) {
          ErrLine = __LINE__;
          break;
       }
       Ret = 0;
    } while(false);
 
-   if(bPngOpened) {
-      png.close();
-   }
-
    if(ErrLine != 0) {
-      LOG_RAW("%s: Error %d on line %d\n",__FUNCTION__,err,ErrLine);
+      LOG_RAW("%s: Error %d on line %d\n",__FUNCTION__,jErr,ErrLine);
    }
 
    return Ret;
 }
 
 
-void DrawPNG::SetSprOffsets(int x,int y)
+void DrawJPG::SetSprOffsets(int x,int y) 
 {
    XsprOffset = x;
    YsprOffset = y;
    LOG("XsprOffset %d YsprOffset %d\n",XsprOffset,YsprOffset);
 }
 
-void DrawPNG::SetOptions(uint32_t options)
+void DrawJPG::SetOptions(uint32_t options)
 {
    Options = options;
 }
 
-#endif // WITHOUT_PNG
+#endif // WITHOUT_JPG
 
 

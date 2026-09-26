@@ -1,14 +1,7 @@
-#ifndef _DRAWPNG_H_
-#define _DRAWPNG_H_
+#ifndef _DRAWJPG_H_
+#define _DRAWJPG_H_
 
-typedef struct {
-   PNG_OPEN_CALLBACK *pfnOpen;
-   PNG_CLOSE_CALLBACK *pfnClose;
-   PNG_READ_CALLBACK *pfnRead;
-   PNG_SEEK_CALLBACK *pfnSeek;
-} PngFileCBs_t;
-
-namespace PNG_defines {
+namespace JPG_defines {
    #define X_ALIGN_SHIFT   0
    #define X_ALIGN_MASK    0x3
    #define X_ALIGN_CENTER  0
@@ -30,33 +23,34 @@ namespace PNG_defines {
    #define SCALE_1_TO_1 32768
 }
 
-class DrawPNG {
+class DrawJPG {
 public:
-   DrawPNG(PngFileCBs_t *PngFileCBs);
-   int DrawPng(String Filename,TFT_eSprite &spr);
+   DrawJPG(fs::FS *contentFS);
+   ~DrawJPG();
+   int DrawJpg(String Filename,TFT_eSprite &spr);
    void SetSprOffsets(int x,int y);
    void SetOptions(uint32_t options);
 
 private:
-   static int pngDrawCallback(PNGDRAW *pDraw);
-   int DrawCB(PNGDRAW *pDraw);
-
+   bool InternalDrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap);
+   static bool DrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap);
+   static class DrawJPG *pClass;
+   bool bTooManyInstances;
    bool bRotate;
    int Xoffset;
    int Yoffset;
    int XsprOffset;
    int YsprOffset;
-   int PngWidth;
-   int PngHeight;
+   uint16_t JpgWidth;
+   uint16_t JpgHeight;
 
 // SCALE_1_TO_1 = 100%, ie none  (SCALE_1_TO_1 / 2) = reduce resolution by 2
    unsigned int ScalingFactor;   
    uint32_t Options;
-   PNG png; // PNG structure (about 50K of RAM)
    TFT_eSPI *pSpr;
-   PngFileCBs_t *pCBs;
+   fs::FS *contentFS;
 };
 
-#endif   // _DRAWPNG_H_
+#endif   // _DRAWJPG_H_
 
 

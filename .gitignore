@@ -34,3 +34,13 @@ $PROJECT_DIR/
 
 # Jetbrains IDE
 .idea/
+
+# Skip's local cruft
+e
+*.log
+*.vpw
+*.vpwhist
+*.vtg
+e.*
+*.cap
+

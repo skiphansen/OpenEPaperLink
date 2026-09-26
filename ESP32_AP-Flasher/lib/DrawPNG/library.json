@@ -1,0 +1,13 @@
+{
+  "$schema": "https://platformio.org",
+  "name": "libDrawPNG",
+  "version": "0.0.1",
+  "description": "library to render weather data from OpenWeatherMap",
+  "keywords": "esp32, weather, epd, e-ink",
+  "license": "GPL",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skiphansen/libDrawOWM/libDrawPNG"
+  }
+}
+
