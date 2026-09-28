@@ -74,9 +74,6 @@ bool DrawJPG::InternalDrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint1
 
 #if 1
    if (ScalingFactor == SCALE_1_TO_1) {
-#if 0
-      pSpr->pushImage(x + Xoff,y + Yoff,w,h,p);
-#else
       int y0 = y + Yoff;
       for(int i = 0; i < h; i++) {
          int x0 = x + Xoff;
@@ -90,7 +87,20 @@ bool DrawJPG::InternalDrawCB(int16_t x, int16_t y, uint16_t w, uint16_t h, uint1
          }
          y0++;
       }
+   }
+   else {
+      for(int i = 0; i < h; i++) {
+         int y0 = (((y + i) * ScalingFactor) / SCALE_1_TO_1) + Yoff;
+         for(int j = 0; j < w; j++) {
+            int x0 = (((x + j) * ScalingFactor) / SCALE_1_TO_1) + Xoff;
+#if 0
+            if(y >= 16 && y <= 18) {
+               LOG("%d,%d -> %d,%d = 0x%x\n",x+j,y+i,x0,y0,*p);
+            }
 #endif
+            pSpr->drawPixel(x0,y0,*p++);
+         }
+      }
    }
 #else
    if(!bRotate) {
@@ -239,7 +249,7 @@ int DrawJPG::DrawJpg(String Filename,TFT_eSprite &spr)
          NewJpgHeight = TempHeight;
       }
       else {
-         LOG("Scaling needed, png %dx%d, spr %dx%d\n",
+         LOG("Scaling needed, jpg %dx%d, spr %dx%d\n",
              JpgWidth,JpgHeight,SprWidth,SprHeight);
          unsigned int xScale = (SCALE_1_TO_1 * SprWidth) / TempWidth;
          unsigned int yScale = (SCALE_1_TO_1 * SprHeight) / TempHeight;
@@ -247,7 +257,7 @@ int DrawJPG::DrawJpg(String Filename,TFT_eSprite &spr)
          LOG("xScale %u yScale %u ScalingFactor %u\n",xScale,yScale,ScalingFactor);
          NewJpgWidth = (( TempWidth * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
          NewJpgHeight = ((TempHeight * ScalingFactor) + (SCALE_1_TO_1 / 2)) / SCALE_1_TO_1;
-         LOG("Scaling png to ");
+         LOG("Scaling jpg to ");
          if(bRotate) {
             LOG_RAW("%dx%d\n",NewJpgHeight,NewJpgWidth);
          }
