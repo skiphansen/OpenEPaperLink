@@ -6,9 +6,9 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
 
 	<title>Open EPaper Link Access Point</title>
-	<script src="main.js?2.74" defer></script>
-	<script src="g5decoder.js?2.74"></script>
-	<link rel="stylesheet" href="main.css?2.74" type="text/css" />
+	<script src="main.js?2.93" defer></script>
+	<script src="g5decoder.js?2.93"></script>
+	<link rel="stylesheet" href="main.css?2.93" type="text/css" />
 	<!--<link rel="icon" type="image/vnd.icon" href="favicon.ico">-->
 	<link rel="stylesheet"
 		  href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
@@ -17,11 +17,11 @@
 
 <body>
 	<header>
-		<div class="logo">Open EPaper Link Access Point</div>
 		<nav>
 			<div>
 				<!-- tabs -->
 				<div class="tab-container">
+					<div class="logo">Open EPaper Link Access Point</div>
 					<div class="tablinks material-symbols-outlined" data-target="hometab" title="Dashboard">home</div>
 					<div class="tablinks material-symbols-outlined" data-target="tagtab" title="Tags">sell</div>
 					<div class="tablinks material-symbols-outlined" data-target="aptab" title="Access Points">cell_tower</div>
@@ -29,11 +29,11 @@
 					<div class="tablinks material-symbols-outlined" data-target="flashtab" title="Tag flasher" style="display:none;">flash_on</div>
 					<div class="tablinks material-symbols-outlined" data-target="configtab" title="Settings">settings</div>
 					<div class="tablinks material-symbols-outlined" data-target="logtab" title="Logging">text_snippet</div>
-					<button id="theme-toggle" class="theme-toggle-btn material-symbols-outlined" title="Toggle Theme">light_mode</button>
+					<button id="theme-toggle" class="theme-toggle-btn material-symbols-outlined" title="Toggle Theme" aria-label="Toggle Theme">light_mode</button>
 				</div>
 				<!-- /tabs -->
 				<div><span id="runstate"></div>
-				<div><span id="apstatecolor" style="font-size: 18px; vertical-align: bottom;" class="material-symbols-outlined">hourglass</span> <span id="apstate">loading</span></div>
+				<div id="apstatebox"><span id="apstatecolor" style="font-size: 18px; vertical-align: bottom;" class="material-symbols-outlined">hourglass</span> <span id="apstate">loading</span></div>
 				<div><a href="/edit" target="littlefs" class="filebutton material-symbols-outlined">folder_open</a>
 				</div>
 			</div>
@@ -45,73 +45,72 @@
 		<div class="window">
 
 			<div id="hometab" class="tabcontent">
-				<table>
-					<tr onclick="setFilterAndShow('')">
-						<td class="material-symbols-outlined" id="dashboardStatusIcon">
-							hourglass
-						</td>
-						<td id="dashboardStatus" colspan="2">
-							initialising...
-						</td>
-					</tr>
-					<tr onclick="setFilterAndShow('')">
-						<td class="material-symbols-outlined" style="color:#77239e">
-							sell
-						</td>
-						<td>
-							tags
-						</td>
-						<td id="dashboardTagCount" style="color:#77239e">
-							0
-						</td>
-					</tr>
-					<tr onclick="setFilterAndShow('pending')">
-						<td class="material-symbols-outlined" style="color:#235f9e">
-							hourglass_empty
-						</td>
-						<td>
-							pending data
-						</td>
-						<td id="dashboardPending" style="color:#235f9e">
-							0
-						</td>
-					</tr>
-					<tr onclick="setFilterAndShow('lowbatt')">
-						<td class="material-symbols-outlined" style="color:#9e9223">
-							battery_low
-						</td>
-						<td>
-							low battery
-						</td>
-						<td id="dashboardLowBatt" style="color:#9e9223">
-							0
-						</td>
-					</tr>
-					<tr onclick="setFilterAndShow('inactive')">
-						<td class="material-symbols-outlined" style="color:#9e2323">
-							signal_disconnected
-						</td>
-						<td>
-							timeout
-						</td>
-						<td id="dashboardTimeout" style="color:#9e2323">
-							0
-						</td>
-					</tr>
-					<!--
-					<tr onclick="$(`[data-target='aptab']`).click()">
-						<td class="material-symbols-outlined" style="color:#239f26">
-							cell_tower
-						</td>
-						<td>
-							access points
-						</td>
-						<td id="dashboardApCount" style="color:#239f26">
+				<div class="dash">
+					<section class="dcard span-all">
+						<div class="dstatus">
+							<div class="dmain">
+								<span class="material-symbols-outlined" id="dashboardStatusIcon">hourglass</span>
+								<div><b id="dbAlias">Access point</b><span id="dashboardStatus">initialising...</span> <span id="dbServing"></span></div>
+							</div>
+							<div class="dfact"><small>Radio</small><span id="dbRadio">-</span></div>
+							<div class="dfact"><small>Firmware</small><span id="dbFirmware">-</span></div>
+							<div class="dfact"><small>Network</small><span id="dbNetwork">-</span></div>
+							<div class="dfact"><small>Uptime</small><span id="dbUptime">-</span></div>
+							<div class="dfact"><small>Time</small><span id="dbTime">-</span></div>
+						</div>
+					</section>
 
-						</td>
-					</tr>
-				-->
-				</table>
+					<section class="dtiles span-all">
+						<div class="dtile" style="--c:var(--dash-purple)" onclick="setFilterAndShow('')"><span class="material-symbols-outlined">sell</span><div><b id="dashboardTagCount">0</b><span>tags</span></div></div>
+						<div class="dtile" style="--c:var(--dash-blue)" onclick="setFilterAndShow('pending')"><span class="material-symbols-outlined">hourglass_empty</span><div><b id="dashboardPending">0</b><span>pending data</span></div></div>
+						<div class="dtile" style="--c:var(--dash-teal)" onclick="setFilterAndShow('')"><span class="material-symbols-outlined">update</span><div><b id="dbUpdated">0</b><span>updated last hour</span></div></div>
+						<div class="dtile" style="--c:var(--dash-yellow)" onclick="setFilterAndShow('lowbatt')"><span class="material-symbols-outlined">battery_low</span><div><b id="dashboardLowBatt">0</b><span>low battery</span></div></div>
+						<div class="dtile" style="--c:var(--dash-red)" onclick="setFilterAndShow('inactive')"><span class="material-symbols-outlined">signal_disconnected</span><div><b id="dashboardTimeout">0</b><span>timeout</span></div></div>
+						<div class="dtile" style="--c:var(--dash-ok)" onclick="setFilterAndShow('remote')"><span class="material-symbols-outlined">cell_tower</span><div><b id="dbExternal">0</b><span>via other APs</span></div></div>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">priority_high</span>Needs attention</h2>
+						<ul class="dlist" id="dbAttention"></ul>
+					</section>
+
+					<section class="dcard" id="dbThumbCard">
+						<h2><span class="material-symbols-outlined">image</span>Just updated<a class="more" onclick="setFilterAndShow('')">all tags</a></h2>
+						<div class="dthumbs" id="dbThumbs"></div>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">schedule</span>Next updates</h2>
+						<ul class="dlist" id="dbNext"></ul>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">bar_chart</span>Fleet</h2>
+						<div class="dsub">Battery</div>
+						<div class="ddist" id="dbDistBatt"></div>
+						<div class="dsub">Signal</div>
+						<div class="ddist" id="dbDistRssi"></div>
+						<div class="dsub">Content</div>
+						<div class="ddist" id="dbDistContent"></div>
+						<div class="dsub">Tag types</div>
+						<div class="ddist" id="dbDistTypes"></div>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">memory</span>System</h2>
+						<div id="dbSystem"></div>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">cell_tower</span>Access points<a class="more" onclick="$(`[data-target='aptab']`).click()">details</a></h2>
+						<ul class="dlist" id="dbAps"></ul>
+					</section>
+
+					<section class="dcard">
+						<h2><span class="material-symbols-outlined">text_snippet</span>Recent log<a class="more" href="edit?edit=log.txt" target="_blank">full log</a></h2>
+						<div class="dlog" id="dbLog"></div>
+					</section>
+				</div>
 			</div>
 
 			<div id="tagtab" class="tabcontent">
@@ -444,31 +443,31 @@ options:
 						</optgroup>
 						<optgroup label="USA / Canada">
 							<option value="HAW10">Hawaii Time</option>
-							<option value="AKST9AKDT">Alaska Time</option>
-							<option value="PST8PDT">Pacific Time</option>
-							<option value="MST7MDT">Mountain Time</option>
+							<option value="AKST9AKDT,M3.2.0,M11.1.0">Alaska Time</option>
+							<option value="PST8PDT,M3.2.0,M11.1.0">Pacific Time</option>
+							<option value="MST7MDT,M3.2.0,M11.1.0">Mountain Time</option>
 							<option value="MST7">Arizona, no DST</option>
-							<option value="CST6CDT">Central Time</option>
-							<option value="EST5EDT">Eastern Time</option>
+							<option value="CST6CDT,M3.2.0,M11.1.0">Central Time</option>
+							<option value="EST5EDT,M3.2.0,M11.1.0">Eastern Time</option>
 						</optgroup>
 						<optgroup label="Australia / New Zealand">
-							<option value="EST-10EDT-11,M10.5.0/02:00:00,M3.5.0/03:00:00">Melbourne, Sydney</option>
+							<option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Melbourne, Sydney</option>
 							<option value="WST-8">Perth</option>
 							<option value="EST-10">Brisbane</option>
-							<option value="CST-9:30CDT-10:30,M10.5.0/02:00:00,M3.5.0/03:00:00">Adelaide</option>
+							<option value="ACST-9:30ACDT,M10.1.0,M4.1.0/3">Adelaide</option>
 							<option value="CST-9:30">Darwin</option>
-							<option value="EST-10EDT-11,M10.1.0/02:00:00,M3.5.0/03:00:00">Hobart</option>
-							<option value="NZST-12NZDT-13,M9.4.0/02:00:00,M4.1.0/03:00:00">New Zealand</option>
+							<option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Hobart</option>
+							<option value="NZST-12NZDT,M9.5.0,M4.1.0/3">New Zealand</option>
 						</optgroup>
 						<optgroup label="Asia">
 							<option value="JST-9">Tokyo</option>
 							<option value="WIB-7">Jakarta</option>
-							<option value="GMT+2">Jerusalem</option>
+							<option value="IST-2IDT,M3.4.4/26,M10.5.0">Jerusalem</option>
 							<option value="SGT-8">Singapore</option>
-							<option value="ULAT-8ULAST,M3.5.0/2,M9.5.0/2">Ulaanbaatar, Mongolia</option>
+							<option value="ULAT-8">Ulaanbaatar, Mongolia</option>
 						</optgroup>
 						<optgroup label="Central and South America">
-							<option value="BRST+3BRDT+2,M10.3.0,M2.3.0">Brazil, Sao Paulo</option>
+							<option value="BRT3">Brazil, Sao Paulo</option>
 							<option value="UTC+3">Argentina</option>
 							<option value="CST+6">Central America</option>
 						</optgroup>
@@ -554,6 +553,10 @@ options:
 							<p id="flashTlsrOption" style="display:none;">
 								<button type="button" id="flashTlsrBtn">Flash TLSR (SWS)</button>
 								<input type="text" id="tlsrFile" value="/TLSR_AP_FW.bin" size="20">
+							</p>
+							<p id="radioTestOption" style="display:none;">
+								<button type="button" id="radioTestBtn">Test radio wiring</button>
+								checks every wire between the ESP32 and the C6/H2; the radio is offline for about 10 s
 							</p>
 							<p id="updateTagtypeOption">
 								<button type="button" id="updateTagtypeBtn">Update tagtype definitions</button>

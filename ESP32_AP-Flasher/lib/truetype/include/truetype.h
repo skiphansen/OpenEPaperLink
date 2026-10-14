@@ -148,11 +148,11 @@ typedef struct {
     int16_t leftSideBearing;
 } ttHMetric_t;
 
+// where an outline edge crosses a scanline: x, and +1 for an upward edge, -1 for a downward one
 typedef struct {
-    uint16_t p1;
-    uint16_t p2;
-    uint8_t up;
-} ttWindIntersect_t;
+    float x;
+    int8_t dir;
+} ttCrossing_t;
 
 typedef struct {
     uint16_t advanceWidth;
@@ -200,7 +200,8 @@ class truetypeClass {
     int iBufferedBytes = 0;            // Number of bytes remaining in u8FileBuf
     uint8_t u8FileBuf[FILE_BUF_SIZE];  // Buffered reads from the file system
     uint32_t u32BufPosition;           // Current position in the buffer
-    uint32_t iCurrentBufSize = 0;
+    uint32_t iCurrentBufSize = 0;      // Bytes read into u8FileBuf
+    uint32_t u32BufStart = 0;          // File offset of u8FileBuf[0]
 
     TTF_DRAWPIXEL *pfnDrawPixel = NULL;
 
@@ -211,7 +212,7 @@ class truetypeClass {
     const int tablePos = 12;
 
     uint16_t numTables;
-    ttTable_t *table;
+    ttTable_t *table = nullptr;
     ttHeadttTable_t headTable;
 
     uint8_t getUInt8t();
@@ -253,19 +254,22 @@ class truetypeClass {
     uint8_t readKern();
     int16_t getKerning(uint16_t _left_glyph, uint16_t _right_glyph);
     int16_t ascender = 0;
+    // number of entries in hmtx with their own advance width; later glyphs share the last one
+    uint16_t numberOfHMetrics = 0;
     uint8_t readHhea();
+    // advance width of a space at the current size: the font's own, or characterSize / 4
+    uint16_t spaceAdvance(wchar_t _space);
 
-    // generate points
+    // generate points (arrays grow by doubling, capacity in the *Cap fields)
     ttCoordinate_t *points = nullptr;
-    uint16_t numPoints = 0;
+    uint16_t numPoints = 0, pointsCap = 0;
     uint16_t *beginPoints = nullptr;
-    uint16_t numBeginPoints = 0;
+    uint16_t numBeginPoints = 0, beginPointsCap = 0;
     uint16_t *endPoints = nullptr;
-    uint16_t numEndPoints = 0;
+    uint16_t numEndPoints = 0, endPointsCap = 0;
 
-    // glyf
-    ttGlyph_t glyph;
-    ttWindIntersect_t *pointsToFill = nullptr;
+    // glyf (zeroed: end() frees its arrays even when no glyph was read, e.g. for an empty text)
+    ttGlyph_t glyph = {};
     void generateOutline(int16_t _x, int16_t _y, uint16_t characterSize);
     void freePointsAll();
     void fillGlyph(int16_t _x_min, int16_t _y_min, uint16_t characterSize);
@@ -273,13 +277,12 @@ class truetypeClass {
     void freeGlyph();
 
     void addLine(float _x0, float _y0, float _x1, float _y1);
-    void addPoint(int16_t _x, int16_t _y);
+    void addPoint(float _x, float _y);
     void freePoints();
     void addBeginPoint(uint16_t _bp);
     void freeBeginPoints();
     void addEndPoint(uint16_t _ep);
     void freeEndPoints();
-    float isLeft(ttCoordinate_t *_p0, ttCoordinate_t *_p1, ttCoordinate_t *_point);
 
     // write user framebuffer
     uint16_t characterSize = 20;

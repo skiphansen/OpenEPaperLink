@@ -1,342 +1,86 @@
 {
   "0": {
-    "language": "en", 
-    "daysShort": ["SU", "MO", "TU", "WE", "TH", "FR", "SA"], 
-    "days": [
-      "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", 
-      "Saturday"
-    ], 
-    "months": [
-      "January", "February", "March", "April", "May", "June", "July", "August", 
-      "September", "October", "November", "December"
-    ], 
-    "date_format": ["%m/%d/%Y", "%m/%d"], 
-    "LC_ABMON": [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", 
-      "Dec"
-    ], 
-    "TXT_UNITS_TEMP_CELSIUS": "\u00b0C", 
-    "TXT_UNITS_TEMP_FAHRENHEIT": "\u00b0F", 
-    "TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER": "g/cm\u00b2", 
-    "TXT_UNITS_PRES_POUNDSPERSQUAREINCH": "lb/in\u00b2"
-  }, 
+    "language": "en",
+    "daysShort": [ "SU", "MO", "TU", "WE", "TH", "FR", "SA" ],
+    "days": [ "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" ],
+    "months": [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ],
+    "date_format": [ "%m/%d/%Y", "%m/%d" ]
+  },
   "1": {
-    "language": "nl", 
-    "daysShort": ["ZO", "MA", "DI", "WO", "DO", "VR", "ZA"], 
-    "days": [
-      "zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", 
-      "zaterdag"
-    ], 
-    "months": [
-      "januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", 
-      "september", "oktober", "november", "december"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"], 
-    "LC_D_T_FMT": "%a %d %b %Y %T", 
-    "LC_D_FMT": "%d-%m-%y", 
-    "LC_T_FMT": "%T", 
-    "LC_ABMON": [
-      "Jan", "Feb", "Mrt", "Apr", "Mei", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", 
-      "Dec"
-    ], 
-    "TXT_FEELS_LIKE": "Voelt als", 
-    "TXT_SUNRISE": "Zonsopgang", 
-    "TXT_SUNSET": "Zonsondergang", 
-    "TXT_MOONRISE": "Maansopkomst", 
-    "TXT_MOONSET": "Maansondergang", 
-    "TXT_HUMIDITY": "Vochtigheid", 
-    "TXT_PRESSURE": "Luchtdruk", 
-    "TXT_AIR_QUALITY": "Luchtkwaliteit", 
-    "TXT_AIR_POLLUTION": "Luchtvervuiling", 
-    "TXT_VISIBILITY": "Zichtbaarheid", 
-    "TXT_INDOOR_TEMPERATURE": "Temperatuur", 
-    "TXT_INDOOR_HUMIDITY": "Vochtigheid", 
-    "TXT_DEWPOINT": "Dauwpunt", 
-    "TXT_MOONPHASE": "Maanfase", 
-    "TXT_NEW_MOON": "Nieuwe Maan", 
-    "TXT_WAXING_CRESCENT": "Wassende Sikkel", 
-    "TXT_FIRST_QUARTER": "Eerste Kwartier", 
-    "TXT_WAXING_GIBBOUS": "Wassende Maan", 
-    "TXT_FULL_MOON": "Volle Maan", 
-    "TXT_WANING_GIBBOUS": "Afnemende Maan", 
-    "TXT_THIRD_QUARTER": "Laatste Kwartier", 
-    "TXT_WANING_CRESCENT": "Afnemende Sikkel", 
-    "TXT_UV_LOW": "Laag", 
-    "TXT_UV_MODERATE": "Gematigd", 
-    "TXT_UV_HIGH": "Hoog", 
-    "TXT_UV_VERY_HIGH": "Zeer Hoog", 
-    "TXT_UV_EXTREME": "Extreem", 
-    "TXT_WIFI_EXCELLENT": "Uitstekend", 
-    "TXT_WIFI_GOOD": "Goed", 
-    "TXT_WIFI_FAIR": "Redelijk", 
-    "TXT_WIFI_WEAK": "Zwak", 
-    "TXT_WIFI_NO_CONNECTION": "Geen Verbinding", 
-    "TXT_UNITS_TEMP_CELSIUS": "\u00b0C", 
-    "TXT_UNITS_TEMP_FAHRENHEIT": "\u00b0F", 
-    "TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER": "g/cm\u00b2", 
-    "TXT_UNITS_PRES_POUNDSPERSQUAREINCH": "lb/in\u00b2"
-  }, 
+    "language": "nl",
+    "daysShort": [ "ZO", "MA", "DI", "WO", "DO", "VR", "ZA" ],
+    "days": [ "zondag", "maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag" ],
+    "months": [ "januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "2": {
-    "language": "de", 
-    "daysShort": ["SO", "MO", "DI", "MI", "DO", "FR", "SA"], 
-    "days": [
-      "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", 
-      "Samstag"
-    ], 
-    "months": [
-      "Januar", "Februar", "M\u00e4rz", "April", "Mai", "Juni", "Juli", "August", 
-      "September", "Oktober", "November", "Dezember"
-    ], 
-    "date_format": ["%d.%m.%Y", "%d.%m"], 
-    "LC_D_T_FMT": "%a %d %b %Y %T %Z", 
-    "LC_D_FMT": "%d.%m.%y", 
-    "LC_T_FMT": "%T", 
-    "LC_ABMON": [
-      "Jan", "Feb", "M\u00e4r", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", 
-      "Nov", "Dez"
-    ], 
-    "TXT_FEELS_LIKE": "Gef\u00fchlt", 
-    "TXT_SUNRISE": "Aufgang", 
-    "TXT_SUNSET": "Untergang", 
-    "TXT_MOONRISE": "Mondaufgang", 
-    "TXT_MOONSET": "Monduntergang", 
-    "TXT_HUMIDITY": "Feuchtigkeit", 
-    "TXT_PRESSURE": "Druck", 
-    "TXT_AIR_QUALITY": "Luftqualit\u00e4t", 
-    "TXT_AIR_POLLUTION": "Luftverschmutzung", 
-    "TXT_VISIBILITY": "Sichtweite", 
-    "TXT_INDOOR_TEMPERATURE": "Temperatur", 
-    "TXT_INDOOR_HUMIDITY": "Feuchtigkeit", 
-    "TXT_DEWPOINT": "Taupunkt", 
-    "TXT_MOONPHASE": "Mondphase", 
-    "TXT_NEW_MOON": "Neumond", 
-    "TXT_WAXING_CRESCENT": "Zunehmende Sichel", 
-    "TXT_FIRST_QUARTER": "Erstes Viertel", 
-    "TXT_WAXING_GIBBOUS": "Zunehmender Gibbous", 
-    "TXT_FULL_MOON": "Vollmond", 
-    "TXT_WANING_GIBBOUS": "Abnehmender Gibbous", 
-    "TXT_THIRD_QUARTER": "Letztes Viertel", 
-    "TXT_WANING_CRESCENT": "Abnehmende Sichel", 
-    "TXT_UV_LOW": "Schwach", 
-    "TXT_UV_MODERATE": "Mittel", 
-    "TXT_UV_HIGH": "Hoch", 
-    "TXT_UV_VERY_HIGH": "Sehr hoch", 
-    "TXT_UV_EXTREME": "Extrem", 
-    "TXT_WIFI_EXCELLENT": "Hervorragend", 
-    "TXT_WIFI_GOOD": "Gut", 
-    "TXT_WIFI_FAIR": "Ausreichend", 
-    "TXT_WIFI_WEAK": "Schwach", 
-    "TXT_WIFI_NO_CONNECTION": "Keine Verbindung", 
-    "TXT_UNITS_TEMP_CELSIUS": "\u00b0C", 
-    "TXT_UNITS_TEMP_FAHRENHEIT": "\u00b0F", 
-    "TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER": "g/cm\u00b2", 
-    "TXT_UNITS_PRES_POUNDSPERSQUAREINCH": "lb/in\u00b2"
-  }, 
+    "language": "de",
+    "daysShort": [ "SO", "MO", "DI", "MI", "DO", "FR", "SA" ],
+    "days": [ "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag" ],
+    "months": [ "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember" ],
+    "date_format": [ "%d.%m.%Y", "%d.%m" ]
+  },
   "3": {
-    "language": "no", 
-    "daysShort": ["S\u00d8", "MA", "TI", "ON", "TO", "FR", "L\u00d8"], 
-    "days": [
-      "S\u00f8ndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", 
-      "L\u00f8rdag"
-    ], 
-    "months": [
-      "Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", 
-      "September", "Oktober", "November", "Desember"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "no",
+    "daysShort": [ "SØ", "MA", "TI", "ON", "TO", "FR", "LØ" ],
+    "days": [ "Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag" ],
+    "months": [ "Januar", "Februar", "Mars", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Desember" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "5": {
-    "language": "cz", 
-    "daysShort": ["NE", "PO", "\u00daT", "ST", "\u010cT", "P\u00c1", "SO"], 
-    "days": [
-      "Ned\u011ble", "Pond\u011bl\u00ed", "\u00dater\u00fd", "St\u0159eda", 
-      "\u010ctvrtek", "P\u00e1tek", "Sobota"
-    ], 
-    "months": [
-      "Leden", "\u00danor", "B\u0159ezen", "Duben", "Kv\u011bten", "\u010cerven", 
-      "\u010cervenec", "Srpen", "Z\u00e1\u0159\u00ed", "\u0158\u00edjen", 
-      "Listopad", "Prosinec"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "cz",
+    "daysShort": [ "NE", "PO", "ÚT", "ST", "ČT", "PÁ", "SO" ],
+    "days": [ "Neděle", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota" ],
+    "months": [ "Leden", "Únor", "Březen", "Duben", "Květen", "Červen", "Červenec", "Srpen", "Září", "Říjen", "Listopad", "Prosinec" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "6": {
-    "language": "sk", 
-    "daysShort": ["NE", "PO", "UT", "ST", "\u0160T", "PI", "SO"], 
-    "days": [
-      "Nede\u013ea", "Pondelok", "Utorok", "Streda", "\u0160tvrtok", "Piatok", 
-      "Sobota"
-    ], 
-    "months": [
-      "Janu\u00e1r", "Febru\u00e1r", "Marec", "Apr\u00edl", "M\u00e1j", 
-      "J\u00fan", "J\u00fal", "August", "September", "Oktober", "November", 
-      "December"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "sk",
+    "daysShort": [ "NE", "PO", "UT", "ST", "ŠT", "PI", "SO" ],
+    "days": [ "Nedeľa", "Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota" ],
+    "months": [ "Január", "Február", "Marec", "Apríl", "Máj", "Jún", "Júl", "August", "September", "Oktober", "November", "December" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "7": {
-    "language": "pl", 
-    "daysShort": ["Ni", "Po", "Wt", "\u015ar", "Cz", "Pt", "So"], 
-    "days": [
-      "Niedziela", "Poniedzia\u0142ek", "Wtorek", "\u015aroda", "Czwartek", 
-      "Pi\u0105tek", "Sobota"
-    ], 
-    "months": [
-      "Stycze\u0144", "Luty", "Marzec", "Kwiecie\u0144", "Maj", "Czerwiec", 
-      "Lipiec", "Sierpie\u0144", "Wrzesie\u0144", "Pa\u017adziernik", "Listopad", 
-      "Grudzie\u0144"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "pl",
+    "daysShort": [ "Ni", "Po", "Wt", "Śr", "Cz", "Pt", "So" ],
+    "days": [ "Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota" ],
+    "months": [ "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec", "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "8": {
-    "language": "es", 
-    "daysShort": ["D", "L", "MA", "MI", "J", "V", "S"], 
-    "days": [
-      "Domingo", "Lunes", "Martes", "Mi\u00e9rcoles", "Jueves", "Viernes", 
-      "S\u00e1bado"
-    ], 
-    "months": [
-      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", 
-      "Septiembre", "Octubre", "Noviembre", "Diciembre"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"], 
-    "LC_D_T_FMT": "%a %d %b %Y %T %Z", 
-    "LC_D_FMT": "%d/%m/%y", 
-    "LC_T_FMT": "%T", 
-    "LC_ABMON": [
-      "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", 
-      "Dic"
-    ], 
-    "TXT_FEELS_LIKE": "Sensaci\u00f3n t\u00e9rmica", 
-    "TXT_SUNRISE": "Amanecer", 
-    "TXT_SUNSET": "Atardecer", 
-    "TXT_MOONRISE": "Salida de la Luna", 
-    "TXT_MOONSET": "Puesta de la Luna", 
-    "TXT_WIND": "Viento", 
-    "TXT_HUMIDITY": "Humedad", 
-    "TXT_UV_INDEX": "\u00cdndice UV", 
-    "TXT_PRESSURE": "Presi\u00f3n", 
-    "TXT_AIR_QUALITY": "Calidad del aire", 
-    "TXT_AIR_POLLUTION": "Contaminaci\u00f3n del aire", 
-    "TXT_VISIBILITY": "Visibilidad", 
-    "TXT_INDOOR_TEMPERATURE": "Temperatura", 
-    "TXT_INDOOR_HUMIDITY": "Humedad", 
-    "TXT_DEWPOINT": "Punto de roc\u00edo", 
-    "TXT_MOONPHASE": "Fase lunar", 
-    "TXT_NEW_MOON": "Nueva", 
-    "TXT_WAXING_CRESCENT": "Creciente", 
-    "TXT_FIRST_QUARTER": "Cuarto creciente", 
-    "TXT_WAXING_GIBBOUS": "Creciente gibosa", 
-    "TXT_FULL_MOON": "Llena", 
-    "TXT_WANING_GIBBOUS": "Menguante gibosa", 
-    "TXT_THIRD_QUARTER": "Cuarto menguante", 
-    "TXT_WANING_CRESCENT": "Menguante", 
-    "TXT_UV_LOW": "Bajo", 
-    "TXT_UV_MODERATE": "Moderado", 
-    "TXT_UV_HIGH": "Alto", 
-    "TXT_UV_VERY_HIGH": "Muy Alto", 
-    "TXT_UV_EXTREME": "Extremo", 
-    "TXT_WIFI_EXCELLENT": "Excelente", 
-    "TXT_WIFI_GOOD": "Bueno", 
-    "TXT_WIFI_FAIR": "Aceptable", 
-    "TXT_WIFI_WEAK": "D\u00e9bil", 
-    "TXT_WIFI_NO_CONNECTION": "Sin conexi\u00f3n", 
-    "TXT_UNITS_TEMP_CELSIUS": "C", 
-    "TXT_UNITS_TEMP_FAHRENHEIT": "F", 
-    "TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER": "g/cm", 
-    "TXT_UNITS_PRES_POUNDSPERSQUAREINCH": "lb/in", 
-    "TXT_UNKNOWN": "Desconocido"
-  }, 
+    "language": "es",
+    "daysShort": [ "D", "L", "MA", "MI", "J", "V", "S" ],
+    "days": [ "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" ],
+    "months": [ "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "4": {
-    "language": "fr", 
-    "daysShort": ["DI", "LU", "MA", "ME", "JE", "VE", "SA"], 
-    "days": ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"], 
-    "months": [
-      "Janvier", "F\u00e9vrier", "Mars", "Avril", "Mai", "Juin", "Juillet", 
-      "Aout", "Septembre", "Octobre", "Novembre", "Decembre"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"], 
-    "LC_D_T_FMT": "%a %d %b %Y %T", 
-    "LC_D_FMT": "%d/%m/%y", 
-    "LC_T_FMT": "%T", 
-    "LC_ABMON": [
-      "janv.", "f\u00e9vr.", "mars", "avril", "mai", "juin", "juil.", "ao\u00fbt", 
-      "sept.", "oct.", "nov.", "d\u00e9c."
-    ], 
-    "TXT_FEELS_LIKE": "Temperature Ressentie", 
-    "TXT_SUNRISE": "Lever de Soleil", 
-    "TXT_SUNSET": "Coucher de Soleil", 
-    "TXT_MOONRISE": "Lever de Lune", 
-    "TXT_MOONSET": "Coucher de Lune", 
-    "TXT_WIND": "Vent", 
-    "TXT_HUMIDITY": "Humidit\u00e9", 
-    "TXT_UV_INDEX": "Indice UV", 
-    "TXT_PRESSURE": "Pression", 
-    "TXT_AIR_QUALITY": "Qualit\u00e9 de L'air", 
-    "TXT_AIR_POLLUTION": "Pollution de L'air", 
-    "TXT_VISIBILITY": "Visibilit\u00e9", 
-    "TXT_INDOOR_TEMPERATURE": "Temp\u00e9rature", 
-    "TXT_INDOOR_HUMIDITY": "Humidit\u00e9", 
-    "TXT_DEWPOINT": "Point de ros\u00e9e", 
-    "TXT_MOONPHASE": "Phase lunaire", 
-    "TXT_NEW_MOON": "Nouvelle", 
-    "TXT_WAXING_CRESCENT": "Premier croissant", 
-    "TXT_FIRST_QUARTER": "Premier quartier", 
-    "TXT_WAXING_GIBBOUS": "Gibbeuse croissante", 
-    "TXT_FULL_MOON": "Pleine", 
-    "TXT_WANING_GIBBOUS": "Gibbeuse d\u00e9croissante", 
-    "TXT_THIRD_QUARTER": "Dernier quartier", 
-    "TXT_WANING_CRESCENT": "Dernier croissant", 
-    "TXT_UV_LOW": "Bas", 
-    "TXT_UV_MODERATE": "Mod\u00e9r\u00e9", 
-    "TXT_UV_HIGH": "Haut", 
-    "TXT_UV_VERY_HIGH": "Tr\u00e8s haut", 
-    "TXT_UV_EXTREME": "Extr\u00eame", 
-    "TXT_WIFI_GOOD": "Bon", 
-    "TXT_WIFI_FAIR": "Juste", 
-    "TXT_WIFI_WEAK": "Faible", 
-    "TXT_WIFI_NO_CONNECTION": "Pas de Connexion", 
-    "TXT_UNITS_TEMP_CELSIUS": "\u00b0C", 
-    "TXT_UNITS_TEMP_FAHRENHEIT": "\u00b0F", 
-    "TXT_UNITS_PRES_GRAMSPERSQUARECENTIMETER": "g/cm\u00b2", 
-    "TXT_UNITS_PRES_POUNDSPERSQUAREINCH": "lb/in\u00b2"
-  }, 
-  "9": {
-    "language": "sv", 
-    "daysShort": ["S\u00d6", "M\u00c5", "TI", "ON", "TO", "FR", "L\u00d6"], 
-    "days": [
-      "S\u00f6ndag", "M\u00e5ndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", 
-      "L\u00f6rdag"
-    ], 
-    "months": [
-      "Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", 
-      "September", "Oktober", "November", "December"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "fr",
+    "daysShort": [ "DI", "LU", "MA", "ME", "JE", "VE", "SA" ],
+    "days": [ "Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi" ],
+    "months": [ "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
+    "9": {
+    "language": "sv",
+    "daysShort": [ "SÖ", "MÅ", "TI", "ON", "TO", "FR", "LÖ" ],
+    "days": [ "Söndag", "Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag" ],
+    "months": [ "Januari", "Februari", "Mars", "April", "Maj", "Juni", "Juli", "Augusti", "September", "Oktober", "November", "December" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "10": {
-    "language": "dk", 
-    "daysShort": ["S\u00d8", "MA", "TI", "ON", "TO", "FR", "L\u00d8"], 
-    "days": [
-      "S\u00f8ndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", 
-      "L\u00f8rdag"
-    ], 
-    "months": [
-      "Januar", "Februar", "Marts", "April", "Maj", "Juni", "Juli", "August", 
-      "September", "Oktober", "November", "December"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
-  }, 
+    "language": "dk",
+    "daysShort": [ "SØ", "MA", "TI", "ON", "TO", "FR", "LØ" ],
+    "days": [ "Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag" ],
+    "months": [ "Januar", "Februar", "Marts", "April", "Maj", "Juni", "Juli", "August", "September", "Oktober", "November", "December" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
+  },
   "11": {
-    "language": "et", 
-    "daysShort": ["P", "E", "T", "K", "N", "R", "L"], 
-    "days": [
-      "P\u00fchap\u00e4ev", "Esmasp\u00e4ev", "Teisip\u00e4ev", "Kolmap\u00e4ev", 
-      "Neljap\u00e4ev", "Reede", "Laup\u00e4ev"
-    ], 
-    "months": [
-      "Jaanuar", "Veebruar", "M\u00e4rts", "Aprill", "Mai", "Juuni", "Juuli", 
-      "August", "September", "Oktoober", "November", "Detsember"
-    ], 
-    "date_format": ["%d-%m-%Y", "%d-%m"]
+    "language": "et",
+    "daysShort": [ "P", "E", "T", "K", "N", "R", "L" ],
+    "days": [ "Pühapäev", "Esmaspäev", "Teisipäev", "Kolmapäev", "Neljapäev", "Reede", "Laupäev" ],
+    "months": [ "Jaanuar", "Veebruar", "Märts", "Aprill", "Mai", "Juuni", "Juuli", "August", "September", "Oktoober", "November", "Detsember" ],
+    "date_format": [ "%d-%m-%Y", "%d-%m" ]
   }
 }

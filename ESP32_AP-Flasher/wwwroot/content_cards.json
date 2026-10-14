@@ -508,7 +508,7 @@
       {
         "key": "cheapblock",
         "name": "Cheap block hours",
-        "desc": "Number of hours for cheapest consecutive block (e.g., 3 for dishwasher, 2.5 for 2h30m). Set to 0 to disable. Shows up to 2 non-overlapping blocks.",
+        "desc": "Number of hours for cheapest consecutive block (e.g., 3 for dishwasher, 2.5 for 2h30m). Set to 0 to disable. Shows the cheapest block of today (also when it is over), and of tomorrow once its prices are known.",
         "type": "text"
       },
       {
@@ -780,6 +780,19 @@
           "2400": "2.4v",
           "2300": "2.3v",
           "2200": "2.2v"
+        }
+      },
+      {
+        "key": "mincheckin",
+        "name": "Minimum check-in time",
+        "desc": "Shortest time between check-ins when the AP has no update planned for the tag. Longer saves battery, but the tag reacts slower.",
+        "type": "select",
+        "options": {
+          "1": "-Tag default (40 sec)",
+          "60": "1 minute",
+          "120": "2 minutes",
+          "300": "5 minutes",
+          "600": "10 minutes"
         }
       },
       {

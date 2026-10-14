@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "serialap.h"
@@ -23,8 +24,82 @@
 
 extern uint16_t sendBlock(const void* data, const uint16_t len);
 extern UDPcomm udpsync;
-std::vector<PendingItem> pendingQueue;
-std::mutex queueMutex;
+// Queued items are heap allocated, so a PendingItem* stays valid when the vector grows. Dequeued items
+// are kept for a while before they are freed, because other tasks may still use them: a block request
+// being sent, a BLE upload or an asynchronous /getdata response. Guarded by queueMutex.
+std::vector<PendingItem*> pendingQueue;
+std::recursive_mutex queueMutex;
+struct RetiredItem {
+    PendingItem* item;
+    uint32_t retiredAt;
+};
+static std::vector<RetiredItem> retiredItems;
+static constexpr uint32_t RETIRED_ITEM_GRACE_MS = 120000;
+
+// What the radio holds for each tag (from the last SDA; cleared on cancel, xfer complete and timeout), and
+// what a tag got offered at its last check-in. An xfer complete carries no hash, so this tells which item a
+// tag finished; and the offered nextCheckIn tells when the tag will check in again (#466).
+// Only for tags on this AP's radio. Guarded by queueMutex.
+struct Announced {
+    uint64_t dataVer;
+    uint16_t nextCheckIn;   // minutes, or seconds with bit 15 set
+    uint16_t attemptsLeft;  // minutes the radio keeps it
+    uint32_t announcedAt;   // millis()
+};
+static std::unordered_map<uint64_t, Announced> announced;
+static std::unordered_map<uint64_t, uint64_t> offeredDataVer;
+
+static uint64_t macKey(const uint8_t* mac) {
+    uint64_t key;
+    memcpy(&key, mac, sizeof(key));
+    return key;
+}
+
+/// @brief Remember what was sent to the radio for a tag; nullptr: the radio has nothing for it
+static void setAnnounced(const uint8_t* mac, const struct pendingData* pending) {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    if (pending == nullptr) {
+        announced[macKey(mac)] = {0, 0, 0, millis()};
+    } else {
+        announced[macKey(mac)] = {pending->availdatainfo.dataVer, pending->availdatainfo.nextCheckIn, pending->attemptsLeft, millis()};
+    }
+}
+
+/// @brief Remember what the radio just offered the tag that checked in
+/// @param sleepSeconds set to the time until the tag's next check-in it was told (0: no instruction)
+/// @return false if unknown (for example after a reboot)
+static bool recordOffered(const uint8_t* mac, uint32_t& sleepSeconds) {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    sleepSeconds = 0;
+    auto it = announced.find(macKey(mac));
+    if (it == announced.end()) {
+        offeredDataVer.erase(macKey(mac));
+        return false;
+    }
+    const Announced& a = it->second;
+    // the radio counts nextCheckIn and attemptsLeft down once a minute; round up, so the AP rather
+    // expects the tag too early than too late
+    const uint32_t elapsedMinutes = (millis() - a.announcedAt + 59999) / 60000;
+    if (a.attemptsLeft == 0 || elapsedMinutes >= a.attemptsLeft) {
+        offeredDataVer[macKey(mac)] = 0;  // the radio dropped it
+        return true;
+    }
+    offeredDataVer[macKey(mac)] = a.dataVer;
+    if (a.nextCheckIn & 0x8000) {
+        sleepSeconds = a.nextCheckIn & 0x7FFF;
+    } else if (a.nextCheckIn > elapsedMinutes) {
+        sleepSeconds = (a.nextCheckIn - elapsedMinutes) * 60;
+    }
+    return true;
+}
+
+/// @brief False if the tag was offered (and so finished) another item than the queued one
+static bool offeredMatches(const uint8_t* mac, const uint64_t dataVer) {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    auto it = offeredDataVer.find(macKey(mac));
+    // unknown, or the radio had dropped it by our count: assume it matches
+    return it == offeredDataVer.end() || it->second == 0 || it->second == dataVer;
+}
 
 void addCRC(void* p, uint8_t len) {
     uint8_t total = 0;
@@ -59,6 +134,7 @@ void prepareCancelPending(const uint8_t dst[8]) {
     struct pendingData pending = {0};
     memcpy(pending.targetMac, dst, 8);
     sendCancelPending(&pending);
+    setAnnounced(dst, nullptr);
 
     tagRecord* taginfo = tagRecord::findByMAC(dst);
     if (taginfo == nullptr) {
@@ -82,7 +158,7 @@ void prepareIdleReq(const uint8_t* dst, uint16_t nextCheckin) {
         pending.attemptsLeft = 10 + config.maxsleep;
 
         Serial.printf(">SDA %02X%02X%02X%02X%02X%02X%02X%02X sleeping %d minutes\r\n", dst[7], dst[6], dst[5], dst[4], dst[3], dst[2], dst[1], dst[0], nextCheckin);
-        sendDataAvail(&pending);
+        if (sendDataAvail(&pending)) setAnnounced(dst, &pending);
     }
 }
 
@@ -159,6 +235,10 @@ void prepareDataAvail(uint8_t* data, uint16_t len, uint8_t dataType, const uint8
     }
 
     wsSendTaginfo(dst, SYNC_TAGSTATUS);
+}
+
+static bool isImageDataType(const uint8_t dataType) {
+    return (dataType >= DATATYPE_IMG_RAW_1BPP && dataType <= DATATYPE_IMG_RAW_4BPP) || dataType == DATATYPE_IMG_ZLIB || dataType == DATATYPE_IMG_G5;
 }
 
 bool prepareDataAvail(String& filename, uint8_t dataType, uint8_t dataTypeArgument, const uint8_t* dst, uint16_t nextCheckin, bool resend) {
@@ -241,6 +321,7 @@ bool prepareDataAvail(String& filename, uint8_t dataType, uint8_t dataTypeArgume
     taginfo->filename = filename;
     taginfo->len = filesize;
     taginfo->dataType = dataType;
+    if (isImageDataType(dataType)) taginfo->imageDataType = dataType;
     taginfo->pendingCount++;
 
     struct pendingData pending = {0};
@@ -289,11 +370,10 @@ void prepareExternalDataAvail(struct pendingData* pending, IPAddress remoteIP) {
                 http.begin(imageUrl);
                 int httpCode = http.GET();
                 if (httpCode == 200) {
-                    xSemaphoreTake(fsMutex, portMAX_DELAY);
-                    File file = contentFS->open(filename, "w");
+                    // LockedFile: don't hold fsMutex while waiting for the network
+                    LockedFile file(filename, "w");
                     http.writeToStream(&file);
                     file.close();
-                    xSemaphoreGive(fsMutex);
                 } else if (httpCode == 404) {
                     snprintf(imageUrl, sizeof(imageUrl), "http://%s/current/%s.raw", remoteIP.toString().c_str(), hexmac);
                     // imageUrl = "http://" + remoteIP.toString() + "/current/" + String(hexmac) + ".raw";
@@ -301,11 +381,9 @@ void prepareExternalDataAvail(struct pendingData* pending, IPAddress remoteIP) {
                     http.begin(imageUrl);
                     httpCode = http.GET();
                     if (httpCode == 200) {
-                        xSemaphoreTake(fsMutex, portMAX_DELAY);
-                        File file = contentFS->open(filename, "w");
+                        LockedFile file(filename, "w");
                         http.writeToStream(&file);
                         file.close();
-                        xSemaphoreGive(fsMutex);
                     }
                 } else {
                     logLine("prepareExternalDataAvail " + String(imageUrl) + " error " + String(httpCode));
@@ -355,7 +433,13 @@ void prepareExternalDataAvail(struct pendingData* pending, IPAddress remoteIP) {
                     size_t len = http.getSize();
                     if (len > 0) {
                         clearPending(taginfo);
-                        taginfo->data = new uint8_t[len];
+                        // malloc, not new[]: the buffer is released with free() (clearPending)
+                        taginfo->data = (uint8_t*)malloc(len);
+                        if (taginfo->data == nullptr) {
+                            wsErr("no memory allocation for data");
+                            http.end();
+                            return;
+                        }
                         WiFiClient* stream = http.getStreamPtr();
                         stream->readBytes(taginfo->data, len);
                         taginfo->dataType = pending->availdatainfo.dataType;
@@ -388,21 +472,23 @@ void processBlockRequest(struct espBlockRequest* br) {
     }
 
     PendingItem* queueItem = getQueueItem(br->src, br->ver);
+    if (queueItem == nullptr && countQueueItem(br->src) > 0) {
+        // The tag asks for data that has been replaced by a newer item (for example a newer image).
+        // Don't cancel everything: announce the current item again, so the radio replaces what it has
+        // for this tag and the tag gets the new data on its next check-in.
+        Serial.printf("blockrequest: outdated data requested by %02X%02X%02X%02X%02X%02X%02X%02X, announcing current item\r\n", br->src[7], br->src[6], br->src[5], br->src[4], br->src[3], br->src[2], br->src[1], br->src[0]);
+        checkQueue(br->src);
+        return;
+    }
     if (queueItem == nullptr) {
         prepareCancelPending(br->src);
         Serial.printf("blockrequest: couldn't find taginfo %02X%02X%02X%02X%02X%02X%02X%02X\r\n", br->src[7], br->src[6], br->src[5], br->src[4], br->src[3], br->src[2], br->src[1], br->src[0]);
         return;
     }
-    if (queueItem->data == nullptr) {
-        fs::File file = contentFS->open(queueItem->filename);
-        if (!file) {
-            Serial.print("No current file. " + String(queueItem->filename) + " Canceling request\r\n");
-            prepareCancelPending(br->src);
-            return;
-        }
-        queueItem->data = getDataForFile(file);
-        Serial.println("Reading file " + String(queueItem->filename) + " in  " + String(millis() - t) + "ms");
-        file.close();
+    if (!loadQueueItemData(queueItem)) {
+        Serial.print("No data for " + String(queueItem->filename) + ", canceling request\r\n");
+        prepareCancelPending(br->src);
+        return;
     }
 
     // check if we're not exceeding max blocks (to prevent sendBlock from exceeding its boundary)
@@ -442,8 +528,18 @@ void processXferComplete(struct espXferComplete* xfc, bool local) {
     sprintf(dst_path, "/current/%02X%02X%02X%02X%02X%02X%02X%02X.raw\0", xfc->src[7], xfc->src[6], xfc->src[5], xfc->src[4], xfc->src[3], xfc->src[2], xfc->src[1], xfc->src[0]);
 
     uint8_t md5bytes[16];
+    bool haveMd5 = false;  // false for a repeated xfer complete, when the item is no longer queued
     bool wasDeepSleepCmd = false;
+    if (local) setAnnounced(xfc->src, nullptr);  // the radio cleared its slot for this tag
     PendingItem* queueItem = getQueueItem(xfc->src);
+    if (local && queueItem != nullptr && !offeredMatches(xfc->src, queueItem->pendingdata.availdatainfo.dataVer)) {
+        // The tag finished data that was replaced while it was downloading. The queued item has not been
+        // delivered: keep it, and announce it again so the tag gets it on its next check-in.
+        Serial.printf("xfer complete for replaced data, keeping the current item\r\n");
+        wsLog("xfer complete for replaced data, current item kept");
+        checkQueue(xfc->src);
+        return;
+    }
     if (queueItem != nullptr) {
         // A completed deep-sleep command means the tag acknowledged it and is now
         // going to sleep. Flag it so we can mark the tag "in deep sleep" below;
@@ -453,10 +549,12 @@ void processXferComplete(struct espXferComplete* xfc, bool local) {
             queueItem->pendingdata.availdatainfo.dataTypeArgument == CMD_DO_DEEPSLEEP) {
             wasDeepSleepCmd = true;
         }
-        if (contentFS->exists(dst_path) && contentFS->exists(queueItem->filename)) {
+        // a resent /current/<mac>.raw is already in place: don't remove it
+        const bool isCurrentImage = strcmp(queueItem->filename, dst_path) == 0;
+        if (!isCurrentImage && contentFS->exists(dst_path) && contentFS->exists(queueItem->filename)) {
             contentFS->remove(dst_path);
         }
-        if (contentFS->exists(queueItem->filename)) {
+        if (!isCurrentImage && contentFS->exists(queueItem->filename)) {
             uint8_t dataType = queueItem->pendingdata.availdatainfo.dataType;
             if (config.preview && dataType != DATATYPE_FW_UPDATE && dataType != DATATYPE_NOUPDATE) {
                 contentFS->rename(queueItem->filename, String(dst_path));
@@ -467,13 +565,14 @@ void processXferComplete(struct espXferComplete* xfc, bool local) {
         }
         memcpy(md5bytes, &queueItem->pendingdata.availdatainfo.dataVer, sizeof(uint64_t));
         memset(md5bytes + sizeof(uint64_t), 0, 16 - sizeof(uint64_t));
+        haveMd5 = true;
         dequeueItem(xfc->src);
     }
 
     tagRecord* taginfo = tagRecord::findByMAC(xfc->src);
     if (taginfo != nullptr) {
         clearPending(taginfo);
-        memcpy(taginfo->md5, md5bytes, sizeof(md5bytes));
+        if (haveMd5) memcpy(taginfo->md5, md5bytes, sizeof(md5bytes));
         taginfo->updateCount++;
         taginfo->updateLast = now;
         taginfo->pendingCount = countQueueItem(xfc->src);
@@ -518,6 +617,7 @@ void processXferTimeout(struct espXferComplete* xfc, bool local) {
 
     time_t now;
     time(&now);
+    if (local) setAnnounced(xfc->src, nullptr);  // the radio dropped its slot for this tag
     tagRecord* taginfo = tagRecord::findByMAC(xfc->src);
     if (taginfo != nullptr) {
         taginfo->pendingIdle = 60;
@@ -553,10 +653,7 @@ void processDataReq(struct espAvailDataReq* eadr, bool local, IPAddress remoteIP
             Serial.printf("Tag %s reports illegal channel %d\r\n", hexmac, eadr->adr.currentChannel);
             return;
         }
-        taginfo = new tagRecord;
-        memcpy(taginfo->mac, eadr->src, sizeof(taginfo->mac));
-        taginfo->pendingCount = 0;
-        tagDB.push_back(taginfo);
+        taginfo = addRecord(eadr->src);
     }
     time_t now;
     time(&now);
@@ -575,7 +672,15 @@ void processDataReq(struct espAvailDataReq* eadr, bool local, IPAddress remoteIP
         taginfo->apIp = IPAddress(0, 0, 0, 0);
     }
 
-    if (taginfo->pendingIdle == 0 || countQueueItem(eadr->src) > 0) {
+    uint32_t offeredSleep = 0;
+    const bool offeredKnown = local && recordOffered(eadr->src, offeredSleep);
+    // BLE displays don't get their instructions from the radio
+    const bool bleTag = ((eadr->adr.hwType & 0xB0) == 0xB0) || (eadr->src[7] == 0x13 && eadr->src[6] == 0x37);
+    if (offeredKnown && !bleTag) {
+        // The tag sleeps what the radio told it just now, counted down since it was announced (#466).
+        // Without an instruction it checks in again after about 40 seconds.
+        taginfo->expectedNextCheckin = now + (offeredSleep > 60 ? offeredSleep : 60);
+    } else if (taginfo->pendingIdle == 0 || countQueueItem(eadr->src) > 0) {
         // A tag that checks in is awake right now. Raise the expected checkin to at
         // least now+60, and pull it back down from the "in deep sleep" sentinel
         // (3216153600): once a tag checks in again after a deep sleep it has woken
@@ -649,6 +754,7 @@ void processDataReq(struct espAvailDataReq* eadr, bool local, IPAddress remoteIP
                 struct pendingData cancel = {0};
                 memcpy(cancel.targetMac, eadr->src, 8);
                 sendCancelPending(&cancel);
+                setAnnounced(eadr->src, nullptr);
             }
         }
     }
@@ -681,8 +787,7 @@ void processTagReturnData(struct espTagReturnData* trd, uint8_t len, bool local)
 }
 
 void refreshAllPending() {
-    for (int16_t c = 0; c < tagDB.size(); c++) {
-        tagRecord* taginfo = tagDB.at(c);
+    for (tagRecord* taginfo : tagDBSnapshot()) {
         if (taginfo->pendingCount > 0 && taginfo->version == 0) {
             clearPending(taginfo);
             taginfo->nextupdate = 0;
@@ -830,10 +935,7 @@ void updateTaginfoitem(struct TagInfo* taginfoitem, IPAddress remoteIP) {
 
     if (taginfo == nullptr) {
         if (config.lock) return;
-        taginfo = new tagRecord;
-        memcpy(taginfo->mac, taginfoitem->mac, sizeof(taginfo->mac));
-        taginfo->pendingCount = 0;
-        tagDB.push_back(taginfo);
+        taginfo = addRecord(taginfoitem->mac);
     }
     tagRecord initialTagInfo = *taginfo;
 
@@ -874,8 +976,7 @@ void updateTaginfoitem(struct TagInfo* taginfoitem, IPAddress remoteIP) {
 }
 
 bool checkMirror(struct tagRecord* taginfo, struct pendingData* pending) {
-    for (int16_t c = 0; c < tagDB.size(); c++) {
-        tagRecord* taginfo2 = tagDB.at(c);
+    for (tagRecord* taginfo2 : tagDBSnapshot()) {
         if (taginfo2->contentMode == 20 && taginfo2->version == 0) {
             JsonDocument doc;
             deserializeJson(doc, taginfo2->modeConfigJson);
@@ -935,8 +1036,39 @@ bool checkMirror(struct tagRecord* taginfo, struct pendingData* pending) {
 }
 
 void enqueueItem(struct PendingItem& item) {
-    std::lock_guard<std::mutex> lock(queueMutex);
-    pendingQueue.push_back(item);
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    pendingQueue.push_back(new PendingItem(item));
+}
+
+/// @brief Number of queued and retired items that use this data buffer
+static int dataUsers(const uint8_t* data) {
+    int count = 0;
+    for (const PendingItem* item : pendingQueue) {
+        if (item->data == data) count++;
+    }
+    for (const RetiredItem& retired : retiredItems) {
+        if (retired.item->data == data) count++;
+    }
+    return count;
+}
+
+/// @brief Move a removed item to the retired list (caller holds queueMutex)
+static void retireItem(PendingItem* item) {
+    retiredItems.push_back({item, millis()});
+}
+
+void freeRetiredQueueItems() {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    for (size_t c = 0; c < retiredItems.size();) {
+        if (millis() - retiredItems[c].retiredAt > RETIRED_ITEM_GRACE_MS) {
+            PendingItem* item = retiredItems[c].item;
+            retiredItems.erase(retiredItems.begin() + c);
+            if (item->data != nullptr && dataUsers(item->data) == 0) free(item->data);
+            delete item;
+        } else {
+            c++;
+        }
+    }
 }
 
 bool dequeueItem(const uint8_t* targetMac) {
@@ -944,37 +1076,32 @@ bool dequeueItem(const uint8_t* targetMac) {
 }
 
 bool dequeueItem(const uint8_t* targetMac, const uint64_t dataVer) {
-    std::lock_guard<std::mutex> lock(queueMutex);
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
     auto it = std::find_if(pendingQueue.begin(), pendingQueue.end(),
-                           [targetMac, dataVer](const PendingItem& item) {
-                               bool macMatches = memcmp(item.pendingdata.targetMac, targetMac, sizeof(item.pendingdata.targetMac)) == 0;
-                               bool dataVerMatches = (dataVer == 0) || (dataVer == item.pendingdata.availdatainfo.dataVer);
+                           [targetMac, dataVer](const PendingItem* item) {
+                               bool macMatches = memcmp(item->pendingdata.targetMac, targetMac, sizeof(item->pendingdata.targetMac)) == 0;
+                               bool dataVerMatches = (dataVer == 0) || (dataVer == item->pendingdata.availdatainfo.dataVer);
                                return macMatches && dataVerMatches;
                            });
     if (it != pendingQueue.end()) {
-        if (it->data != nullptr) {
-            int datacount = 0;
-            for (const PendingItem& item : pendingQueue) {
-                if (item.data == it->data) {
-                    datacount++;
-                }
-            }
-            if (datacount == 1) {
-                free(it->data);
-            }
-            it->data = nullptr;
-        }
+        PendingItem* item = *it;
         pendingQueue.erase(it);
+        retireItem(item);
         return true;
     }
     return false;
 }
 
+static size_t queueSize() {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    return pendingQueue.size();
+}
+
 uint16_t countQueueItem(const uint8_t* targetMac) {
-    std::unique_lock<std::mutex> lock(queueMutex);
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
     int count = std::count_if(pendingQueue.begin(), pendingQueue.end(),
-                              [targetMac](const PendingItem& item) {
-                                  return memcmp(item.pendingdata.targetMac, targetMac, sizeof(item.pendingdata.targetMac)) == 0;
+                              [targetMac](const PendingItem* item) {
+                                  return memcmp(item->pendingdata.targetMac, targetMac, sizeof(item->pendingdata.targetMac)) == 0;
                               });
     return count;
 }
@@ -984,31 +1111,46 @@ PendingItem* getQueueItem(const uint8_t* targetMac) {
 }
 
 PendingItem* getQueueItem(const uint8_t* targetMac, const uint64_t dataVer) {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
     auto it = std::find_if(pendingQueue.begin(), pendingQueue.end(),
-                           [targetMac, dataVer](const PendingItem& item) {
-                               bool macMatches = memcmp(item.pendingdata.targetMac, targetMac, sizeof(item.pendingdata.targetMac)) == 0;
-                               bool dataVerMatches = (dataVer == 0) || (dataVer == item.pendingdata.availdatainfo.dataVer);
+                           [targetMac, dataVer](const PendingItem* item) {
+                               bool macMatches = memcmp(item->pendingdata.targetMac, targetMac, sizeof(item->pendingdata.targetMac)) == 0;
+                               bool dataVerMatches = (dataVer == 0) || (dataVer == item->pendingdata.availdatainfo.dataVer);
                                return macMatches && dataVerMatches;
                            });
-    if (it != pendingQueue.end()) {
-        return &(*it);
-    } else {
-        return nullptr;
+    return it != pendingQueue.end() ? *it : nullptr;
+}
+
+bool loadQueueItemData(PendingItem* queueItem) {
+    std::lock_guard<std::recursive_mutex> lock(queueMutex);
+    if (queueItem->data != nullptr) return true;
+    fs::File file = contentFS->open(queueItem->filename);
+    if (!file) {
+        Serial.print("No current file. " + String(queueItem->filename) + "\r\n");
+        return false;
     }
+    queueItem->data = getDataForFile(file);
+    file.close();
+    return queueItem->data != nullptr;
 }
 
 void checkQueue(const uint8_t* targetMac) {
     uint16_t queueCount;
     queueCount = countQueueItem(targetMac);
     if (queueCount > 0) {
-        Serial.printf("queue: total %d elements\r\n", pendingQueue.size());
+        Serial.printf("queue: total %d elements\r\n", queueSize());
         PendingItem* queueItem = getQueueItem(targetMac);
         if (queueItem == nullptr) {
             return;
         }
         if (queueCount > 1) queueItem->pendingdata.availdatainfo.nextCheckIn = 5 | 0x8000;
-        sendDataAvail(&queueItem->pendingdata);
+        if (sendDataAvail(&queueItem->pendingdata)) setAnnounced(targetMac, &queueItem->pendingdata);
     }
+}
+
+/// @brief An image to show right away: not preloaded (preload bit 2 and special type bits 3-7 are zero)
+static bool isPlainImage(const struct AvailDataInfo& adi) {
+    return isImageDataType(adi.dataType) && (adi.dataTypeArgument & 0xFC) == 0;
 }
 
 bool queueDataAvail(struct pendingData* pending, bool local) {
@@ -1031,7 +1173,7 @@ bool queueDataAvail(struct pendingData* pending, bool local) {
     } else {
         newPending.data = nullptr;
         
-        if (pendingQueue.size() < 5) {   // maximized to 5 to save some memory
+        if (queueSize() < 5) {   // maximized to 5 to save some memory
             // optional: read data early, don't wait for block request.
             fs::File file = contentFS->open(newPending.filename);
             if (file) {
@@ -1045,16 +1187,38 @@ bool queueDataAvail(struct pendingData* pending, bool local) {
     }
     newPending.len = taginfo->len;
 
-    uint8_t dataType = pending->availdatainfo.dataType;
-    if (dataType != DATATYPE_FW_UPDATE && dataType != DATATYPE_NOUPDATE && pending->availdatainfo.dataTypeArgument & 0xF8 == 0x00) {
-        // in case of an image (no preload), remove already queued images
-        pendingQueue.erase(std::remove_if(pendingQueue.begin(), pendingQueue.end(),
-                                          [pending](const PendingItem& item) {
-                                              bool macMatches = memcmp(item.pendingdata.targetMac, pending->targetMac, sizeof(item.pendingdata.targetMac)) == 0;
-                                              bool dataTypeArgumentMatches = (pending->availdatainfo.dataType == item.pendingdata.availdatainfo.dataType) && ((item.pendingdata.availdatainfo.dataTypeArgument & 0xF8) == 0x00);
-                                              return macMatches && dataTypeArgumentMatches;
-                                          }),
-                           pendingQueue.end());
+    // A new image replaces the images that are still queued for this tag: showing an outdated image
+    // first is pointless. Preloaded images, commands and firmware updates are never replaced.
+    if (isPlainImage(pending->availdatainfo)) {
+        std::vector<String> obsoleteFiles;
+        {
+            std::lock_guard<std::recursive_mutex> lock(queueMutex);
+            for (size_t c = 0; c < pendingQueue.size();) {
+                PendingItem* item = pendingQueue[c];
+                if (memcmp(item->pendingdata.targetMac, pending->targetMac, sizeof(item->pendingdata.targetMac)) == 0 && isPlainImage(item->pendingdata.availdatainfo)) {
+                    pendingQueue.erase(pendingQueue.begin() + c);
+                    retireItem(item);
+                    obsoleteFiles.push_back(item->filename);
+                } else {
+                    c++;
+                }
+            }
+            // keep files that are still used (mirrored tags share the file)
+            obsoleteFiles.erase(std::remove_if(obsoleteFiles.begin(), obsoleteFiles.end(),
+                                               [&newPending](const String& filename) {
+                                                   if (!filename.endsWith(".pending") || filename == newPending.filename) return true;
+                                                   for (const PendingItem* item : pendingQueue) {
+                                                       if (filename == item->filename) return true;
+                                                   }
+                                                   return false;
+                                               }),
+                                obsoleteFiles.end());
+        }
+        for (const String& filename : obsoleteFiles) {
+            xSemaphoreTake(fsMutex, portMAX_DELAY);
+            contentFS->remove(filename);
+            xSemaphoreGive(fsMutex);
+        }
     }
 
     enqueueItem(newPending);

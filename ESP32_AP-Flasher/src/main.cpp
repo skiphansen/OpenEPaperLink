@@ -123,6 +123,7 @@ void setup() {
     }
     */
 
+    enableNtpFromDhcp();
     wm.initEth();
     initAPconfig();
 
@@ -196,6 +197,7 @@ void setup() {
 void loop() {
     ws.cleanupClients();
     wm.poll();
+    handleRestartRequest();
 
     if (intervalSysinfo.doRun()) {
         wsSendSysteminfo();

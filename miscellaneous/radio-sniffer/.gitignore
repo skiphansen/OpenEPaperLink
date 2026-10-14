@@ -1,0 +1,6 @@
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+host/*.pcap
+host/*.csv
+__pycache__/

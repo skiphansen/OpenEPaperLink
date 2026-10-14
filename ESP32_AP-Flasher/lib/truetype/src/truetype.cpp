@@ -1,5 +1,7 @@
 #include "truetype.h"
 
+#include <algorithm>
+
 //Kerning is optional. Many fonts don't have kerning tables anyway.
 //#define ENABLEKERNING
 
@@ -81,6 +83,7 @@ int truetypeClass::ttfRead(uint8_t *d, int iLen) {
 
         while (iLen > 0) {
             if (iBufferedBytes == 0) {
+                u32BufStart = file.position();
                 iBufferedBytes = file.read(u8FileBuf, FILE_BUF_SIZE);
                 iCurrentBufSize = iBufferedBytes;
                 if (iBufferedBytes <= 0) break;
@@ -116,18 +119,15 @@ int truetypeClass::ttfRead(uint8_t *d, int iLen) {
 
 void truetypeClass::ttfSeek(uint32_t u32Offset) {
     if (!pTTF) {
-        /*
-        TODO/FIXME: for some reason this doesn't work.
-        If a seek position is within the current loaded buffer, it should just change the buffer position
-
-        if (u32Offset >= file.position() - iCurrentBufSize && u32Offset < file.position()) {
-            u32BufPosition = u32Offset - (file.position() - iCurrentBufSize);
-            iBufferedBytes = file.position() - u32Offset;
+        // within the loaded buffer: only move in the buffer (the file position stays at its end)
+        if (iCurrentBufSize > 0 && u32Offset >= u32BufStart && u32Offset < u32BufStart + iCurrentBufSize) {
+            u32BufPosition = u32Offset - u32BufStart;
+            iBufferedBytes = iCurrentBufSize - u32BufPosition;
         } else {
-        */
             file.seek(u32Offset);
             iBufferedBytes = 0;
-        // }
+            iCurrentBufSize = 0;
+        }
     } else {
         if (u32Offset > u32TTFSize) {
             u32Offset = u32TTFSize;
@@ -266,10 +266,10 @@ void truetypeClass::readHeadTable() {
             headTable.flags = getUInt16t();
             headTable.unitsPerEm = getUInt16t();
             for (int j = 0; j < 8; j++) {
-                headTable.created[i] = getUInt8t();
+                headTable.created[j] = getUInt8t();
             }
             for (int j = 0; j < 8; j++) {
-                headTable.modified[i] = getUInt8t();
+                headTable.modified[j] = getUInt8t();
             }
             xMin = headTable.xMin = getInt16t();
             yMin = headTable.yMin = getInt16t();
@@ -383,6 +383,9 @@ uint8_t truetypeClass::readHhea() {
     }
     getUInt32t();
     ascender = getInt16t();
+    // skip descender .. metricDataFormat (14 fields) to numberOfHMetrics, the last field at offset 34
+    for (uint8_t i = 0; i < 14; i++) getUInt16t();
+    numberOfHMetrics = getUInt16t();
     return 1;
 }
 
@@ -453,6 +456,12 @@ int16_t truetypeClass::getKerning(uint16_t _left_glyph, uint16_t _right_glyph) {
 }
 #endif
 
+uint16_t truetypeClass::spaceAdvance(wchar_t _space) {
+    const uint16_t id = codeToGlyphId(_space);
+    if (id == 0) return characterSize / 4;
+    return getHMetric(id).advanceWidth;
+}
+
 // hmtx. metric information for the horizontal layout each of the glyphs
 uint8_t truetypeClass::readHMetric() {
     if (seekToTable("hmtx") == 0) {
@@ -467,9 +476,18 @@ ttHMetric_t truetypeClass::getHMetric(uint16_t _code) {
     static ttHMetric_t result;
     result.advanceWidth = 0;
 
-    ttfSeek(hmtxTablePos + (_code * 4));
-    result.advanceWidth = getUInt16t();
-    result.leftSideBearing = getInt16t();
+    if (numberOfHMetrics > 0 && _code >= numberOfHMetrics) {
+        // glyphs after the last full entry use its advance width, and have only a leftSideBearing
+        // (common in CJK fonts, where most glyphs have the same width)
+        ttfSeek(hmtxTablePos + ((numberOfHMetrics - 1) * 4));
+        result.advanceWidth = getUInt16t();
+        ttfSeek(hmtxTablePos + (numberOfHMetrics * 4) + ((_code - numberOfHMetrics) * 2));
+        result.leftSideBearing = getInt16t();
+    } else {
+        ttfSeek(hmtxTablePos + (_code * 4));
+        result.advanceWidth = getUInt16t();
+        result.leftSideBearing = getInt16t();
+    }
 
     result.advanceWidth = (result.advanceWidth * characterSize) / headTable.unitsPerEm;
     result.leftSideBearing = (result.leftSideBearing * characterSize) / headTable.unitsPerEm;
@@ -622,9 +640,24 @@ uint8_t truetypeClass::readCompoundGlyph() {
         if (flags & 0b00000000001) {
             arg1 = getInt16t();
             arg2 = getInt16t();
+        } else if (flags & 0b00000000010) {
+            // x/y offsets are signed bytes
+            arg1 = (int8_t)getUInt8t();
+            arg2 = (int8_t)getUInt8t();
         } else {
+            // point numbers
             arg1 = getUInt8t();
             arg2 = getUInt8t();
+        }
+        // skip the scale (not applied), so the next component is read from the right place:
+        // WE_HAVE_A_SCALE, WE_HAVE_AN_X_AND_Y_SCALE, WE_HAVE_A_TWO_BY_TWO (F2Dot14 values)
+        if (flags & 0x0008) {
+            getUInt16t();
+        } else if (flags & 0x0040) {
+            getUInt32t();
+        } else if (flags & 0x0080) {
+            getUInt32t();
+            getUInt32t();
         }
 
         if (flags & 0b00000000010) {
@@ -710,9 +743,7 @@ void truetypeClass::freeGlyph() {
 
 // generate Bitmap
 void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t characterSize) {
-    points = NULL;
-    beginPoints = NULL;
-    endPoints = NULL;
+    // keep the arrays of the previous glyph, only start counting again
     numPoints = 0;
     numBeginPoints = 0;
     numEndPoints = 0;
@@ -722,8 +753,8 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t characterSi
     uint16_t j = 0;
 
     for (uint16_t i = 0; i < glyph.numberOfContours; i++) {
-        uint8_t firstPointOfContour = j;
-        uint8_t lastPointOfContour = glyph.endPtsOfContours[i];
+        uint16_t firstPointOfContour = j;
+        uint16_t lastPointOfContour = glyph.endPtsOfContours[i];
 
         // Rotate to on-curve the first point
         uint16_t numberOfRotations = 0;
@@ -781,10 +812,17 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t characterSi
                 x0 = pointsOfCurve[0].x;
                 y0 = pointsOfCurve[0].y;
 
-                for (int step = 0; step <= 9; step += 1) {
-                    float t = (float)step / 9.0;
-                    x1 = (1.0 - t) * (1.0 - t) * pointsOfCurve[0].x + 2.0 * t * (1.0 - t) * pointsOfCurve[1].x + t * t * pointsOfCurve[2].x;
-                    y1 = (1.0 - t) * (1.0 - t) * pointsOfCurve[0].y + 2.0 * t * (1.0 - t) * pointsOfCurve[1].y + t * t * pointsOfCurve[2].y;
+                // enough straight segments to stay within ~0.2 pixel of the curve: few for small text,
+                // more for large digits (was always 9)
+                const float scale = (float)characterSize / headTable.unitsPerEm;
+                const float lengthPx = (hypotf(pointsOfCurve[1].x - pointsOfCurve[0].x, pointsOfCurve[1].y - pointsOfCurve[0].y) +
+                                        hypotf(pointsOfCurve[2].x - pointsOfCurve[1].x, pointsOfCurve[2].y - pointsOfCurve[1].y)) * scale;
+                const int steps = constrain((int)ceilf(sqrtf(lengthPx / 1.6f)), 1, 24);
+
+                for (int step = 1; step <= steps; step++) {
+                    const float t = (float)step / steps;
+                    x1 = (1.0f - t) * (1.0f - t) * pointsOfCurve[0].x + 2.0f * t * (1.0f - t) * pointsOfCurve[1].x + t * t * pointsOfCurve[2].x;
+                    y1 = (1.0f - t) * (1.0f - t) * pointsOfCurve[0].y + 2.0f * t * (1.0f - t) * pointsOfCurve[1].y + t * t * pointsOfCurve[2].y;
 
                     addLine(x0 * characterSize / headTable.unitsPerEm + _x, (ascender - y0) * characterSize / headTable.unitsPerEm + _y,
                             x1 * characterSize / headTable.unitsPerEm + _x, (ascender - y1) * characterSize / headTable.unitsPerEm + _y);
@@ -837,96 +875,84 @@ void truetypeClass::addLine(float _x0, float _y0, float _x1, float _y1) {
 }
 
 void truetypeClass::fillGlyph(int16_t _x_min, int16_t _y_min, uint16_t characterSize) {
-    for (int16_t y = round((float)(ascender - glyph.yMax) * (float)characterSize / (float)headTable.unitsPerEm + _y_min);
-         y < round((float)(ascender - glyph.yMin) * (float)characterSize / (float)headTable.unitsPerEm + _y_min);
-         y++) {
-        ttCoordinate_t point1, point2;
-        ttCoordinate_t point;
-        point.y = (float)y;
+    // Scanline fill with the nonzero winding rule. Per scanline, collect where the edges cross it, sort
+    // them, and walk the pixels left to right. A pixel is inside when the edges crossing to its right
+    // add up to a nonzero winding number (+1 upward edge, -1 downward), like the per-pixel test that
+    // was here before, without testing every edge for every pixel.
+    if (numPoints == 0) return;
+    ttCrossing_t *crossings = (ttCrossing_t *)malloc(sizeof(ttCrossing_t) * numPoints);
+    if (crossings == nullptr) return;
 
-        uint16_t intersectPointsNum = 0;
+    // a pixel is filled when its centre (x + 0.5, y + 0.5) is inside the outline
+    const float scale = (float)characterSize / (float)headTable.unitsPerEm;
+    const int16_t xStart = floorf(_x_min + glyph.xMin * scale);
+    const int16_t xEnd = ceilf(_x_min + glyph.xMax * scale);
+    const int16_t yStart = floorf((ascender - glyph.yMax) * scale + _y_min);
+    const int16_t yEnd = ceilf((ascender - glyph.yMin) * scale + _y_min);
+
+    for (int16_t y = yStart; y < yEnd; y++) {
+        const float fy = (float)y + 0.5f;
+        uint16_t numCrossings = 0;
         uint16_t bpCounter = 0;
         uint16_t epCounter = 0;
-        uint16_t p2Num = 0;
+        int16_t total = 0;
 
         for (uint16_t i = 0; i < numPoints; i++) {
-            point1 = points[i];
+            const ttCoordinate_t &point1 = points[i];
+            uint16_t p2Num;
             // Wrap?
-            if (i == endPoints[epCounter]) {
+            if (epCounter < numEndPoints && i == endPoints[epCounter]) {
                 p2Num = beginPoints[bpCounter];
                 epCounter++;
                 bpCounter++;
             } else {
                 p2Num = i + 1;
             }
-            point2 = points[p2Num];
+            if (p2Num >= numPoints) continue;
+            const ttCoordinate_t &point2 = points[p2Num];
 
-            if (point1.y <= (float)y) {
-                if (point2.y > (float)y) {
-                    // Have a valid up intersect
-                    intersectPointsNum++;
-                    pointsToFill = (ttWindIntersect_t *)realloc(pointsToFill, sizeof(ttWindIntersect_t) * intersectPointsNum);
-                    pointsToFill[intersectPointsNum - 1].p1 = i;
-                    pointsToFill[intersectPointsNum - 1].p2 = p2Num;
-                    pointsToFill[intersectPointsNum - 1].up = 1;
-                }
+            int8_t dir;
+            if (point1.y <= fy && point2.y > fy) {
+                dir = 1;  // upward
+            } else if (point1.y > fy && point2.y <= fy) {
+                dir = -1;  // downward
             } else {
-                // start y > point.y (no test needed)
-                if (point2.y <= (float)y) {
-                    // Have a valid down intersect
-                    intersectPointsNum++;
-                    pointsToFill = (ttWindIntersect_t *)realloc(pointsToFill, sizeof(ttWindIntersect_t) * intersectPointsNum);
-                    pointsToFill[intersectPointsNum - 1].p1 = i;
-                    pointsToFill[intersectPointsNum - 1].p2 = p2Num;
-                    pointsToFill[intersectPointsNum - 1].up = 0;
-                }
+                continue;
             }
+            crossings[numCrossings].x = point1.x + (point2.x - point1.x) * (fy - point1.y) / (point2.y - point1.y);
+            crossings[numCrossings].dir = dir;
+            numCrossings++;
+            total += dir;
         }
+        if (numCrossings == 0) continue;
 
-        for (int16_t x = _x_min + round((float)glyph.xMin * (float)characterSize / (float)headTable.unitsPerEm);
-             x < _x_min + round((float)glyph.xMax * (float)characterSize / (float)headTable.unitsPerEm);
-             x++) {
-            int16_t windingNumber = 0;
-            point.x = (float)x;
+        std::sort(crossings, crossings + numCrossings, [](const ttCrossing_t &a, const ttCrossing_t &b) { return a.x < b.x; });
 
-            for (uint16_t i = 0; i < intersectPointsNum; i++) {
-                point1 = points[pointsToFill[i].p1];
-                point2 = points[pointsToFill[i].p2];
-
-                if (pointsToFill[i].up == 1) {
-                    if (isLeft(&point1, &point2, &point) > 0) {
-                        windingNumber++;
-                    }
-                } else {
-                    if (isLeft(&point1, &point2, &point) < 0) {
-                        windingNumber--;
-                    }
-                }
+        // winding at x = sum over the crossings right of x = total - sum over the crossings at or left of x
+        int16_t passed = 0;
+        uint16_t k = 0;
+        for (int16_t x = xStart; x < xEnd; x++) {
+            while (k < numCrossings && crossings[k].x <= (float)x + 0.5f) {
+                passed += crossings[k].dir;
+                k++;
             }
-
-            if (windingNumber != 0) {
+            if (total - passed != 0) {
                 addPixel(x, y, colorInside);
             }
         }
-
-        if (pointsToFill != nullptr) free(pointsToFill);
-        pointsToFill = nullptr;
     }
-}
-
-float truetypeClass::isLeft(ttCoordinate_t *_p0, ttCoordinate_t *_p1, ttCoordinate_t *_point) {
-    return ((_p1->x - _p0->x) * (_point->y - _p0->y) - (_point->x - _p0->x) * (_p1->y - _p0->y));
+    free(crossings);
 }
 
 void truetypeClass::textDraw(int16_t _x, int16_t _y, const wchar_t _character[]) {
-    uint8_t c = 0;
+    uint16_t c = 0;
     uint16_t prev_code = 0;
 
     while (_character[c] != '\0') {
         // space (half-width, full-width)
         if ((_character[c] == ' ') || (_character[c] == L'　')) {
             prev_code = 0;
-            _x += characterSize / 4;
+            _x += spaceAdvance(_character[c]);
             c++;
             continue;
         }
@@ -958,6 +984,9 @@ void truetypeClass::textDraw(int16_t _x, int16_t _y, const wchar_t _character[])
 
         // Line breaks with line feed code
         if (_character[c] == '\n') {
+            freePointsAll();
+            freeGlyph();
+            c++;
             _x = start_x;
             _y += characterSize;
             if (_y > end_y) {
@@ -970,7 +999,6 @@ void truetypeClass::textDraw(int16_t _x, int16_t _y, const wchar_t _character[])
             generateOutline(_x, _y, characterSize);
             fillGlyph(_x, _y, characterSize);
         }
-        freePointsAll();
         freeGlyph();
 
         _x += hMetric.advanceWidth;
@@ -1080,7 +1108,7 @@ uint16_t truetypeClass::getStringWidth(const wchar_t _character[]) {
         // space (half-width, full-width)
         if ((_character[c] == ' ') || (_character[c] == L'　')) {
             prev_code = 0;
-            output += characterSize / 4;
+            output += spaceAdvance(_character[c]);
             c++;
             continue;
         }
@@ -1134,23 +1162,33 @@ uint16_t truetypeClass::getStringWidth(const String _string) {
 }
 
 /* Points*/
-void truetypeClass::addPoint(int16_t _x, int16_t _y) {
+// grow an array to hold at least count + 1 elements; false if out of memory
+template <typename T>
+static bool reserveOneMore(T *&array, uint16_t count, uint16_t &capacity) {
+    if (count < capacity) return true;
+    const uint16_t newCapacity = capacity ? capacity * 2 : 64;
+    T *grown = (T *)realloc(array, sizeof(T) * newCapacity);
+    if (grown == nullptr) return false;
+    array = grown;
+    capacity = newCapacity;
+    return true;
+}
+
+void truetypeClass::addPoint(float _x, float _y) {
+    if (!reserveOneMore(points, numPoints, pointsCap)) return;
+    points[numPoints].x = _x;
+    points[numPoints].y = _y;
     numPoints++;
-    points = (ttCoordinate_t *)realloc(points, sizeof(ttCoordinate_t) * numPoints);
-    points[(numPoints - 1)].x = _x;
-    points[(numPoints - 1)].y = _y;
 }
 
 void truetypeClass::addBeginPoint(uint16_t _bp) {
-    numBeginPoints++;
-    beginPoints = (uint16_t *)realloc(beginPoints, sizeof(uint16_t) * numBeginPoints);
-    beginPoints[(numBeginPoints - 1)] = _bp;
+    if (!reserveOneMore(beginPoints, numBeginPoints, beginPointsCap)) return;
+    beginPoints[numBeginPoints++] = _bp;
 }
 
 void truetypeClass::addEndPoint(uint16_t _ep) {
-    numEndPoints++;
-    endPoints = (uint16_t *)realloc(endPoints, sizeof(uint16_t) * numEndPoints);
-    endPoints[(numEndPoints - 1)] = _ep;
+    if (!reserveOneMore(endPoints, numEndPoints, endPointsCap)) return;
+    endPoints[numEndPoints++] = _ep;
 }
 
 void truetypeClass::freePointsAll() {
@@ -1163,18 +1201,21 @@ void truetypeClass::freePoints() {
     free(points);
     points = nullptr;
     numPoints = 0;
+    pointsCap = 0;
 }
 
 void truetypeClass::freeBeginPoints() {
     free(beginPoints);
     beginPoints = nullptr;
     numBeginPoints = 0;
+    beginPointsCap = 0;
 }
 
 void truetypeClass::freeEndPoints() {
     free(endPoints);
     endPoints = nullptr;
     numEndPoints = 0;
+    endPointsCap = 0;
 }
 
 /* file */
@@ -1192,7 +1233,7 @@ uint32_t truetypeClass::seekToTable(const char *name) {
 /* calculate */
 void truetypeClass::stringToWchar(String _string, wchar_t _charctor[]) {
     uint16_t s = 0;
-    uint8_t c = 0;
+    uint16_t c = 0;
     uint32_t codeu32;
 
     while (_string[s] != '\0') {
@@ -1204,9 +1245,11 @@ void truetypeClass::stringToWchar(String _string, wchar_t _charctor[]) {
                 break;
             case 2:
                 if (!IsU8LaterByte(_string[s + 1])) {
+                    s++;  // invalid UTF-8: skip this byte, otherwise the loop never ends
                     continue;
                 }
                 if ((uint8_t(_string[s]) & 0x1E) == 0) {
+                    s++;
                     continue;
                 }
 
@@ -1216,10 +1259,12 @@ void truetypeClass::stringToWchar(String _string, wchar_t _charctor[]) {
                 break;
             case 3:
                 if (!IsU8LaterByte(_string[s + 1]) || !IsU8LaterByte(_string[s + 2])) {
+                    s++;
                     continue;
                 }
                 if ((uint8_t(_string[s]) & 0x0F) == 0 &&
                     (uint8_t(_string[s + 1]) & 0x20) == 0) {
+                    s++;
                     continue;
                 }
 
@@ -1231,10 +1276,12 @@ void truetypeClass::stringToWchar(String _string, wchar_t _charctor[]) {
             case 4:
                 if (!IsU8LaterByte(_string[s + 1]) || !IsU8LaterByte(_string[s + 2]) ||
                     !IsU8LaterByte(_string[s + 3])) {
+                    s++;
                     continue;
                 }
                 if ((uint8_t(_string[s]) & 0x07) == 0 &&
                     (uint8_t(_string[s + 1]) & 0x30) == 0) {
+                    s++;
                     continue;
                 }
 
@@ -1245,6 +1292,7 @@ void truetypeClass::stringToWchar(String _string, wchar_t _charctor[]) {
                 s += 4;
                 break;
             default:
+                s++;
                 continue;
         }
 

@@ -34,12 +34,22 @@ static const char *TAG = "RADIO";
 uint8_t mSelfMac[8];
 volatile uint8_t isInTransmit = 0;
 QueueHandle_t packet_buffer = NULL;
+TaskHandle_t radioWakeTask = NULL;  // main loop task; woken by radio frames and serial data
+int64_t lastRxAgeUs = 0;            // age of the frame commsRxUnencrypted() returned last, from its SFD
+
+struct rxItem {
+    int64_t sfdTime;  // esp_timer time of the frame's start-of-frame delimiter
+    uint8_t frame[130];
+};
+// No logging per frame in these callbacks: they run in the radio interrupt, and an early log
+// waits for the 115200 baud console, long enough to miss the tags' reply windows (2-6 ms).
 void esp_ieee802154_receive_done(uint8_t *frame, esp_ieee802154_frame_info_t *frame_info) {
-    ESP_EARLY_LOGI(TAG, "RX %d", frame[0]);
-    BaseType_t xHigherPriorityTaskWoken;
-    static uint8_t inner_rxPKT[130];
-    memcpy(inner_rxPKT, &frame[0], frame[0] + 1);
-    xQueueSendFromISR(packet_buffer, (void *)&inner_rxPKT, &xHigherPriorityTaskWoken);
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    static struct rxItem item;
+    item.sfdTime = frame_info->timestamp;
+    memcpy(item.frame, &frame[0], frame[0] + 1);
+    xQueueSendFromISR(packet_buffer, (void *)&item, &xHigherPriorityTaskWoken);
+    if (radioWakeTask) vTaskNotifyGiveFromISR(radioWakeTask, &xHigherPriorityTaskWoken);
     portYIELD_FROM_ISR_ARG(xHigherPriorityTaskWoken);
     if(esp_ieee802154_receive_handle_done(frame)) {
         ESP_EARLY_LOGI(TAG, "esp_ieee802154_receive_handle_done() failed");
@@ -53,7 +63,6 @@ void esp_ieee802154_transmit_failed(const uint8_t *frame, esp_ieee802154_tx_erro
 
 void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_ieee802154_frame_info_t *ack_frame_info) {
     isInTransmit = 0;
-    ESP_EARLY_LOGI(TAG, "TX %d", frame[0]);
     if(ack != NULL) {
        if(esp_ieee802154_receive_handle_done(ack)) {
           ESP_EARLY_LOGI(TAG, "esp_ieee802154_receive_handle_done() failed");
@@ -62,7 +71,7 @@ void esp_ieee802154_transmit_done(const uint8_t *frame, const uint8_t *ack, esp_
 }
 static bool zigbee_is_enabled = false;
 void radio_init(uint8_t ch) {
-    if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, 130);
+    if (packet_buffer == NULL) packet_buffer = xQueueCreate(32, sizeof(struct rxItem));
 
     // this will trigger a "IEEE802154 MAC sleep init failed" when called a second time, but it works
     if(zigbee_is_enabled)
@@ -116,10 +125,6 @@ bool radioTx(uint8_t *packet) {
     static uint8_t txPKT[130];
 #endif
     led_flash(1);
-	// while (getMillis() - lastZbTx < 6) {
-	// }
-	// lastZbTx = getMillis();
-	memcpy(txPKT, packet, packet[0]);
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
 	struct MacFrameNormal  *txHeader = (struct MacFrameNormal *) (packet + 1);
 
@@ -129,27 +134,42 @@ bool radioTx(uint8_t *packet) {
 #endif
 	while (isInTransmit) {
 	}
+	// Only now: the radio reads txPKT while it sends the previous frame. Copying before the wait
+	// put the next frame's content into the one still on the air, so a full block never carried
+	// part 0 and sent the last part twice.
+	memcpy(txPKT, packet, packet[0]);
 	isInTransmit = 1;
 	esp_ieee802154_transmit(txPKT, false);
 	return true;
 }
 
 void radioSetChannel(uint8_t ch) {
-    radio_init(ch);
+    // Only the channel: a full radio_init() disabled and re-enabled the radio and blinked the LEDs
+    // for 400 ms, during which tags were not answered. Receiving again applies the new channel.
+    while (isInTransmit) {
+    }
+    esp_ieee802154_set_channel(ch);
+    esp_ieee802154_receive();
+    ESP_LOGW(TAG, "channel %d", ch);
 }
 
 void radioSetTxPower(uint8_t power) {}
 
 int8_t commsRxUnencrypted(uint8_t *data) {
-    static uint8_t inner_rxPKT_out[130];
-    if (xQueueReceive(packet_buffer, (void *)&inner_rxPKT_out, pdMS_TO_TICKS(100)) == pdTRUE) {
-        memcpy(data, &inner_rxPKT_out[1], inner_rxPKT_out[0] + 1);
-        return inner_rxPKT_out[0] - 2;
+    static struct rxItem item;
+    // Don't block here: the main loop sleeps in ulTaskNotifyTake() and is woken by frames and serial data
+    if (xQueueReceive(packet_buffer, (void *)&item, 0) == pdTRUE) {
+        lastRxAgeUs = esp_timer_get_time() - item.sfdTime;
+        memcpy(data, &item.frame[1], item.frame[0] + 1);
+        return item.frame[0] - 2;
     }
 #ifdef CONFIG_OEPL_SUBGIG_SUPPORT
     if(gSubGigData.Enabled) {
        int8_t Ret = SubGig_commsRxUnencrypted(data);
        if(Ret > 0) {
+          // No SFD timestamp from the CC1101; the packet is read right after its interrupt woke us.
+          // Without this, the age of the last 802.15.4 frame was used to skip sub-GHz requests.
+          lastRxAgeUs = 0;
           return Ret;
         }
     }

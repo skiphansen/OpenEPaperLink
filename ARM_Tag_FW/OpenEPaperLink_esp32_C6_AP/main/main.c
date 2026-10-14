@@ -69,7 +69,7 @@ const struct {
 struct pendingData pendingDataArr[MAX_PENDING_MACS];
 
 // VERSION GOES HERE!
-uint16_t version = 0x001f;
+uint16_t version = 0x0021;
 
 #define RAW_PKT_PADDING 2
 
@@ -84,6 +84,13 @@ uint8_t  dstMac[8];                                       // target for the bloc
 uint16_t dstPan;                                          //
 
 static uint32_t blockStartTimer  = 0;                     // reference that holds when the AP sends the next block
+static bool     blockReady       = false;                 // blockbuffer holds the complete, checked block of requestedData
+// Start a burst this long after the pleaseWaitMs the tag was given: the nRF52811 tag only starts its
+// radio after pleaseWaitMs (the ZBS243 and TLSR tags listen before it).
+#define BURST_MARGIN_MS     5
+// If the block data from the S3 is not complete at that time, wait at most this long for it; after
+// that send nothing (the tag asks again) rather than whatever is in the buffer.
+#define BLOCK_DATA_SLACK_MS 100
 uint32_t        nextBlockAttempt = 0;                     // reference time for when the AP can request a new block from the ESP32
 uint8_t         seq              = 0;                     // holds current sequence number for transmission
 uint8_t         blockbuffer[BLOCK_XFER_BUFFER_SIZE + 5];  // block transfer buffer
@@ -105,8 +112,8 @@ uint8_t curNoUpdate    = 0;
 
 bool highspeedSerial = false;
 
-void sendXferCompleteAck(uint8_t *dst);
-void sendCancelXfer(uint8_t *dst);
+void sendXferCompleteAck(uint8_t *dst, uint16_t pan);
+void sendCancelXfer(uint8_t *dst, uint16_t pan);
 void espNotifyAPInfo();
 
 // tools
@@ -149,6 +156,26 @@ uint8_t getBlockDataLength() {
 }
 
 // pendingdata slot stuff
+// A tag accepts a reply only within a few ms of its request (2-9 ms depending on tag type and request,
+// see the timing budget in docs/design/radio-chain-analysis.md). A request that waited longer in the
+// queue (for example behind a block burst) is skipped: the reply would only cost airtime, and the tag
+// has asked again already.
+static uint32_t lateRequestsSkipped = 0;
+static bool tooLateToAnswer(uint8_t type, int64_t ageUs) {
+    switch (type) {
+        case PKT_PING:
+        case PKT_AVAIL_DATA_REQ:
+        case PKT_AVAIL_DATA_SHORTREQ:
+        case PKT_XFER_COMPLETE:
+            return ageUs > 5000;
+        case PKT_BLOCK_REQUEST:
+        case PKT_BLOCK_PARTIAL_REQUEST:
+            return ageUs > 7000;
+        default:
+            return false;
+    }
+}
+
 int32_t findSlotForMac(const uint8_t *mac) {
     for (uint8_t c = 0; c < MAX_PENDING_MACS; c++) {
         if (memcmp(mac, ((uint8_t *) &(pendingDataArr[c].targetMac)), 8) == 0) {
@@ -304,6 +331,14 @@ void     processSerial(uint8_t lastchar) {
             if (blockPosition >= 4100) {
                 ESP_LOGI(TAG, "Blockdata fully received in %lu ms, %lu ms after the request", getMillis() - blockStartTime, getMillis() - nextBlockAttempt);
                 RXState = ZBS_RX_WAIT_HEADER;
+                // blockData header: size u16, checksum u16 (sum of the data bytes), then the data
+                struct blockData *bd = (struct blockData *) blockbuffer;
+                uint16_t sum = 0;
+                if (bd->size <= BLOCK_DATA_SIZE) {
+                    for (uint16_t c = 0; c < bd->size; c++) sum += bd->data[c];
+                }
+                blockReady = (bd->size <= BLOCK_DATA_SIZE) && (sum == bd->checksum);
+                if (!blockReady) ESP_LOGW(TAG, "block data from the S3 failed its checksum");
             }
             break;
 
@@ -499,8 +534,8 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
             lastBlockRequest = getMillis();
         } else {
             // we're talking to another mac, let this mac know we can't accomodate another request right now
-            pr("BUSY!\n\r");
-            sendCancelXfer(rxHeader->src);
+            ESP_LOGI(TAG, "busy with another tag, cancel");
+            sendCancelXfer(rxHeader->src, rxHeader->pan);
             return;
         }
     }
@@ -508,7 +543,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     // check if we have data for this mac
     if (findSlotForMac(rxHeader->src) == -1) {
         // no data for this mac, politely tell it to fuck off
-        sendCancelXfer(rxHeader->src);
+        sendCancelXfer(rxHeader->src, rxHeader->pan);
         return;
     }
 
@@ -516,14 +551,17 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     if ((blockReq->blockId != requestedData.blockId) || (blockReq->ver != requestedData.ver)) {
         // requested block isn't already in the buffer
         requestDataDownload = true;
+    } else if (!blockReady && (getMillis() - nextBlockAttempt) > 300) {
+        // the earlier download of this block failed or never completed
+        requestDataDownload = true;
     } else {
         // requested block is already in the buffer
         if (forceBlockDownload) {
             if ((getMillis() - nextBlockAttempt) > 380) {
                 requestDataDownload = true;
-                pr("FORCED\n\r");
+                ESP_LOGI(TAG, "block download forced");
             } else {
-                pr("IGNORED\n\r");
+                ESP_LOGI(TAG, "forced download ignored");
             }
         }
     }
@@ -550,7 +588,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
     } else {
         blockRequestAck->pleaseWaitMs = 30;
     }
-    blockStartTimer = getMillis() + blockRequestAck->pleaseWaitMs;
+    blockStartTimer = getMillis() + blockRequestAck->pleaseWaitMs + BURST_MARGIN_MS;
 
     memcpy(txHeader->src, mSelfMac, 8);
     memcpy(txHeader->dst, rxHeader->src, 8);
@@ -572,6 +610,7 @@ void processBlockRequest(const uint8_t *buffer, uint8_t forceBlockDownload) {
 
     if (requestDataDownload) {
         blockPosition = 0;
+        blockReady = false;
         espBlockRequest(&requestedData, rxHeader->src);
         nextBlockAttempt = getMillis();
     }
@@ -620,7 +659,7 @@ void processAvailDataReq(uint8_t *buffer) {
 }
 void processXferComplete(uint8_t *buffer) {
     struct MacFrameNormal *rxHeader = (struct MacFrameNormal *) buffer;
-    sendXferCompleteAck(rxHeader->src);
+    sendXferCompleteAck(rxHeader->src, rxHeader->pan);
     if (memcmp(lastAckMac, rxHeader->src, 8) != 0) {
         memcpy((void *) lastAckMac, (void *) rxHeader->src, 8);
         espNotifyXferComplete(rxHeader->src);
@@ -672,37 +711,31 @@ void sendPart(uint8_t partNo) {
 }
 void sendBlockData() {
     if (getBlockDataLength() == 0) {
-        pr("Invalid block request received, 0 parts..\n\r");
+        ESP_LOGW(TAG, "Invalid block request received, 0 parts");
         requestedData.requestedParts[0] |= 0x01;
     }
 
-    pr("Sending parts:");
-    for (uint8_t c = 0; (c < BLOCK_MAX_PARTS); c++) {
-        if (c % 10 == 0) pr(" ");
-        if (requestedData.requestedParts[c / 8] & (1 << (c % 8))) {
-            pr("X");
-        } else {
-            pr(".");
-        }
+    // Each requested part once, then repeated until twice the number of requested parts (at most 42
+    // frames). Every burst used to be filled up to 42 frames: for a partial request of one part that
+    // kept the radio busy for 200 ms after the tag had its data, while other tags waited.
+    uint8_t requested = getBlockDataLength();
+    uint8_t frames = (requested * 2 > BLOCK_MAX_PARTS) ? BLOCK_MAX_PARTS : requested * 2;
+    if (frames < requested) frames = requested;
+    if (dstPan == PROTO_PAN_ID_SUBGHZ) {
+        // Don't repeat for subgig, it requests what it can handle with its limited RAM
+        frames = requested;
     }
-    pr("\n\r");
-
     uint8_t partNo = 0;
-    while (partNo < BLOCK_MAX_PARTS) {
-        for (uint8_t c = 0; (c < BLOCK_MAX_PARTS) && (partNo < BLOCK_MAX_PARTS); c++) {
+    while (partNo < frames) {
+        for (uint8_t c = 0; (c < BLOCK_MAX_PARTS) && (partNo < frames); c++) {
             if (requestedData.requestedParts[c / 8] & (1 << (c % 8))) {
                 sendPart(c);
                 partNo++;
             }
         }
-        if(dstPan == PROTO_PAN_ID_SUBGHZ) {
-        // Don't send BLOCK_MAX_PARTS for subgig, it requests what it 
-        // can handle with its limited RAM
-           break;
-        }
     }
 }
-void sendXferCompleteAck(uint8_t *dst) {
+void sendXferCompleteAck(uint8_t *dst, uint16_t pan) {
     struct MacFrameNormal *frameHeader = (struct MacFrameNormal *) (radiotxbuffer + 1);
     memset(radiotxbuffer + 1, 0, sizeof(struct blockPart) + sizeof(struct MacFrameNormal));
     radiotxbuffer[sizeof(struct MacFrameNormal) + 1] = PKT_XFER_COMPLETE_ACK;
@@ -714,10 +747,10 @@ void sendXferCompleteAck(uint8_t *dst) {
     frameHeader->fcs.destAddrType    = 3;
     frameHeader->fcs.srcAddrType     = 3;
     frameHeader->seq                 = seq++;
-    frameHeader->pan                 = dstPan;
+    frameHeader->pan                 = pan;  // the PAN (and so the radio) the tag used
     radioTx(radiotxbuffer);
 }
-void sendCancelXfer(uint8_t *dst) {
+void sendCancelXfer(uint8_t *dst, uint16_t pan) {
     struct MacFrameNormal *frameHeader = (struct MacFrameNormal *) (radiotxbuffer + 1);
     memset(radiotxbuffer + 1, 0, sizeof(struct blockPart) + sizeof(struct MacFrameNormal));
     radiotxbuffer[sizeof(struct MacFrameNormal) + 1] = PKT_CANCEL_XFER;
@@ -729,7 +762,7 @@ void sendCancelXfer(uint8_t *dst) {
     frameHeader->fcs.destAddrType    = 3;
     frameHeader->fcs.srcAddrType     = 3;
     frameHeader->seq                 = seq++;
-    frameHeader->pan                 = dstPan;
+    frameHeader->pan                 = pan;  // the PAN (and so the radio) the tag used
     radioTx(radiotxbuffer);
 }
 void sendPong(void *buf) {
@@ -754,6 +787,7 @@ void sendPong(void *buf) {
 }
 
 void app_main(void) {
+    radioWakeTask = xTaskGetCurrentTaskHandle();
     esp_event_loop_create_default();
     
     init_nvs();
@@ -807,6 +841,10 @@ void app_main(void) {
                 LOGV_RAW(" packet:\n");
                 LOGV_HEX(radiorxbuffer,ret);
 #endif
+                if (tooLateToAnswer(PktType, lastRxAgeUs)) {
+                    lateRequestsSkipped++;
+                    PktType = 0;  // falls through to default below without a reply
+                }
                 // received a packet, lets see what it is
                 switch (PktType) {
                     case PKT_AVAIL_DATA_REQ:
@@ -844,25 +882,50 @@ void app_main(void) {
                     case PKT_TAG_RETURN_DATA:
                         processTagReturnData(radiorxbuffer, ret);
                         break;
+                    case 0:
+                        break;
                     default:
                         ESP_LOGI(TAG, "t=%02X" , getPacketType(radiorxbuffer));
                         break;
                 }
-            } else if (blockStartTimer == 0) {
-                vTaskDelay(10 / portTICK_PERIOD_MS);
             }
 
             uint8_t curr_char;
             while (getRxCharSecond(&curr_char)) processSerial(curr_char);
 
             if (blockStartTimer) {
-                if (getMillis() > blockStartTimer) {
-                    sendBlockData();
-                    blockStartTimer = 0;
+                int32_t late = (int32_t)(getMillis() - blockStartTimer);
+                if (late >= 0) {
+                    if (blockReady) {
+                        sendBlockData();
+                        blockStartTimer = 0;
+                    } else if (late > BLOCK_DATA_SLACK_MS) {
+                        ESP_LOGW(TAG, "block data not complete in time, no burst");
+                        blockStartTimer = 0;
+                    }
                 }
+            }
+
+            if (ret <= 1) {
+                // Nothing from the radio this round: sleep until a radio frame or serial data
+                // arrives (both notify this task) or the block burst is due, at most 100 ms (sub-GHz
+                // reception is still polled). Waiting on the radio queue alone delayed serial data
+                // by up to 100 ms, and with it every block burst.
+                uint32_t waitMs = 100;
+                if (blockStartTimer) {
+                    int32_t left = (int32_t)(blockStartTimer - getMillis()) + 1;
+                    if (left <= 0) left = (int32_t)(blockStartTimer + BLOCK_DATA_SLACK_MS - getMillis()) + 1;  // waiting for data
+                    waitMs = left > 0 ? (uint32_t)left : 0;
+                    if (waitMs > 100) waitMs = 100;
+                }
+                if (waitMs) ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(waitMs));
             }
         }
 
+        if (lateRequestsSkipped) {
+            ESP_LOGW(TAG, "%lu requests skipped in the last minute: too late to answer", lateRequestsSkipped);
+            lateRequestsSkipped = 0;
+        }
         memset(&lastTagReturn, 0, 8);
         for (uint8_t cCount = 0; cCount < MAX_PENDING_MACS; cCount++) {
             if (pendingDataArr[cCount].attemptsLeft == 1) {

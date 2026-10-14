@@ -16,20 +16,15 @@
 #include "web.h"
 #include "zbs_interface.h"
 #include "wifimanager.h"
+#include "radiotransport.h"
+#include "radioselftest.h"
 
 #define LOG(format, ...) printf(format, ##__VA_ARGS__)
 
 QueueHandle_t rxCmdQueue;
 SemaphoreHandle_t txActive;
 
-// If a command is sent, it will wait for a reply here
-#define CMD_REPLY_WAIT 0x00
-#define CMD_REPLY_ACK 0x01
-#define CMD_REPLY_NOK 0x02
-#define CMD_REPLY_NOQ 0x03
-volatile uint8_t cmdReplyValue = CMD_REPLY_WAIT;
 
-#define AP_SERIAL_PORT Serial1
 #ifndef FLASHER_DEBUG_SHARED
 volatile bool rxSerialStopTask2 = false;
 #endif
@@ -37,13 +32,6 @@ volatile bool rxSerialStopTask2 = false;
 uint8_t channelList[6];
 struct espSetChannelPower curChannel = {0, 11, 10};
 
-#define RX_CMD_RQB 0x01
-#define RX_CMD_ADR 0x02
-#define RX_CMD_XFC 0x03
-#define RX_CMD_XTO 0x04
-#define RX_CMD_RDY 0x05
-#define RX_CMD_RSET 0x06
-#define RX_CMD_TRD 0x07
 
 #define AP_ACTIVITY_MAX_INTERVAL 30 * 1000
 volatile uint32_t lastAPActivity = 0;
@@ -66,71 +54,6 @@ struct rxCmd {
     uint8_t type;
 };
 
-#define ZBS_RX_WAIT_HEADER 0
-#define ZBS_RX_WAIT_PKT_LEN 1
-#define ZBS_RX_WAIT_PKT_RX 2
-#define ZBS_RX_WAIT_SEP1 3
-#define ZBS_RX_WAIT_SEP2 4
-#define ZBS_RX_WAIT_VER 6
-#define ZBS_RX_BLOCK_REQUEST 7
-#define ZBS_RX_WAIT_XFERCOMPLETE 8
-#define ZBS_RX_WAIT_DATA_REQ 9
-#define ZBS_RX_WAIT_JOINNETWORK 10
-#define ZBS_RX_WAIT_XFERTIMEOUT 11
-#define ZBS_RX_WAIT_MAC 12
-#define ZBS_RX_WAIT_CHANNEL 13
-#define ZBS_RX_WAIT_POWER 14
-#define ZBS_RX_WAIT_PENDING 15
-#define ZBS_RX_WAIT_NOP 16
-#define ZBS_RX_WAIT_TYPE 17
-#define ZBS_RX_WAIT_TAG_RETURN_DATA 18
-#define ZBS_RX_WAIT_SUBCHANNEL 19
-
-bool txStart() {
-    while (1) {
-        if (xPortInIsrContext()) {
-            if (xSemaphoreTakeFromISR(txActive, NULL) == pdTRUE) return true;
-        } else {
-            if (xSemaphoreTake(txActive, portTICK_PERIOD_MS)) return true;
-        }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-        Serial.println("wait... tx busy");
-    }
-    // this never happens. Should we make a timeout?
-    return false;
-}
-void txEnd() {
-    if (xPortInIsrContext()) {
-        xSemaphoreGiveFromISR(txActive, NULL);
-    } else {
-        xSemaphoreGive(txActive);
-    }
-}
-bool waitCmdReply() {
-    uint32_t val = millis();
-    while (millis() < val + 200) {
-        switch (cmdReplyValue) {
-            case CMD_REPLY_WAIT:
-                break;
-            case CMD_REPLY_ACK:
-                lastAPActivity = millis();
-                if (apInfo.isOnline == false)
-                    setAPstate(true, AP_STATE_ONLINE);
-                return true;
-                break;
-            case CMD_REPLY_NOK:
-                lastAPActivity = millis();
-                return false;
-                break;
-            case CMD_REPLY_NOQ:
-                lastAPActivity = millis();
-                return false;
-                break;
-        }
-        vTaskDelay(1 / portTICK_RATE_MS);
-    }
-    return false;
-}
 
 #if (AP_PROCESS_PORT == FLASHER_AP_PORT)
 int8_t APpowerPins[] = FLASHER_AP_POWER;
@@ -214,189 +137,51 @@ void APTagReset() {
     vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
-// Send data to the AP
+// The checks on the AP state live here; what goes over the wire is the transport's job
+// (radiotransport.h, legacytransport.cpp).
 uint16_t sendBlock(const void* data, const uint16_t len) {
-    time_t timeCanary = millis();
     if (apInfo.state == AP_STATE_NORADIO) return true;
     if (!apInfo.isOnline) return false;
-    if (!txStart()) return 0;
-    // don't retry now, as it collides with communication from the tag
-    for (uint8_t attempt = 0; attempt < 1; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print(">D>");
-        if (waitCmdReply()) goto blksend;
-        Serial.printf("block send failed in try %d\r\n", attempt);
-    }
-    Serial.print("Failed sending block...\r\n");
-    txEnd();
-    return 0;
-blksend:
-    uint8_t blockbuffer[sizeof(struct blockData)];
-    struct blockData* bd = (struct blockData*)blockbuffer;
-    bd->size = len;
-    bd->checksum = 0;
-
-    // calculate checksum
-    const uint8_t* dataBytes = reinterpret_cast<const uint8_t*>(data);
-    for (uint16_t c = 0; c < len; c++) {
-        bd->checksum += dataBytes[c];
-    }
-
-    // send blockData header
-    dataBytes = reinterpret_cast<const uint8_t*>(&blockbuffer);
-    const size_t bufferSize = sizeof(struct blockData);
-    uint8_t* modifiedHeader = static_cast<uint8_t*>(malloc(bufferSize));
-    if (modifiedHeader != nullptr) {
-        for (size_t i = 0; i < bufferSize; i++) {
-            modifiedHeader[i] = 0xAA ^ dataBytes[i];
-        }
-        AP_SERIAL_PORT.write(modifiedHeader, bufferSize);
-        free(modifiedHeader);
-    }
-
-    // send an entire block of data
-    uint16_t c;
-    dataBytes = reinterpret_cast<const uint8_t*>(data);
-    uint8_t* modifiedBuffer = static_cast<uint8_t*>(malloc(len));
-    if (modifiedBuffer != nullptr) {
-        for (c = 0; c < len; c++) {
-            modifiedBuffer[c] = 0xAA ^ dataBytes[c];
-        }
-        AP_SERIAL_PORT.write(modifiedBuffer, len);
-        free(modifiedBuffer);
-    }
-
-    // fill the rest of the block-length filled with something else (will end up as 0xFF in the buffer)
-    const size_t remainingBytes = BLOCK_DATA_SIZE - c;
-    if (remainingBytes > 0) {
-        uint8_t fillBuffer[remainingBytes];
-        memset(fillBuffer, 0x55, remainingBytes);
-        AP_SERIAL_PORT.write(fillBuffer, remainingBytes);
-    }
-
-    // dummy bytes in case some bytes were missed, makes sure the AP gets kicked out of data-loading mode
-    uint8_t dummyBuffer[32];
-    memset(dummyBuffer, 0xF5, 32);
-    AP_SERIAL_PORT.write(dummyBuffer, 32);
-
-    if (apInfo.type != ESP32_C6) delay(10);
-    txEnd();
-    Serial.println("Sendblock complete, " + String(millis() - timeCanary) + "ms");
-    return bd->checksum;
+    return radioTransport->sendBlock(data, len);
 }
 
 bool sendDataAvail(struct pendingData* pending) {
     if (apInfo.state == AP_STATE_NORADIO) return true;
     if (!apInfo.isOnline) return false;
-    if (!txStart()) return false;
-    addCRC(pending, sizeof(struct pendingData));
-    for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("SDA>");
-        for (uint8_t c = 0; c < sizeof(struct pendingData); c++) {
-            AP_SERIAL_PORT.write(((uint8_t*)pending)[c]);
-        }
-        if (waitCmdReply()) {
-            txEnd();
-            return true;
-        }
-        Serial.printf("SDA send failed in try %d\r\n", attempt);
-        delay(200);
-    }
-    Serial.print("SDA failed to send...\r\n");
-    txEnd();
-    return false;
+    return radioTransport->sendDataAvail(pending);
 }
 bool sendCancelPending(struct pendingData* pending) {
     if (apInfo.state == AP_STATE_NORADIO) return true;
     if (!apInfo.isOnline) return false;
-    if (!txStart()) return false;
-    addCRC(pending, sizeof(struct pendingData));
-    for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("CXD>");
-        for (uint8_t c = 0; c < sizeof(struct pendingData); c++) {
-            AP_SERIAL_PORT.write(((uint8_t*)pending)[c]);
-        }
-        if (waitCmdReply()) {
-            txEnd();
-            return true;
-        }
-        Serial.printf("CXD send failed in try %d\r\n", attempt);
-    }
-    Serial.print("CXD failed to send...\r\n");
-    txEnd();
-    return false;
+    return radioTransport->cancelPending(pending);
 }
 bool sendChannelPower(struct espSetChannelPower* scp) {
     if (apInfo.state == AP_STATE_NORADIO) return true;
     if ((apInfo.state != AP_STATE_ONLINE) && (apInfo.state != AP_STATE_COMING_ONLINE)) return false;
-    if (!txStart()) return false;
-    addCRC(scp, sizeof(struct espSetChannelPower));
-    for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("SCP>");
-        for (uint8_t c = 0; c < sizeof(struct espSetChannelPower); c++) {
-            AP_SERIAL_PORT.write(((uint8_t*)scp)[c]);
-        }
-        if (waitCmdReply()) {
-            txEnd();
-            apInfo.channel = scp->channel;
-            apInfo.power = scp->power;
-            return true;
-        }
-        Serial.printf("SCP send failed in try %d\r\n", attempt);
-    }
-    Serial.print("SCP failed to send...\r\n");
-    txEnd();
-    return false;
+    if (!radioTransport->setChannelPower(scp)) return false;
+    apInfo.channel = scp->channel;
+    apInfo.power = scp->power;
+    return true;
 }
 bool sendPing() {
     if (apInfo.state == AP_STATE_NORADIO) return true;
     if (apInfo.state == AP_STATE_FLASHING) return false;
     Serial.print("ping");
     int t = millis();
-    if (!txStart()) return false;
-    for (uint8_t attempt = 0; attempt < 3; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("RDY?");
-        if (waitCmdReply()) {
-            txEnd();
-            Serial.printf(" ok, %dms\r\n", millis() - t);
-            return true;
-        }
+    if (radioTransport->ping()) {
+        Serial.printf(" ok, %dms\r\n", millis() - t);
+        return true;
     }
-    txEnd();
     Serial.println(" failed");
     return false;
 }
 bool sendGetInfo() {
     if (apInfo.state == AP_STATE_NORADIO) return true;
-    if (!txStart()) return false;
-    for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("NFO?");
-        if (waitCmdReply()) {
-            txEnd();
-            return true;
-        }
-    }
-    txEnd();
-    return false;
+    return radioTransport->requestInfo();
 }
 bool sendHighspeed() {
     if (apInfo.state == AP_STATE_NORADIO) return true;
-    if (!txStart()) return false;
-    for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        cmdReplyValue = CMD_REPLY_WAIT;
-        AP_SERIAL_PORT.print("HSPD");
-        if (waitCmdReply()) {
-            txEnd();
-            return true;
-        }
-    }
-    txEnd();
-    return false;
+    return radioTransport->enableFastLink();
 }
 
 // add RX'd request from the AP to the processor queue
@@ -449,6 +234,12 @@ void rxCmdProcessor(void* parameter) {
                     case RX_CMD_RSET:
                         Serial.println("AP did reset, resending pending\r\n");
                         refreshAllPending();
+                        if (apInfo.version == 0) {
+                            // right after the S3 started, the radio's type is not known yet, and the SCP
+                            // payload size depends on it (see sendChannelPower)
+                            sendGetInfo();
+                            vTaskDelay(200 / portTICK_PERIOD_MS);
+                        }
                         sendChannelPower(&curChannel);
                         break;
                     case RX_CMD_TRD:
@@ -464,242 +255,12 @@ void rxCmdProcessor(void* parameter) {
     }
 }
 void rxSerialTask(void* parameter) {
-    static char cmdbuffer[4] = {0};
-    static uint8_t* packetp = nullptr;
-    //    static uint8_t pktlen = 0;
-    static uint8_t pktindex = 0;  // length of the command
-    static uint8_t RXState = ZBS_RX_WAIT_HEADER;
-    static char lastchar = 0;
-    static uint8_t charindex = 0;
-
     gSerialTaskState = SERIAL_STATE_RUNNING;
     LOG("rxSerialTask starting\n");
     while (gSerialTaskState == SERIAL_STATE_RUNNING) {
+        radioTransport->onIdle();
         while (AP_SERIAL_PORT.available()) {
-            lastchar = AP_SERIAL_PORT.read();
-            switch (RXState) {
-                case ZBS_RX_WAIT_HEADER:
-
-                    Serial.write(lastchar);
-
-                    //  shift characters in
-                    for (uint8_t c = 0; c < 3; c++) {
-                        cmdbuffer[c] = cmdbuffer[c + 1];
-                    }
-                    cmdbuffer[3] = lastchar;
-
-                    if ((strncmp(cmdbuffer, "ACK>", 4) == 0)) cmdReplyValue = CMD_REPLY_ACK;
-                    if ((strncmp(cmdbuffer, "NOK>", 4) == 0)) cmdReplyValue = CMD_REPLY_NOK;
-                    if ((strncmp(cmdbuffer, "NOQ>", 4) == 0)) cmdReplyValue = CMD_REPLY_NOQ;
-
-                    if ((strncmp(cmdbuffer, "VER>", 4) == 0)) {
-                        pktindex = 0;
-                        RXState = ZBS_RX_WAIT_VER;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if ((strncmp(cmdbuffer, "MAC>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_MAC;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if ((strncmp(cmdbuffer, "ZCH>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_CHANNEL;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-#ifdef HAS_SUBGHZ
-                    if ((strncmp(cmdbuffer, "SCH>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_SUBCHANNEL;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-#endif
-                    if ((strncmp(cmdbuffer, "ZPW>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_POWER;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if ((strncmp(cmdbuffer, "PEN>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_PENDING;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if ((strncmp(cmdbuffer, "NOP>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_NOP;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if ((strncmp(cmdbuffer, "TYP>", 4) == 0)) {
-                        RXState = ZBS_RX_WAIT_TYPE;
-                        charindex = 0;
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if (strncmp(cmdbuffer, "RES>", 4) == 0) {
-                        addRXQueue(NULL, 0, RX_CMD_RSET);
-                    }
-                    if (strncmp(cmdbuffer, "RQB>", 4) == 0) {
-                        RXState = ZBS_RX_BLOCK_REQUEST;
-                        charindex = 0;
-                        pktindex = 0;
-                        packetp = (uint8_t*)calloc(sizeof(struct espBlockRequest) + 8, 1);
-                        memset(cmdbuffer, 0x00, 4);
-                        lastAPActivity = millis();
-                        // don't set APstate heree, as it interferes with the flashing process
-                        // if (apInfo.isOnline == false && config.runStatus == RUNSTATUS_RUN) setAPstate(true, AP_STATE_ONLINE);
-                    }
-                    if (strncmp(cmdbuffer, "ADR>", 4) == 0) {
-                        RXState = ZBS_RX_WAIT_DATA_REQ;
-                        charindex = 0;
-                        pktindex = 0;
-                        packetp = (uint8_t*)calloc(sizeof(struct espAvailDataReq) + 8, 1);
-                        memset(cmdbuffer, 0x00, 4);
-                        lastAPActivity = millis();
-                        // don't set APstate heree, as it interferes with the flashing process
-                        // if (apInfo.isOnline == false && config.runStatus == RUNSTATUS_RUN) setAPstate(true, AP_STATE_ONLINE);
-                    }
-                    if (strncmp(cmdbuffer, "XFC>", 4) == 0) {
-                        RXState = ZBS_RX_WAIT_XFERCOMPLETE;
-                        pktindex = 0;
-                        packetp = (uint8_t*)calloc(sizeof(struct espXferComplete) + 8, 1);
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if (strncmp(cmdbuffer, "XTO>", 4) == 0) {
-                        RXState = ZBS_RX_WAIT_XFERTIMEOUT;
-                        pktindex = 0;
-                        packetp = (uint8_t*)calloc(sizeof(struct espXferComplete) + 8, 1);
-                        memset(cmdbuffer, 0x00, 4);
-                    }
-                    if (strncmp(cmdbuffer, "RDY>", 4) == 0) {
-                        addRXQueue(NULL, 0, RX_CMD_RDY);
-                    }
-                    if (strncmp(cmdbuffer, "TRD>", 4) == 0) {
-                        RXState = ZBS_RX_WAIT_TAG_RETURN_DATA;
-                        pktindex = 0;
-                        packetp = (uint8_t*)calloc(sizeof(struct espTagReturnData) + 8, 1);
-                        memset(cmdbuffer, 0x00, 4);
-                        lastAPActivity = millis();
-                    }
-                    break;
-                case ZBS_RX_BLOCK_REQUEST:
-                    packetp[pktindex] = lastchar;
-                    pktindex++;
-                    if (pktindex == sizeof(struct espBlockRequest)) {
-                        addRXQueue(packetp, pktindex, RX_CMD_RQB);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_XFERCOMPLETE:
-                    packetp[pktindex] = lastchar;
-                    pktindex++;
-                    if (pktindex == sizeof(struct espXferComplete)) {
-                        addRXQueue(packetp, pktindex, RX_CMD_XFC);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_XFERTIMEOUT:
-                    packetp[pktindex] = lastchar;
-                    pktindex++;
-                    if (pktindex == sizeof(struct espXferComplete)) {
-                        addRXQueue(packetp, pktindex, RX_CMD_XTO);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_DATA_REQ:
-                    packetp[pktindex] = lastchar;
-                    pktindex++;
-                    if (pktindex == sizeof(struct espAvailDataReq)) {
-                        addRXQueue(packetp, pktindex, RX_CMD_ADR);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_TAG_RETURN_DATA: {
-                    packetp[pktindex] = lastchar;
-                    pktindex++;
-                    if ((pktindex > 10) && (pktindex >= (packetp[9] + 10))) {
-                        addRXQueue(packetp, pktindex, RX_CMD_TRD);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                } break;
-                case ZBS_RX_WAIT_VER:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 4) {
-                        charindex = 0;
-                        apInfo.version = (uint16_t)strtoul(cmdbuffer, NULL, 16);
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_MAC:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        charindex = 0;
-                        apInfo.mac[pktindex] = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                        pktindex++;
-                    }
-                    if (pktindex == 8) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                    }
-                    break;
-                case ZBS_RX_WAIT_CHANNEL:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        apInfo.channel = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                    }
-                    break;
-#ifdef HAS_SUBGHZ
-                case ZBS_RX_WAIT_SUBCHANNEL:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 3) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        int Channel = atoi(cmdbuffer);
-                        if (Channel != NO_SUBGHZ_CHANNEL) {
-                            apInfo.hasSubGhz = true;
-                            apInfo.SubGhzChannel = Channel;
-                        } else {
-                            apInfo.hasSubGhz = false;
-                            apInfo.SubGhzChannel = 0;
-                        }
-                    }
-                    break;
-#endif
-                case ZBS_RX_WAIT_POWER:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        apInfo.power = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                    }
-                    break;
-                case ZBS_RX_WAIT_PENDING:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        apInfo.pendingBuffer = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                    }
-                    break;
-                case ZBS_RX_WAIT_NOP:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        apInfo.nop = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                    }
-                    break;
-                case ZBS_RX_WAIT_TYPE:
-                    cmdbuffer[charindex] = lastchar;
-                    charindex++;
-                    if (charindex == 2) {
-                        RXState = ZBS_RX_WAIT_HEADER;
-                        apInfo.type = (uint8_t)strtoul(cmdbuffer, NULL, 16);
-                    }
-                    break;
-            }
+            radioTransport->onByte(AP_SERIAL_PORT.read());
         }
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }  // end of while(1)
@@ -751,7 +312,7 @@ void rxSerialTask2(void* parameter) {
                     } else {
                         Serial.println("Failed!");
                     }
-                    logLine("IEEE802.15.4 modem reset " + (config.runStatus == RUNSTATUS_RUN) ? ("ok") : ("failed"));
+                    logLine(String("IEEE802.15.4 modem reset ") + (config.runStatus == RUNSTATUS_RUN ? "ok" : "failed"));
                 }
                 rxStrCount = 0;
                 memset(rxStr, 0, sizeof(rxStr));
@@ -840,6 +401,10 @@ bool bringAPOnline(uint8_t newState) {
         digitalWrite(45, LOW);
 #endif
 
+        // The default 256-byte buffer holds only 1.3 ms of data at 2 Mbaud, while rxSerialTask
+        // polls every millisecond and runs below the WiFi tasks. 4 KB gives about 20 ms.
+        // Has to be set before begin(); a port that is already open keeps its buffer.
+        AP_SERIAL_PORT.setRxBufferSize(4096);
 #if (AP_PROCESS_PORT == FLASHER_AP_PORT)
         AP_SERIAL_PORT.begin(115200, SERIAL_8N1, FLASHER_AP_RXD, FLASHER_AP_TXD);
 #elif defined(HAS_EXT_FLASHER)
@@ -876,12 +441,14 @@ bool bringAPOnline(uint8_t newState) {
         return false;
     } else {
         setAPstate(false, AP_STATE_COMING_ONLINE);
-        sendChannelPower(&curChannel);
-        vTaskDelay(200 / portTICK_PERIOD_MS);
+        // Info first: sendChannelPower() needs the radio's type and version for the payload size.
+        // The radio sends TYP>/VER> after its ACK>, so give the parser a moment.
         if (!sendGetInfo()) {
             setAPstate(false, AP_STATE_OFFLINE);
             return false;
         }
+        vTaskDelay(200 / portTICK_PERIOD_MS);
+        sendChannelPower(&curChannel);
         if (apInfo.type == ESP32_C6) {
             if (sendHighspeed()) {
                 AP_SERIAL_PORT.flush();
@@ -1009,11 +576,20 @@ void APTask(void* parameter) {
         if (FLASHER_AP_MOSI == -1) {
             Serial.printf("I wasn't able to connect to the AP radio. Did you flash it?\r\n");
             Serial.printf("The build of this firmware expects an AP tag with TXD/RXD on ESP32 pins %d and %d, does this match with your wiring?\r\n", FLASHER_AP_RXD, FLASHER_AP_TXD);
-#ifdef HAS_RGB_LED
-            showColorPattern(CRGB::Red, CRGB::Yellow, CRGB::Red);
+            bool onlineAfterTest = false;
+#ifdef C6_OTA_FLASHING
+            // Find out which wire is wrong (result in the log and the web UI); it also tries once more
+            if (apInfo.state != AP_STATE_FLASHING) onlineAfterTest = radioSelfTest(radioPinsFromConfig());
 #endif
-            if (apInfo.state != AP_STATE_FLASHING)  // In case we are flashing already we do not want to end in a failed AP
-                setAPstate(false, AP_STATE_FAILED);
+            if (onlineAfterTest) {
+                ShowAPInfo();
+            } else {
+#ifdef HAS_RGB_LED
+                showColorPattern(CRGB::Red, CRGB::Yellow, CRGB::Red);
+#endif
+                if (apInfo.state != AP_STATE_FLASHING)  // In case we are flashing already we do not want to end in a failed AP
+                    setAPstate(false, AP_STATE_FAILED);
+            }
         } else {
 #ifndef C6_OTA_FLASHING
             // AP unavailable, maybe time to flash?

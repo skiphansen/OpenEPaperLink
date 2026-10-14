@@ -2,9 +2,13 @@
 # Espressif IoT Development Framework (ESP-IDF)  Project Minimal Configuration
 #
 CONFIG_IDF_TARGET="esp32c6"
-CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_OEPL_SUBGIG_SUPPORT=y
 CONFIG_IEEE802154_RX_BUFFER_SIZE=100
+# Info logging goes to the 115200 baud console and blocks while the UART is busy (timing finding E2)
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# 1 ms ticks: the main loop's waits are a few ms (default 100 Hz gives 10 ms steps)
+CONFIG_FREERTOS_HZ=1000
