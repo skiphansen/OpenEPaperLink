@@ -303,16 +303,15 @@ void C6firmwareUpdateTask(void* parameter) {
     LOG("C6firmwareUpdateTask: url '%s'\n", urlPtr);
     wsSerial("Stopping AP service");
 
-    gSerialTaskState = SERIAL_STATE_STOP;
     config.runStatus = RUNSTATUS_STOP;
     setAPstate(false, AP_STATE_FLASHING);
+    stopApReader();
 #ifndef FLASHER_DEBUG_SHARED
-    extern bool rxSerialStopTask2;
+    extern volatile bool rxSerialStopTask2;
     rxSerialStopTask2 = true;
 #endif
     vTaskDelay(500 / portTICK_PERIOD_MS);
     Serial1.end();
-    setAPstate(false, AP_STATE_FLASHING);
 
     wsSerial(SHORT_CHIP_NAME " flash starting");
 
@@ -327,7 +326,6 @@ void C6firmwareUpdateTask(void* parameter) {
         vTaskDelay(3000 / portTICK_PERIOD_MS);
 
         wsSerial("starting monitor");
-        Serial1.begin(115200, SERIAL_8N1, FLASHER_AP_RXD, FLASHER_AP_TXD);
 #ifndef FLASHER_DEBUG_SHARED
         rxSerialStopTask2 = false;
         xTaskCreate(rxSerialTask2, "rxSerialTask2", 1850, NULL, 2, NULL);
@@ -382,7 +380,9 @@ void handleUpdateC6(AsyncWebServerRequest* request) {
     if (request->hasParam("url",true)) {
         const char* urlStr = request->getParam("url", true)->value().c_str();
         char* urlCopy = strdup(urlStr);
-        xTaskCreate(C6firmwareUpdateTask, "OTAUpdateTask", 6400, urlCopy, 10, NULL);
+        // The HTTPS download (TLS handshake) runs in this task: with 6400 bytes only 96 were left
+        // on the Yellow AP, and a Mini AP v4 (logging and USB CDC on) ran out of stack
+        xTaskCreate(C6firmwareUpdateTask, "OTAUpdateTask", 10240, urlCopy, 10, NULL);
         request->send(200, "Ok");
     }
     else {
