@@ -376,7 +376,9 @@ function processTags(tagArray) {
 			$('#tag' + tagmac + ' .mac').innerHTML = tagmac;
 		}
 		let alias = element.alias;
-		if (!alias) {
+		if (!alias && tagmac.startsWith('2446')) {
+			alias = 'OD' + tagmac.slice(-6);  // OpenDisplay tags call themselves that
+		} else if (!alias) {
 			alias = tagmac.replace(/^0{1,4}/, '');
 			if (alias.match(/^4467/)) {
 				let macdigit = Number.parseInt(alias.substr(4, 2), 16) & 0x1f;
@@ -398,14 +400,23 @@ function processTags(tagArray) {
 			div.dataset.hwtype = element.hwType;
 			(async () => {
 				const localTagmac = tagmac;
-				const data = await getTagtype(element.hwType);
+				const data = await getTagtype(element.hwType, element.isexternal ? element.apip : null);
 				div.dataset.usetemplate = data.usetemplate;
 				if (data.usetemplate != 0) {
 					const template = await getTagtype(data.usetemplate);
+					// a type the AP made itself has no content list of its own
+					if (!data.contentids?.length && template?.contentids) data.contentids = template.contentids;
 				}
 				$('#tag' + localTagmac + ' .model').innerHTML = data.name;
 				$('#tag' + localTagmac + ' .resolution').innerHTML = data.width + "x" + data.height;
-				if (element.ver != 0 && element.ver != 1) {
+				if (element.od && element.hwType == 0x100) {
+					// OpenDisplay tag whose type the AP doesn't know yet
+					$('#tag' + localTagmac + ' .model').innerHTML = element.od.width ? 'OpenDisplay ' + element.od.colors : 'OpenDisplay, ' + element.od.state;
+					$('#tag' + localTagmac + ' .resolution').innerHTML = element.od.width ? element.od.width + "x" + element.od.height : '';
+				}
+				if (element.od && element.ver) {
+					$('#tag' + localTagmac + ' .resolution').innerHTML += ` fw:${element.ver >> 8}.${element.ver & 0xff}`;
+				} else if (element.ver != 0 && element.ver != 1) {
 					div.dataset.ver = element.ver;
 					$('#tag' + localTagmac + ' .resolution').innerHTML += ` fw:${element.ver} 0x${element.ver.toString(16)}`;
 				}
@@ -666,8 +677,47 @@ function loadContentCard(mac) {
 			$('#cfginvert').value = tagdata.invert;
 			$('#cfgmore').innerHTML = '&#x25BC;';
 			$('#cfgmac').dataset.ch = tagdata.ch;
+			loadOdKeyState(mac);
 			$('#configbox').showModal();
 		})
+}
+
+// OpenDisplay BLE tags: the AP only connects to tags the user added, with their key or without
+// one. It only says whether it has a key, never the key itself.
+function loadOdKeyState(mac) {
+	$('#cfgodkey').value = '';
+	$('#cfgodkeyrow').style.display = 'none';
+	$('#cfgodkeybuttons').style.display = 'none';
+	if (!mac.startsWith('2446')) return;
+	fetch('od_key?mac=' + mac)
+		.then(response => response.ok ? response.json() : null)
+		.then(state => {
+			if (!state) return;
+			$('#cfgodkey').placeholder = state.set ? 'set (type to replace)' : state.added ? 'added without key' : 'not added';
+			$('#cfgodkeyadd').style.display = state.added ? 'none' : '';
+			$('#cfgodkeyclear').style.display = state.added ? '' : 'none';
+			$('#cfgodkeyrow').style.display = '';
+			$('#cfgodkeybuttons').style.display = '';
+		});
+}
+
+function postOdKey(mac, params) {
+	let formData = new FormData();
+	formData.append("mac", mac);
+	for (const [name, value] of Object.entries(params)) formData.append(name, value);
+	return fetch("od_key", { method: "POST", body: formData })
+		.then(response => response.text().then(text => showMessage(text, !response.ok)))
+		.catch(error => showMessage('Error: ' + error, true));
+}
+
+$('#cfgodkeyadd').onclick = function () {
+	const mac = $('#cfgmac').dataset.mac;
+	postOdKey(mac, { add: 1 }).then(() => loadOdKeyState(mac));
+}
+
+$('#cfgodkeyclear').onclick = function () {
+	const mac = $('#cfgmac').dataset.mac;
+	postOdKey(mac, { key: '' }).then(() => loadOdKeyState(mac));
 }
 
 let typedString = '';
@@ -693,6 +743,14 @@ $('#cfgmore').onclick = function () {
 };
 
 $('#cfgsave').onclick = function () {
+	const odKey = $('#cfgodkey').value.trim();
+	if (odKey != '') {
+		if (!/^[0-9a-fA-F]{32}$/.test(odKey)) {
+			showMessage('The encryption key is 32 hex digits', true);
+			return;
+		}
+		postOdKey($('#cfgmac').dataset.mac, { key: odKey });
+	}
 	let contentMode = $('#cfgcontent').value;
 	let contentDef = getContentDefById(contentMode);
 	let extraoptions = contentDef?.param ?? null;
@@ -790,9 +848,9 @@ $('#cfgautoupdate').onclick = async function () {
 	var infourl = "https://raw.githubusercontent.com/" + repo + "/master/binaries/Tag/tagotaversions.json";
 	var info = "";
 	await fetch(infourl, { method: 'GET' }).then(await function (response) { return response.json(); }).then(await function (json) { info = json; });
-	var tagtype = ("0" + (Number($('#tag' + mac).dataset.hwtype).toString(16))).slice(-2).toUpperCase();
-	var name = info[0][tagtype]["type"];
-	if (name == "") {
+	var tagtype = hwTypeHex($('#tag' + mac).dataset.hwtype);
+	var name = info[0][tagtype]?.["type"];
+	if (!name) {
 		alert("Tag id not known");
 		return false;
 	}
@@ -1126,7 +1184,7 @@ function contentselected() {
 				case 'binfile':
 				case 'jsonfile':
 					input = document.createElement("select");
-					fetch('edit?list=%2F&recursive=1')
+					fetch('edit?list=%2F&recursive=1&nosize=1')
 						.then(response => response.json())
 						.then(data => {
 							let files = data.filter(item => item.type === "file" && (item.name.toLowerCase().endsWith(".jpg") || item.name.toLowerCase().endsWith(".jpeg")));
@@ -1673,11 +1731,12 @@ $('#activefilter').addEventListener('click', (event) => {
 	filterOptions.style.maxHeight = filterOptions.scrollHeight + 20 + 'px';
 });
 
-const downloadTagtype = async (hwtype) => {
+// from the repo, or with fromAp from another AP (the AP's own types above 0xFF)
+const downloadTagtype = async (hwtype, fromAp) => {
 	try {
 		console.log("download tagtype " + hwtype);
 		let repo = apConfig.repo || 'OpenEPaperLink/OpenEPaperLink';
-		let url = "https://raw.githubusercontent.com/" + repo + "/master/resources/tagtypes/" + hwtype + ".json";
+		let url = fromAp ? "http://" + fromAp + "/tagtypes/" + hwtype + ".json" : "https://raw.githubusercontent.com/" + repo + "/master/resources/tagtypes/" + hwtype + ".json";
 		console.log(url);
 
 		const response = await fetch(url);
@@ -1707,7 +1766,13 @@ const downloadTagtype = async (hwtype) => {
 	}
 };
 
-async function getTagtype(hwtype) {
+// tag type id as used in the file name: two hex digits, four above 0xFF
+function hwTypeHex(hwtype) {
+	return Number(hwtype).toString(16).toUpperCase().padStart(Number(hwtype) > 0xFF ? 4 : 2, '0');
+}
+
+// apip: the AP that has the tag, for a type of its own (above 0xFF) that this AP doesn't have
+async function getTagtype(hwtype, apip) {
 	if (tagTypes[hwtype] && tagTypes[hwtype].busy == false) {
 		return tagTypes[hwtype];
 	}
@@ -1749,14 +1814,17 @@ async function getTagtype(hwtype) {
 	try {
 		getTagtypeBusy = true;
 		tagTypes[hwtype] = { busy: true };
-		let response = await fetch('tagtypes/' + hwtype.toString(16).padStart(2, '0').toUpperCase() + '.json');
+		let response = await fetch('tagtypes/' + hwTypeHex(hwtype) + '.json');
 
-		if (response.status === 404) {
-			response = await downloadTagtype(hwtype.toString(16).padStart(2, '0').toUpperCase());
+		// types above 0xFF are made by an AP itself, the repo doesn't have them
+		if (response.status === 404 && hwtype <= 0xFF) {
+			response = await downloadTagtype(hwTypeHex(hwtype));
+		} else if (response.status === 404 && apip && apip != '0.0.0.0') {
+			response = await downloadTagtype(hwTypeHex(hwtype), apip);
 		}
 
 		if (!response.ok) {
-			let data = { name: 'unknown id ' + hwtype.toString(16).toUpperCase(), width: 0, height: 0, bpp: 0, rotatebuffer: 0, colortable: [], busy: false };
+			let data = { name: 'unknown id ' + hwtype.toString(16).toUpperCase(), width: 0, height: 0, bpp: 0, rotatebuffer: 0, colortable: [], busy: false, usetemplate: 0 };
 			tagTypes[hwtype] = data;
 			getTagtypeBusy = false;
 			return data;
@@ -2246,7 +2314,7 @@ function renderDashboard() {
 		const contentName = getContentDefById(tag.contentMode)?.name;
 		if (contentName) content[contentName] = (content[contentName] || 0) + 1;
 		if (tag.RSSI) {
-			const typeName = tagTypes[tag.hwType]?.name || 'type ' + Number(tag.hwType).toString(16).toUpperCase().padStart(2, '0');
+			const typeName = tagTypes[tag.hwType]?.name || 'type ' + hwTypeHex(tag.hwType);
 			types[typeName] = (types[typeName] || 0) + 1;
 		}
 

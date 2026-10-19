@@ -42,6 +42,7 @@
 #include "commstructs.h"
 #include "makeimage.h"
 #include "newproto.h"
+#include "od_session.h"
 #include "pendingupload.h"
 #include "storage.h"
 #ifdef CONTENT_QR
@@ -54,14 +55,6 @@
 #include <TinyTTF.h>
 #include "util.h"
 #include "web.h"
-
-#define ENABLE_LOGGING  1
-#if ENABLE_LOGGING && __has_include("logging.h") 
-#include "logging.h"
-#else
-#define LOG(format, ...)
-#define LOG_RAW(format, ...)
-#endif
 
 // https://csvjson.com/json_beautifier
 
@@ -308,6 +301,11 @@ void drawNew(const uint8_t mac[8], tagRecord *&taginfo) {
     } else {
         imageParams.g5 = 0;
     }
+#endif
+
+#ifdef HAS_BLE_WRITER
+    // OpenDisplay: buffer layout and colors from the tag's own config; the BLE upload compresses
+    if (bleFamily(mac, taginfo->hwType) == BLE_FAMILY_OPENDISPLAY) odImageParams(mac, imageParams);
 #endif
 
     imageParams.lut = EPD_LUT_NO_REPEATS;
@@ -784,7 +782,7 @@ String urlEncode(const char *msg) {
     return encodedMsg;
 }
 
-void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
+void getTemplate(JsonDocument &json, const uint8_t id, const uint16_t hwtype) {
     JsonDocument filter;
     JsonDocument doc;
 
@@ -792,7 +790,7 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
     constexpr const char *templateKey = "template";
 
     char filename[20];
-    snprintf(filename, sizeof(filename), "/tagtypes/%02X.json", hwtype);
+    snprintf(filename, sizeof(filename), hwtype > 0xFF ? "/tagtypes/%04X.json" : "/tagtypes/%02X.json", hwtype);
     File jsonFile = contentFS->open(filename, "r");
 
     if (jsonFile) {
@@ -804,7 +802,7 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
             json.set(doc[templateKey][idstr]);
             return;
         }
-        if (!error && doc["usetemplate"].is<uint8_t>()) {
+        if (!error && doc["usetemplate"].is<uint16_t>()) {
             getTemplate(json, id, doc["usetemplate"]);
             return;
         }
@@ -818,22 +816,6 @@ void getTemplate(JsonDocument &json, const uint8_t id, const uint8_t hwtype) {
     }
 }
 
-// The content types, one file each. Included here instead of compiled separately: as one
-// compilation unit the firmware is ~12 KB smaller (ArduinoJson code is not duplicated per file).
-#include "content/content_draw.inl"
-#include "content/content_apinfo.inl"
-#include "content/content_buienradar.inl"
-#include "content/content_calendar.inl"
-#include "content/content_date.inl"
-#include "content/content_dayahead.inl"
-#include "content/content_image.inl"
-#include "content/content_json.inl"
-#include "content/content_qr.inl"
-#include "content/content_rss.inl"
-#include "content/content_tagdata.inl"
-#include "content/content_timestamp.inl"
-#include "content/content_weather.inl"
-#include "content/content_comics.inl"
 int DownloadURL(String &URL,String &filename) 
 {
     HTTPClient http;
@@ -861,3 +843,20 @@ int DownloadURL(String &URL,String &filename)
     http.end();
     return httpCode;
 }
+
+// The content types, one file each. Included here instead of compiled separately: as one
+// compilation unit the firmware is ~12 KB smaller (ArduinoJson code is not duplicated per file).
+#include "content/content_draw.inl"
+#include "content/content_apinfo.inl"
+#include "content/content_buienradar.inl"
+#include "content/content_calendar.inl"
+#include "content/content_date.inl"
+#include "content/content_dayahead.inl"
+#include "content/content_image.inl"
+#include "content/content_json.inl"
+#include "content/content_qr.inl"
+#include "content/content_rss.inl"
+#include "content/content_tagdata.inl"
+#include "content/content_timestamp.inl"
+#include "content/content_weather.inl"
+#include "content/content_comics.inl"

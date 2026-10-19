@@ -184,7 +184,7 @@ void drawString(TFT_eSprite &spr, String content, int16_t posx, int16_t posy, St
     switch (processFontPath(font)) {
         case 2: {
             // truetype
-            TinyTTF truetype = TinyTTF();
+            TinyTTF truetype;
             if (!beginTruetype(truetype, spr, font, size, color)) return;
             if (align == TC_DATUM) {
                 posx -= truetype.getStringWidth(content) / 2;
@@ -214,7 +214,7 @@ void drawTextBox(TFT_eSprite &spr, String &content, int16_t &posx, int16_t &posy
         case 2: {
             // truetype: size in pixels (default 20), lines size * lineheight apart
             if (size == 0) size = 20;
-            TinyTTF truetype = TinyTTF();
+            TinyTTF truetype;
             if (!beginTruetype(truetype, spr, font, size, color)) return;
             wrapText(
                 content, posy, boxwidth, boxheight, size, lineheight, [&](const String &text) { return truetype.getStringWidth(text); },
