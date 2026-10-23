@@ -3,6 +3,8 @@
 
 #include "commstructs.h"
 
+struct v2BlockServed;
+
 struct PendingItem {
     struct pendingData pendingdata;
     char filename[50];
@@ -14,6 +16,8 @@ extern void addCRC(void* p, uint8_t len);
 extern bool checkCRC(void* p, uint8_t len);
 
 extern void processBlockRequest(struct espBlockRequest* br);
+extern void processPreload(struct espBlockRequest* br);
+extern void processBlockServed(const struct v2BlockServed* bs);
 extern void prepareCancelPending(const uint8_t dst[8]);
 extern void prepareIdleReq(const uint8_t* dst, uint16_t nextCheckin);
 extern void prepareDataAvail(const uint8_t* dst);
@@ -22,7 +26,10 @@ extern bool prepareDataAvail(String& filename, uint8_t dataType, uint8_t dataTyp
 extern void prepareExternalDataAvail(struct pendingData* pending, IPAddress remoteIP);
 extern void processXferComplete(struct espXferComplete* xfc, bool local);
 extern void processXferTimeout(struct espXferComplete* xfc, bool local);
-extern void processDataReq(struct espAvailDataReq* adr, bool local, IPAddress remoteIP = IPAddress(0, 0, 0, 0));
+// Which link carried this check-in; sets tagRecord::lastHeardOnRadio. CHECKIN_VIA_OTHER (a remote
+// AP's report over UDP, the AP's own display) leaves it alone.
+enum CheckinVia : uint8_t { CHECKIN_VIA_OTHER = 0, CHECKIN_VIA_RADIO, CHECKIN_VIA_BLE };
+extern void processDataReq(struct espAvailDataReq* adr, bool local, IPAddress remoteIP = IPAddress(0, 0, 0, 0), CheckinVia via = CHECKIN_VIA_OTHER);
 extern void processTagReturnData(struct espTagReturnData* trd, uint8_t len, bool local);
 
 extern bool sendTagCommand(const uint8_t* dst, uint8_t cmd, bool local, const uint8_t* payload = nullptr);

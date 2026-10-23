@@ -129,8 +129,6 @@ void drawForecast(String &filename, JsonObject &cfgobj, const tagRecord *taginfo
              wsLog("OWM weather update failed");
              LOG("OWM weather update failed\n");
           }
-          imageParams.ts_option = ts_option;
-          return;
        }
    }
 #endif // WITHOUT_OWM

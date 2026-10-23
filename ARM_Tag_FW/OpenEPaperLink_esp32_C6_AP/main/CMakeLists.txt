@@ -6,4 +6,6 @@ idf_component_register(	SRCS
 						SRCS "cc1101_radio.c"
 						SRCS "led.c"
 						SRCS "main.c"
+						SRCS "v2link.c"
+						SRCS "blockcache.c"
 						INCLUDE_DIRS ".")
