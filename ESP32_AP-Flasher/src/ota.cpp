@@ -18,6 +18,7 @@
 #include "util.h"
 #include "uploadinfo.h"
 #include "web.h"
+#include "wifimanager.h"
 
 
 #ifndef BUILD_ENV_NAME
@@ -59,6 +60,13 @@ void handleSysinfoRequest(AsyncWebServerRequest* request) {
     doc["ntpserver"] = ntpServerName();
     doc["ntpsync"] = lastTimeSync();
     doc["currtime"] = time(nullptr);
+#ifdef HAS_ETHERNET
+    // only on boards that can do Ethernet: the web UI shows its status when this is there
+    JsonObject eth = doc["ethernet"].to<JsonObject>();
+    eth["found"] = wm.ethernetFound();
+    eth["cable"] = wm.ethernetCable();
+    eth["active"] = wm.wifiStatus == ETHERNET;
+#endif
 #ifdef FLASHER_AP_SWS
     doc["has_sws_flasher"] = 1;
 #else
@@ -161,6 +169,8 @@ void handleLittleFSUpload(AsyncWebServerRequest* request, String filename, size_
     flushUploadInfo(uploadInfo);
     const bool error = uploadInfo->error;
     if (error) logLine("Failed to write " + String(uploadInfo->filename));
+    // a new tagtype definition replaces the one getHwType() has cached
+    if (!error && strncmp(uploadInfo->filename, "/tagtypes/", 10) == 0) forgetHwType(strtol(uploadInfo->filename + 10, nullptr, 16));
     request->_tempObject = nullptr;
     free(uploadInfo);
 
@@ -427,8 +437,8 @@ void C6firmwareUpdateTask(void* parameter) {
         wsSerial("The radio doesn't respond. :-( Try the update again.");
     } else if (result) {
         wsSerial("Finished!");
-        snprintf(buffer, sizeof(buffer), "AP is now type %02X (%s), firmware version %04X",
-                 apInfo.type, apTypeName(apInfo.type), apInfo.version);
+        snprintf(buffer, sizeof(buffer), "AP is now %s, firmware version %04X",
+                 apTypeName(apInfo.type), apInfo.version);
         wsSerial(String(buffer));
     } else {
         snprintf(buffer, sizeof(buffer), "Flashing failed. :-( The radio still runs firmware version %04X",

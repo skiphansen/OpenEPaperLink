@@ -162,10 +162,9 @@ struct HwType {
     uint8_t g5;
     uint16_t highlightColor;
     std::vector<Color> colortable;
+    std::vector<Color> nominal;  // the colour each colortable entry stands for, when that differs (empty: the same)
 };
 
-// BLE displays carry their family in the top two bytes of the 8-byte MAC the AP gives them.
-// Gicisky displays are known by their hwType range instead.
 // The display type a Gicisky advertisement reports, as an OEPL hwType.
 inline uint8_t gicToOEPLtype(uint8_t gicType) {
     switch (gicType) {
@@ -195,7 +194,6 @@ enum BleFamily : uint8_t {
     BLE_FAMILY_ATC,          // ATC BLE OEPL, MAC 1337xxxxxxxxxxxx
     BLE_FAMILY_OPENDISPLAY,  // OpenDisplay, MAC 2446xxxxxxxxxxxx (its company id)
 };
-
 
 // A Gicisky display has no company id in its MAC: mac[6] holds the display type from its
 // advertisement, and its hwType is derived from that. A tag with a Gicisky hwType whose MAC does

@@ -53,6 +53,7 @@ void UDPcomm::init() {
 }
 
 void UDPcomm::processPacket(AsyncUDPPacket packet) {
+#if 0
     if (config.runStatus == RUNSTATUS_STOP) {
         return;
     }
@@ -127,6 +128,7 @@ void UDPcomm::processPacket(AsyncUDPPacket packet) {
             }
         }
     }
+#endif
 }
 
 void autoselect(void* pvParameters) {
@@ -214,11 +216,13 @@ void UDPcomm::netTaginfo(struct TagInfo* taginfoitem) {
 }
 
 void UDPcomm::writeUdpPacket(uint8_t *buffer, uint16_t len, IPAddress senderIP) {
+#if 0
     if (config.discovery == 0) {
         udp.writeTo(buffer, len, senderIP, UDPPORT);
     } else {
         udp.broadcastTo(buffer, len, UDPPORT);
     }
+#endif
 }
 
 void UDPcomm::notePeer(const struct APlist& item) {

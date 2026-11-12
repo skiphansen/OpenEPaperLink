@@ -511,10 +511,8 @@ void init_web() {
                         }
                     }
                     if (strcmp(cmdValue, "clear") == 0) {
-                        clearPending(taginfo);
-                        dequeueAllItems(mac);
-                        taginfo->pendingCount = countQueueItem(mac);
-                        wsSendTaginfo(mac, SYNC_TAGSTATUS);
+                        // also clears what the radio holds for the tag, or it would still deliver that
+                        prepareCancelPending(mac);
                     }
                     if (strcmp(cmdValue, "refresh") == 0) {
                         updateContent(mac);
@@ -657,17 +655,6 @@ void init_web() {
         response->print("\"hasSubGhz\": \"0\", ");
 #endif
 
-        {
-            Preferences preferences;
-            preferences.begin("wifi", true);
-            JsonDocument pw;
-            pw.set(preferences.getString("appw", ""));
-            preferences.end();
-            response->print("\"hotspotpw\": ");
-            serializeJson(pw, *response);
-            response->print(", ");
-        }
-
         response->print("\"apstate\": \"" + String(apInfo.state) + "\"");
 
         File configFile = contentFS->open("/current/apconfig.json", "r");
@@ -689,17 +676,6 @@ void init_web() {
     });
 
     server.on("/save_apcfg", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("hotspotpw", true)) {
-            const String pw = request->getParam("hotspotpw", true)->value();
-            if (!validHotspotPassword(pw)) {
-                request->send(400, "text/plain", "Hotspot password needs 8 to 63 characters");
-                return;
-            }
-            Preferences preferences;
-            preferences.begin("wifi", false);
-            preferences.putString("appw", pw);
-            preferences.end();
-        }
         if (request->hasParam("alias", true)) {
             String aliasValue = request->getParam("alias", true)->value();
             size_t aliasLength = aliasValue.length();
@@ -803,6 +779,7 @@ void init_web() {
                 *p.field = (int8_t)v;
             }
         }
+
         saveAPconfig();
         setAPchannel();
         request->send(200, "text/plain", "Ok, saved");
@@ -880,6 +857,14 @@ void init_web() {
         doc["appw"] = preferences.getString("appw", "");
         doc["apfallback"] = preferences.getUChar("apfallback", 1);
         doc["mac"] = WiFi.macAddress();
+#ifdef HAS_ETHERNET
+        // the setup page only shows its Ethernet block when these are there
+        const char *ethKeys[] = {"eip", "emask", "egw", "edns"};
+        for (const char *key : ethKeys) {
+            doc[key] = preferences.getString(key, "");
+        }
+        doc["ethernet"] = wm.wifiStatus == ETHERNET;
+#endif
         serializeJson(doc, *response);
         request->send(response);
     });
@@ -918,7 +903,7 @@ void init_web() {
         }
         Preferences preferences;
         preferences.begin("wifi", false);
-        const char *keys[] = {"ssid", "pw", "ip", "mask", "gw", "dns", "appw"};
+        const char *keys[] = {"ssid", "pw", "ip", "mask", "gw", "dns", "appw", "eip", "emask", "egw", "edns"};
         const size_t numKeys = sizeof(keys) / sizeof(keys[0]);
         for (size_t i = 0; i < numKeys; i++) {
             String key = keys[i];

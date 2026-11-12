@@ -113,8 +113,15 @@ static void spr2color(TFT_eSprite &spr, imgParam &imageParams, uint8_t *plane0, 
     const std::vector<Color> &colortable = imageParams.hwdata.colortable;
     std::vector<QuantColor> palette(colortable.size());
     for (size_t i = 0; i < colortable.size(); i++) palette[i] = {colortable[i].r, colortable[i].g, colortable[i].b};
-    if (imageParams.invert == 1) std::swap(palette[0], palette[1]);
+    const std::vector<Color> &nominal = imageParams.hwdata.nominal.size() == colortable.size() ? imageParams.hwdata.nominal : colortable;
+    std::vector<uint16_t> exact(nominal.size());
+    for (size_t i = 0; i < nominal.size(); i++) exact[i] = ((nominal[i].r & 0xF8) << 8) | ((nominal[i].g & 0xFC) << 3) | (nominal[i].b >> 3);
+    if (imageParams.invert == 1) {
+        std::swap(palette[0], palette[1]);
+        std::swap(exact[0], exact[1]);
+    }
     params.palette = palette.data();
+    params.exact = exact.data();
     params.paletteSize = palette.size();
     params.numColors = imageParams.bufferbpp == 1 ? 2 : palette.size();
     params.bpp = imageParams.bpp;
@@ -250,9 +257,6 @@ void doTimestamp(TFT_eSprite *spr, uint8_t ts_option) {
     spr->drawRect(ts_x - 1, ts_y - 1, ts_chars * 6 + 1, 9, bg_color);
     spr->setTextColor(char_color, bg_color);
     spr->setCursor(ts_x,ts_y);
-#ifdef LOAD_GFXFF
-    spr->setFreeFont(NULL);
-#endif
     spr->print(buffer);
 }
 
@@ -264,6 +268,7 @@ void spr2buffer(TFT_eSprite &spr, String &fileout, imgParam &imageParams) {
     extern uint8_t YellowSense;
     if (fileout == "direct") {
         if (tftOverride == false) {
+            TFTLock lock;
             TFT_eSprite spr2 = TFT_eSprite(&tft2);
 #ifdef ST7735_NANO_TLSR
             tft2.setRotation(1);

@@ -63,7 +63,11 @@ static bool BLE_filter_add_opendisplay(BLEAdvertisedDevice& advertisedDevice, co
     for (int i = 0; i < 6; i++) theAdvData.src[i] = macReversed[5 - i];
     theAdvData.src[6] = 0x46;  // marks the family, see bleFamily()
     theAdvData.src[7] = 0x24;
-    if (manuDatalen >= 16) theAdvData.adr.wakeupReason = odButtonEvent(theAdvData.src, p);
+    odSetAddrType(theAdvData.src, advertisedDevice.getAddressType());
+    if (manuDatalen >= 16) {
+        odRebootFlag(theAdvData.src, p[13] & 0x02);
+        theAdvData.adr.wakeupReason = odButtonEvent(theAdvData.src, p);
+    }
     BLE_enqueue_data_req(&theAdvData);
     return true;
 }

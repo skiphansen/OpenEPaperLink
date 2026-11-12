@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "BLEDevice.h"
@@ -60,6 +61,9 @@ struct OdStatus {
 
 static std::map<uint64_t, OdConfig> odConfigs;
 static std::map<uint64_t, OdStatus> odStatus;
+static std::map<uint64_t, uint8_t> odAddrTypes;  // from the scan; nRF52 tags use a random static address
+static std::map<uint64_t, bool> odRebooted;      // last reboot bit seen in the advertisement
+static std::set<uint64_t> odConfigStale;         // config dropped after a reboot; its file still to remove
 static SemaphoreHandle_t odMutex = nullptr;
 
 // Roaming: an AP alone on the network claims a tag right away. The AP list is only asked for
@@ -250,8 +254,12 @@ static bool odConnectSession(const uint8_t mac[8]) {
     xQueueReset(odRxQueue);
     odEncrypted = false;
     esp_bd_addr_t addr = {mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]};
+    xSemaphoreTake(odMutex, portMAX_DELAY);
+    auto type = odAddrTypes.find(odAddrKey(mac));
+    const esp_ble_addr_type_t addrType = type == odAddrTypes.end() ? BLE_ADDR_TYPE_PUBLIC : (esp_ble_addr_type_t)type->second;
+    xSemaphoreGive(odMutex);
     odClient = BLEDevice::createClient();
-    if (!odClient->connect(BLEAddress(addr), BLE_ADDR_TYPE_PUBLIC)) return false;
+    if (!odClient->connect(BLEAddress(addr), addrType)) return false;
     odClient->setMTU(255);
     BLERemoteService* service = odClient->getService(odUUID);
     if (service != nullptr) odChar = service->getCharacteristic(odUUID);
@@ -487,7 +495,8 @@ static void odSession(const uint8_t mac[8]) {
 // ---------- tag type ----------
 
 // Color order = the tag's pixel codes. BWRY codes are 0 black, 1 white, 2 yellow, 3 red,
-// except panel 0x1D, which has red and yellow the other way round.
+// except panel 0x1D, which has red and yellow the other way round. Spectra 6 codes skip 4
+// (blue is 5, green 6); odWireImage() moves blue and green up.
 static bool odPalette(const OdConfig& cfg, std::vector<const char*>& names, uint8_t& bpp) {
     switch (cfg.colorScheme) {
         case 0: names = {"black", "white"}; bpp = 1; return true;
@@ -497,14 +506,36 @@ static bool odPalette(const OdConfig& cfg, std::vector<const char*>& names, uint
             names = cfg.panelIc == 0x1D ? std::vector<const char*>{"black", "white", "red", "yellow"} : std::vector<const char*>{"black", "white", "yellow", "red"};
             bpp = BPP_PACKED_2BIT;
             return true;
+        case 4: names = {"black", "white", "yellow", "red", "blue", "green"}; bpp = 4; return true;
         default: return false;
     }
 }
 
-static Color odColor(const char* name, bool perceptual) {
+// perceptual: how the panel shows it, for the web UI preview. Measured colors are relative to
+// the panel's own black and white, averaged over several panels and sources. The Spectra 6
+// colortable was chosen by simulating the dithering against the measured colors, so that
+// dithered hues stay as far apart as possible, while a plain area of pure yellow, red, blue
+// or green still gets only its own ink.
+static Color odColor(const OdConfig& cfg, const char* name, bool perceptual) {
+    if (cfg.colorScheme == 4) {
+        if (!strcmp(name, "yellow")) return perceptual ? Color{250, 240, 0} : Color{255, 241, 1};
+        if (!strcmp(name, "red")) return perceptual ? Color{165, 0, 0} : Color{255, 58, 4};
+        if (!strcmp(name, "blue")) return perceptual ? Color{0, 80, 180} : Color{0, 33, 255};
+        if (!strcmp(name, "green")) return perceptual ? Color{40, 105, 45} : Color{88, 155, 51};
+    }
     if (!strcmp(name, "white")) return {255, 255, 255};
     if (!strcmp(name, "red")) return {255, 0, 0};
-    if (!strcmp(name, "yellow")) return perceptual ? Color{200, 200, 0} : Color{255, 255, 0};
+    if (!strcmp(name, "yellow")) return perceptual ? Color{255, 210, 0} : Color{255, 255, 0};
+    return {0, 0, 0};
+}
+
+// The color content uses for an ink, which the AP shows with only that ink (see QuantParams::exact)
+static Color odNominal(const char* name) {
+    if (!strcmp(name, "white")) return {255, 255, 255};
+    if (!strcmp(name, "red")) return {255, 0, 0};
+    if (!strcmp(name, "yellow")) return {255, 255, 0};
+    if (!strcmp(name, "blue")) return {0, 0, 255};
+    if (!strcmp(name, "green")) return {0, 255, 0};
     return {0, 0, 0};
 }
 
@@ -541,7 +572,7 @@ static String odTypePath(uint16_t id) {
 }
 
 // Bump when the generated files change, so older ones are written again
-#define OD_TYPE_GENERATION 3
+#define OD_TYPE_GENERATION 4
 
 enum OdTypeMatch { OD_TYPE_OTHER, OD_TYPE_OUTDATED, OD_TYPE_CURRENT };
 
@@ -626,7 +657,7 @@ static uint16_t odGeneratedType(const OdConfig& cfg) {
     JsonObject colortable = doc["colortable"].to<JsonObject>();
     JsonObject perceptual = doc["perceptual"].to<JsonObject>();
     for (const char* c : names) {
-        const Color col = odColor(c, false), per = odColor(c, true);
+        const Color col = odColor(cfg, c, false), per = odColor(cfg, c, true);
         JsonArray a = colortable[c].to<JsonArray>();
         a.add(col.r), a.add(col.g), a.add(col.b);
         JsonArray b = perceptual[c].to<JsonArray>();
@@ -687,11 +718,12 @@ static void odAssignType(tagRecord* taginfo, const OdConfig& cfg) {
 
 // The rendered buffer has its pixels back to back; the tag wants every row to start on a byte.
 // Two-plane schemes (BWR/BWY) get an empty second plane when the image has no red or yellow.
+// Spectra 6: palette indices 4 and 5 (blue, green) become the tag's codes 5 and 6.
 static uint8_t* odWireImage(const OdConfig& cfg, const uint8_t* data, size_t len, size_t& outLen) {
     std::vector<const char*> names;
     uint8_t bpp;
     if (!odPalette(cfg, names, bpp)) return nullptr;
-    const uint8_t bits = bpp == BPP_PACKED_2BIT ? 2 : 1;
+    const uint8_t bits = bpp == BPP_PACKED_2BIT ? 2 : bpp == 4 ? 4 : 1;
     const uint8_t planes = bpp == 2 ? 2 : 1;
     const size_t packedPlane = ((size_t)cfg.width * cfg.height * bits + 7) / 8;
     const size_t rowBytes = ((size_t)cfg.width * bits + 7) / 8;
@@ -713,6 +745,11 @@ static uint8_t* odWireImage(const OdConfig& cfg, const uint8_t* data, size_t len
                 if (src[s / 8] & (0x80 >> (s % 8))) dst[y * rowBytes + x / 8] |= 0x80 >> (x % 8);
             }
     }
+    if (cfg.colorScheme == 4)
+        for (size_t i = 0; i < outLen; i++) {
+            const uint8_t hi = out[i] >> 4, lo = out[i] & 0x0F;
+            out[i] = (hi >= 4 ? hi + 1 : hi) << 4 | (lo >= 4 ? lo + 1 : lo);
+        }
     return out;
 }
 
@@ -867,7 +904,11 @@ void odImageParams(const uint8_t mac[8], imgParam& imageParams) {
     imageParams.bpp = bpp;
     imageParams.hwdata.bpp = bpp;
     imageParams.hwdata.colortable.clear();
-    for (const char* c : names) imageParams.hwdata.colortable.push_back(odColor(c, false));
+    imageParams.hwdata.nominal.clear();
+    for (const char* c : names) {
+        imageParams.hwdata.colortable.push_back(odColor(cfg, c, false));
+        imageParams.hwdata.nominal.push_back(odNominal(c));
+    }
     imageParams.zlib = 0;
     imageParams.g5 = 0;
 }
@@ -939,6 +980,20 @@ void odService() {
     if (odMutex == nullptr || millis() - lastService < 10000) return;
     lastService = millis();
 
+    // configs dropped by odRebootFlag(): remove their files too, so a boot doesn't load them again
+    xSemaphoreTake(odMutex, portMAX_DELAY);
+    std::set<uint64_t> stale;
+    stale.swap(odConfigStale);
+    xSemaphoreGive(odMutex);
+    for (const uint64_t key : stale) {
+        uint8_t staleMac[8] = {0};
+        for (int i = 0; i < 6; i++) staleMac[i] = key >> (8 * i);
+        xSemaphoreTake(fsMutex, portMAX_DELAY);
+        contentFS->remove(odConfigPath(staleMac));
+        xSemaphoreGive(fsMutex);
+        wsLog("OD" + odAddrHex(staleMac).substring(6) + ": rebooted, reading its config again");
+    }
+
     time_t now;
     time(&now);
     uint8_t mac[8];
@@ -980,6 +1035,13 @@ void odService() {
     if (found) odSession(mac);
 }
 
+void odSetAddrType(const uint8_t mac[8], uint8_t type) {
+    if (odMutex == nullptr) return;
+    xSemaphoreTake(odMutex, portMAX_DELAY);
+    odAddrTypes[odAddrKey(mac)] = type;
+    xSemaphoreGive(odMutex);
+}
+
 bool odGetConfig(const uint8_t mac[8], OdConfig& cfg) {
     if (odMutex == nullptr) return false;
     xSemaphoreTake(odMutex, portMAX_DELAY);
@@ -988,6 +1050,20 @@ bool odGetConfig(const uint8_t mac[8], OdConfig& cfg) {
     if (found) cfg = it->second;
     xSemaphoreGive(odMutex);
     return found;
+}
+
+void odRebootFlag(const uint8_t mac[8], bool rebooted) {
+    if (odMutex == nullptr) return;
+    const uint64_t key = odAddrKey(mac);
+    xSemaphoreTake(odMutex, portMAX_DELAY);
+    auto it = odRebooted.find(key);
+    // the first advertisement after an AP boot only sets the starting point
+    if (it != odRebooted.end() && !it->second && rebooted && odConfigs.erase(key)) {
+        odStatus.erase(key);  // no retry wait: odService() reads it on its next round
+        odConfigStale.insert(key);
+    }
+    odRebooted[key] = rebooted;
+    xSemaphoreGive(odMutex);
 }
 
 void odKeyChanged(const uint8_t mac[8]) {
