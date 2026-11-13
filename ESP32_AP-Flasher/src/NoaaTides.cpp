@@ -122,7 +122,7 @@ int NoaaTides::GetNoaaTides(String StationID,time_t Start,time_t Duration)
    const bool success = util::httpGetJson(TideUrl,doc, 5000);
    if(!success) {
       LOG("httpGetJson() failed\n");
-      return true;
+      return -1;
    }
 
    EndTime = Start + Duration;

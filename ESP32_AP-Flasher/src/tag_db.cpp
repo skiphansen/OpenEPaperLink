@@ -417,6 +417,7 @@ void initAPconfig() {
     } else {
         strlcpy(config.timeZone, "CET-1CEST,M3.5.0,M10.5.0/3", sizeof(config.timeZone));
     }
+    if (APconfig["owm_api_key"]) strlcpy(config.owmApiKey, APconfig["owm_api_key"], sizeof(config.owmApiKey));
     // A new AP has no settings file until they are first saved. The web UI reads its settings
     // from that file (/get_ap_config), so without it it saw none, and hid the previews.
     if (firstStart) saveAPconfig();
@@ -453,6 +454,7 @@ void saveAPconfig() {
     APconfig["env"] = config.env;
     APconfig["discovery"] = config.discovery;
     APconfig["showtimestamp"] = config.showtimestamp;
+    APconfig["owm_api_key"] = config.owmApiKey;
     serializeJsonPretty(APconfig, configFile);
     configFile.close();
     xSemaphoreGive(fsMutex);
